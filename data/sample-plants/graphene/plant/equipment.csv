@@ -1,0 +1,18 @@
+asset,label,kind,vendor,model,year,area,plc
+EP-01,Electropolishing line EP-01,electropolishing-line,Atotech,Horizon EP 320,2021,Foil preparation,PLC Foil preparation
+CVD-01,Roll-to-roll CVD reactor CVD-01,cvd-reactor,Aixtron,BM Pro R2R,2021,CVD hall,PLC CVD-01
+CVD-02,Roll-to-roll CVD reactor CVD-02,cvd-reactor,Aixtron,BM Pro R2R,2021,CVD hall,PLC CVD-02
+CVD-03,Roll-to-roll CVD reactor CVD-03,cvd-reactor,Aixtron,BM Pro R2R,2023,CVD hall,PLC CVD-03
+CVD-04,Roll-to-roll CVD reactor CVD-04,cvd-reactor,Aixtron,BM Pro R2R,2023,CVD hall,PLC CVD-04
+SC-01,Exhaust scrubber SC-01,scrubber,Edwards,Atlas TPU,2021,CVD hall,PLC Utilities
+GS-01,Process gas supply GS-01,gas-supply,Linde,GC-4 gas cabinets,2021,CVD hall,PLC Utilities
+TL-01,Transfer line TL-01,transfer-line,Coatema,TL 320,2021,Transfer cleanroom,PLC TL-01
+TL-02,Transfer line TL-02,transfer-line,Coatema,TL 320,2023,Transfer cleanroom,PLC TL-02
+CR-01,Transfer cleanroom CR-01 (ISO 6),cleanroom,Camfil,ISO 6 cleanroom,2021,Transfer cleanroom,PLC Utilities
+IN-01,Inline inspection IN-01,inspection-line,Suragus,EddyCus inline 320,2022,Inspection and finishing,PLC Finishing
+SP-01,Slitter and packer SP-01,slitter,Atlas Converting,Titan SR9,2021,Inspection and finishing,PLC Finishing
+CH-01,Process chiller CH-01,chiller,Carrier,30RB 160,2021,Utilities,PLC Utilities
+DI-01,DI water plant DI-01,water-treatment,Veolia,Sirion 2000,2021,Utilities,PLC Utilities
+RM-01,Raman spectrometer RM-01,lab-instrument,Renishaw,inVia Qontor,2021,Quality lab,
+FP-01,Four-point probe FP-01,lab-instrument,Jandel,RM3000+,2021,Quality lab,
+AF-01,Atomic force microscope AF-01,lab-instrument,Bruker,Dimension Icon,2022,Quality lab,

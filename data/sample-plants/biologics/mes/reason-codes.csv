@@ -19,6 +19,7 @@ PL-PM,Planned maintenance,Planned,downtime,yes
 PL-RSN,Planned Protein A resin replacement,Planned,downtime,yes
 PL-COL,Planned column repack,Planned,downtime,yes
 PL-UF,Planned cassette replacement,Planned,downtime,yes
+PL-BRG,Planned centrifuge bearing change,Planned,downtime,yes
 PL-FLT,Planned HVAC filter change,Planned,downtime,yes
 PL-SHD,Site shutdown,Planned,downtime,yes
 BATCH-CONT,Batch lost: contamination,Bioreactors,scrap,no

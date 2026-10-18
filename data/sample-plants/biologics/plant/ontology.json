@@ -2198,17 +2198,9 @@
       }
     },
     {
-      "id": "doc-ll-2025-01",
-      "type": "Document",
-      "label": "Lessons learned: spindle bearings on CF-01, 23 November 2025",
-      "props": {
-        "number": "LL-2025-01"
-      }
-    },
-    {
       "id": "doc-ll-2026-01",
       "type": "Document",
-      "label": "Lessons learned: cex column on CS-02, 01 January 2026",
+      "label": "Lessons learned: cex column on CS-02, 06 January 2026",
       "props": {
         "number": "LL-2026-01"
       }
@@ -2232,7 +2224,7 @@
     {
       "id": "doc-ll-2026-04",
       "type": "Document",
-      "label": "Lessons learned: cex column on CS-02, 09 June 2026",
+      "label": "Lessons learned: agitator mechanical seal on BR-02, 13 June 2026",
       "props": {
         "number": "LL-2026-04"
       }
@@ -2240,7 +2232,7 @@
     {
       "id": "doc-ll-2026-05",
       "type": "Document",
-      "label": "Lessons learned: agitator mechanical seal on BR-02, 13 June 2026",
+      "label": "Lessons learned: spindle bearings on CF-01, 23 June 2026",
       "props": {
         "number": "LL-2026-05"
       }
@@ -2248,7 +2240,7 @@
     {
       "id": "doc-ll-2026-06",
       "type": "Document",
-      "label": "Lessons learned: spindle bearings on CF-01, 27 June 2026",
+      "label": "Lessons learned: cex column on CS-02, 16 July 2026",
       "props": {
         "number": "LL-2026-06"
       }
@@ -2256,7 +2248,7 @@
     {
       "id": "doc-ll-2026-07",
       "type": "Document",
-      "label": "Lessons learned: cex column on CS-02, 16 July 2026",
+      "label": "Lessons learned: dosing pump on FL-01, 10 August 2026",
       "props": {
         "number": "LL-2026-07"
       }
@@ -2264,7 +2256,7 @@
     {
       "id": "doc-ll-2026-08",
       "type": "Document",
-      "label": "Lessons learned: cex column on CS-02, 23 September 2026",
+      "label": "Lessons learned: cex column on CS-02, 10 September 2026",
       "props": {
         "number": "LL-2026-08"
       }
@@ -2275,6 +2267,14 @@
       "label": "Lessons learned: agitator mechanical seal on BR-04, 28 September 2026",
       "props": {
         "number": "LL-2026-09"
+      }
+    },
+    {
+      "id": "doc-ll-2026-10",
+      "type": "Document",
+      "label": "Lessons learned: door seal and isolation valve on LY-01, 29 September 2026",
+      "props": {
+        "number": "LL-2026-10"
       }
     },
     {
@@ -2355,6 +2355,14 @@
       "label": "Operations report, July 2026",
       "props": {
         "number": "MR-2026-07"
+      }
+    },
+    {
+      "id": "doc-mr-2026-08",
+      "type": "Document",
+      "label": "Operations report, August 2026",
+      "props": {
+        "number": "MR-2026-08"
       }
     },
     {
@@ -4408,12 +4416,6 @@
       "to": "carrowmore"
     },
     {
-      "id": "doc-ll-2025-01-describes-cf-01",
-      "from": "doc-ll-2025-01",
-      "rel": "describes",
-      "to": "cf-01"
-    },
-    {
       "id": "doc-ll-2026-01-describes-cs-02",
       "from": "doc-ll-2026-01",
       "rel": "describes",
@@ -4432,28 +4434,28 @@
       "to": "wfi-01"
     },
     {
-      "id": "doc-ll-2026-04-describes-cs-02",
+      "id": "doc-ll-2026-04-describes-br-02",
       "from": "doc-ll-2026-04",
-      "rel": "describes",
-      "to": "cs-02"
-    },
-    {
-      "id": "doc-ll-2026-05-describes-br-02",
-      "from": "doc-ll-2026-05",
       "rel": "describes",
       "to": "br-02"
     },
     {
-      "id": "doc-ll-2026-06-describes-cf-01",
-      "from": "doc-ll-2026-06",
+      "id": "doc-ll-2026-05-describes-cf-01",
+      "from": "doc-ll-2026-05",
       "rel": "describes",
       "to": "cf-01"
     },
     {
-      "id": "doc-ll-2026-07-describes-cs-02",
-      "from": "doc-ll-2026-07",
+      "id": "doc-ll-2026-06-describes-cs-02",
+      "from": "doc-ll-2026-06",
       "rel": "describes",
       "to": "cs-02"
+    },
+    {
+      "id": "doc-ll-2026-07-describes-fl-01",
+      "from": "doc-ll-2026-07",
+      "rel": "describes",
+      "to": "fl-01"
     },
     {
       "id": "doc-ll-2026-08-describes-cs-02",
@@ -4466,6 +4468,12 @@
       "from": "doc-ll-2026-09",
       "rel": "describes",
       "to": "br-04"
+    },
+    {
+      "id": "doc-ll-2026-10-describes-ly-01",
+      "from": "doc-ll-2026-10",
+      "rel": "describes",
+      "to": "ly-01"
     },
     {
       "id": "doc-mr-2025-10-describes-carrowmore",
@@ -4524,6 +4532,12 @@
     {
       "id": "doc-mr-2026-07-describes-carrowmore",
       "from": "doc-mr-2026-07",
+      "rel": "describes",
+      "to": "carrowmore"
+    },
+    {
+      "id": "doc-mr-2026-08-describes-carrowmore",
+      "from": "doc-mr-2026-08",
       "rel": "describes",
       "to": "carrowmore"
     },

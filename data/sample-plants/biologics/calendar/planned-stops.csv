@@ -1,19 +1,19 @@
 asset,start,end,reason,code
-SB-01,2025-10-02T08:00:00+01:00,2025-10-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
-SB-02,2025-10-02T08:00:00+01:00,2025-10-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
-WB-01,2025-10-02T08:00:00+01:00,2025-10-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
-WB-02,2025-10-02T08:00:00+01:00,2025-10-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
 MP-01,2025-10-03T08:00:00+01:00,2025-10-03T12:00:00+01:00,Monthly planned maintenance,PL-PM
 WFI-01,2025-10-04T08:00:00+01:00,2025-10-04T14:00:00+01:00,"Monthly WFI still service: heat exchanger, vent filter, sensors",PL-PM
+WB-01,2025-10-05T02:24:00+01:00,2025-10-05T06:24:00+01:00,Monthly planned maintenance,PL-PM
 CIP-01,2025-10-05T08:00:00+01:00,2025-10-05T12:00:00+01:00,Monthly planned maintenance,PL-PM
 CF-01,2025-10-06T08:00:00+01:00,2025-10-06T14:00:00+01:00,Monthly centrifuge maintenance and vibration check,PL-PM
 DF-01,2025-10-06T08:00:00+01:00,2025-10-06T11:00:00+01:00,Monthly planned maintenance,PL-PM
 BP-01,2025-10-07T08:00:00+01:00,2025-10-07T12:00:00+01:00,Monthly planned maintenance,PL-PM
 CS-01,2025-10-08T08:00:00+01:00,2025-10-08T14:00:00+01:00,Monthly planned maintenance,PL-PM
 VT-01,2025-10-08T08:00:00+01:00,2025-10-08T11:00:00+01:00,Monthly planned maintenance,PL-PM
+SB-01,2025-10-08T14:24:00+01:00,2025-10-08T18:24:00+01:00,Monthly planned maintenance,PL-PM
+WB-02,2025-10-08T16:48:00+01:00,2025-10-08T20:48:00+01:00,Monthly planned maintenance,PL-PM
 CS-02,2025-10-09T08:00:00+01:00,2025-10-09T14:00:00+01:00,Monthly planned maintenance,PL-PM
 UF-01,2025-10-10T08:00:00+01:00,2025-10-10T12:00:00+01:00,Monthly planned maintenance,PL-PM
 VF-01,2025-10-10T08:00:00+01:00,2025-10-10T11:00:00+01:00,Monthly planned maintenance,PL-PM
+SB-02,2025-10-12T04:48:00+01:00,2025-10-12T08:48:00+01:00,Monthly planned maintenance,PL-PM
 BF-01,2025-10-12T08:00:00+01:00,2025-10-12T11:00:00+01:00,Monthly planned maintenance,PL-PM
 CIP-02,2025-10-12T08:00:00+01:00,2025-10-12T12:00:00+01:00,Monthly planned maintenance,PL-PM
 FL-01,2025-10-14T08:00:00+01:00,2025-10-14T16:00:00+01:00,"Monthly filler maintenance: pumps, needles, checkweigher",PL-PM
@@ -23,7 +23,7 @@ AVI-01,2025-10-17T08:00:00+01:00,2025-10-17T12:00:00+01:00,Monthly planned maint
 SB-01,2025-11-02T08:00:00+00:00,2025-11-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
 SB-02,2025-11-02T08:00:00+00:00,2025-11-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
 WB-01,2025-11-02T08:00:00+00:00,2025-11-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
-WB-02,2025-11-02T08:00:00+00:00,2025-11-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
+WB-02,2025-11-02T12:00:00+00:00,2025-11-02T16:00:00+00:00,Monthly planned maintenance,PL-PM
 MP-01,2025-11-03T08:00:00+00:00,2025-11-03T12:00:00+00:00,Monthly planned maintenance,PL-PM
 WFI-01,2025-11-04T08:00:00+00:00,2025-11-04T14:00:00+00:00,"Monthly WFI still service: heat exchanger, vent filter, sensors",PL-PM
 CIP-01,2025-11-05T08:00:00+00:00,2025-11-05T12:00:00+00:00,Monthly planned maintenance,PL-PM
@@ -39,12 +39,14 @@ BF-01,2025-11-12T08:00:00+00:00,2025-11-12T11:00:00+00:00,Monthly planned mainte
 CIP-02,2025-11-12T08:00:00+00:00,2025-11-12T12:00:00+00:00,Monthly planned maintenance,PL-PM
 FL-01,2025-11-14T08:00:00+00:00,2025-11-14T16:00:00+00:00,"Monthly filler maintenance: pumps, needles, checkweigher",PL-PM
 LY-01,2025-11-15T08:00:00+00:00,2025-11-15T18:00:00+00:00,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps",PL-PM
+CF-01,2025-11-15T15:23:41+00:00,2025-11-16T07:23:41+00:00,Spindle bearings changed: vibration 4.5 mm/s at the last harvest,PL-BRG
 CP-01,2025-11-16T08:00:00+00:00,2025-11-16T12:00:00+00:00,Monthly planned maintenance,PL-PM
 AVI-01,2025-11-17T08:00:00+00:00,2025-11-17T12:00:00+00:00,Monthly planned maintenance,PL-PM
+UF-01,2025-11-21T13:30:00+00:00,2025-11-21T21:30:00+00:00,Cassettes replaced: water flux 65 LMH/bar,PL-UF
 SB-01,2025-12-02T08:00:00+00:00,2025-12-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
 SB-02,2025-12-02T08:00:00+00:00,2025-12-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
-WB-01,2025-12-02T08:00:00+00:00,2025-12-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
 WB-02,2025-12-02T08:00:00+00:00,2025-12-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
+WB-01,2025-12-02T12:20:26+00:00,2025-12-02T16:20:26+00:00,Monthly planned maintenance,PL-PM
 MP-01,2025-12-03T08:00:00+00:00,2025-12-03T12:00:00+00:00,Monthly planned maintenance,PL-PM
 WFI-01,2025-12-04T08:00:00+00:00,2025-12-04T14:00:00+00:00,"Monthly WFI still service: heat exchanger, vent filter, sensors",PL-PM
 CIP-01,2025-12-05T08:00:00+00:00,2025-12-05T12:00:00+00:00,Monthly planned maintenance,PL-PM
@@ -60,12 +62,12 @@ BF-01,2025-12-12T08:00:00+00:00,2025-12-12T11:00:00+00:00,Monthly planned mainte
 CIP-02,2025-12-12T08:00:00+00:00,2025-12-12T12:00:00+00:00,Monthly planned maintenance,PL-PM
 FL-01,2025-12-14T08:00:00+00:00,2025-12-14T16:00:00+00:00,"Monthly filler maintenance: pumps, needles, checkweigher",PL-PM
 LY-01,2025-12-15T08:00:00+00:00,2025-12-15T18:00:00+00:00,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps",PL-PM
-BR-01,2025-12-15T14:56:26+00:00,2025-12-17T02:56:26+00:00,"Six-monthly bioreactor maintenance: seal, valves, probes",PL-PM
 CP-01,2025-12-16T08:00:00+00:00,2025-12-16T12:00:00+00:00,Monthly planned maintenance,PL-PM
 AVI-01,2025-12-17T08:00:00+00:00,2025-12-17T12:00:00+00:00,Monthly planned maintenance,PL-PM
-BR-02,2025-12-23T06:00:00+00:00,2025-12-24T18:00:00+00:00,"Six-monthly bioreactor maintenance: seal, valves, probes",PL-PM
-BR-03,2025-12-24T06:06:47+00:00,2025-12-25T18:06:47+00:00,"Six-monthly bioreactor maintenance: seal, valves, probes",PL-PM
-BR-04,2025-12-26T18:20:30+00:00,2025-12-28T06:20:30+00:00,"Six-monthly bioreactor maintenance: seal, valves, probes",PL-PM
+BR-01,2025-12-20T06:20:26+00:00,2025-12-21T18:20:26+00:00,"Bioreactor maintenance every six batches: seal, valves, probes",PL-PM
+BR-02,2025-12-23T08:17:33+00:00,2025-12-24T20:17:33+00:00,"Bioreactor maintenance every six batches: seal, valves, probes",PL-PM
+BR-03,2025-12-24T06:00:00+00:00,2025-12-25T18:00:00+00:00,"Bioreactor maintenance every six batches: seal, valves, probes",PL-PM
+BR-04,2025-12-27T09:48:00+00:00,2025-12-28T21:48:00+00:00,"Bioreactor maintenance every six batches: seal, valves, probes",PL-PM
 SB-01,2026-01-02T08:00:00+00:00,2026-01-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
 SB-02,2026-01-02T08:00:00+00:00,2026-01-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
 WB-01,2026-01-02T08:00:00+00:00,2026-01-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
@@ -108,7 +110,7 @@ FL-01,2026-02-14T08:00:00+00:00,2026-02-14T16:00:00+00:00,"Monthly filler mainte
 LY-01,2026-02-15T08:00:00+00:00,2026-02-15T18:00:00+00:00,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps",PL-PM
 CP-01,2026-02-16T08:00:00+00:00,2026-02-16T12:00:00+00:00,Monthly planned maintenance,PL-PM
 AVI-01,2026-02-17T08:00:00+00:00,2026-02-17T12:00:00+00:00,Monthly planned maintenance,PL-PM
-CS-01,2026-02-27T00:09:27+00:00,2026-02-27T12:09:27+00:00,Protein A resin replaced at 150 cycles,PL-RSN
+CF-01,2026-02-24T14:17:33+00:00,2026-02-25T06:17:33+00:00,Spindle bearings changed: vibration 4.6 mm/s at the last harvest,PL-BRG
 SB-01,2026-03-02T08:00:00+00:00,2026-03-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
 SB-02,2026-03-02T08:00:00+00:00,2026-03-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
 WB-01,2026-03-02T08:00:00+00:00,2026-03-02T12:00:00+00:00,Monthly planned maintenance,PL-PM
@@ -124,20 +126,22 @@ VT-01,2026-03-08T08:00:00+00:00,2026-03-08T11:00:00+00:00,Monthly planned mainte
 CS-02,2026-03-09T08:00:00+00:00,2026-03-09T14:00:00+00:00,Monthly planned maintenance,PL-PM
 UF-01,2026-03-10T08:00:00+00:00,2026-03-10T12:00:00+00:00,Monthly planned maintenance,PL-PM
 VF-01,2026-03-10T08:00:00+00:00,2026-03-10T11:00:00+00:00,Monthly planned maintenance,PL-PM
+CS-01,2026-03-10T20:21:17+00:00,2026-03-11T08:21:17+00:00,Protein A resin replaced at 150 cycles,PL-RSN
 BF-01,2026-03-12T08:00:00+00:00,2026-03-12T11:00:00+00:00,Monthly planned maintenance,PL-PM
 CIP-02,2026-03-12T08:00:00+00:00,2026-03-12T12:00:00+00:00,Monthly planned maintenance,PL-PM
 FL-01,2026-03-14T08:00:00+00:00,2026-03-14T16:00:00+00:00,"Monthly filler maintenance: pumps, needles, checkweigher",PL-PM
 LY-01,2026-03-15T08:00:00+00:00,2026-03-15T18:00:00+00:00,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps",PL-PM
 CP-01,2026-03-16T08:00:00+00:00,2026-03-16T12:00:00+00:00,Monthly planned maintenance,PL-PM
 AVI-01,2026-03-17T08:00:00+00:00,2026-03-17T12:00:00+00:00,Monthly planned maintenance,PL-PM
-BR-01,2026-03-20T06:00:00+00:00,2026-03-21T18:00:00+00:00,"Six-monthly bioreactor maintenance: seal, valves, probes",PL-PM
-BR-02,2026-03-25T21:36:05+00:00,2026-03-27T09:36:05+00:00,"Six-monthly bioreactor maintenance: seal, valves, probes",PL-PM
-BR-03,2026-03-26T22:58:56+00:00,2026-03-28T10:58:56+00:00,"Six-monthly bioreactor maintenance: seal, valves, probes",PL-PM
-BR-04,2026-03-29T11:09:27+01:00,2026-03-30T23:09:27+01:00,"Six-monthly bioreactor maintenance: seal, valves, probes",PL-PM
+BR-01,2026-03-26T07:25:46+00:00,2026-03-27T19:25:46+00:00,"Bioreactor maintenance every six batches: seal, valves, probes",PL-PM
+CS-02,2026-03-26T22:55:46+00:00,2026-03-27T14:55:46+00:00,CEX column repacked: asymmetry 2.08,PL-COL
+BR-02,2026-03-27T14:23:38+00:00,2026-03-29T03:23:38+01:00,"Bioreactor maintenance every six batches: seal, valves, probes",PL-PM
+BR-03,2026-03-29T20:13:16+01:00,2026-03-31T08:13:16+01:00,"Bioreactor maintenance every six batches: seal, valves, probes",PL-PM
 SB-01,2026-04-02T08:00:00+01:00,2026-04-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
 SB-02,2026-04-02T08:00:00+01:00,2026-04-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
 WB-01,2026-04-02T08:00:00+01:00,2026-04-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
-WB-02,2026-04-02T08:00:00+01:00,2026-04-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
+WB-02,2026-04-02T12:00:00+01:00,2026-04-02T16:00:00+01:00,Monthly planned maintenance,PL-PM
+BR-04,2026-04-03T02:24:00+01:00,2026-04-04T14:24:00+01:00,"Bioreactor maintenance every six batches: seal, valves, probes",PL-PM
 MP-01,2026-04-03T08:00:00+01:00,2026-04-03T12:00:00+01:00,Monthly planned maintenance,PL-PM
 WFI-01,2026-04-04T08:00:00+01:00,2026-04-04T14:00:00+01:00,"Monthly WFI still service: heat exchanger, vent filter, sensors",PL-PM
 CIP-01,2026-04-05T08:00:00+01:00,2026-04-05T12:00:00+01:00,Monthly planned maintenance,PL-PM
@@ -157,8 +161,8 @@ CP-01,2026-04-16T08:00:00+01:00,2026-04-16T12:00:00+01:00,Monthly planned mainte
 AVI-01,2026-04-17T08:00:00+01:00,2026-04-17T12:00:00+01:00,Monthly planned maintenance,PL-PM
 SB-01,2026-05-02T08:00:00+01:00,2026-05-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
 SB-02,2026-05-02T08:00:00+01:00,2026-05-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
-WB-01,2026-05-02T08:00:00+01:00,2026-05-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
 WB-02,2026-05-02T08:00:00+01:00,2026-05-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
+WB-01,2026-05-02T12:00:00+01:00,2026-05-02T16:00:00+01:00,Monthly planned maintenance,PL-PM
 MP-01,2026-05-03T08:00:00+01:00,2026-05-03T12:00:00+01:00,Monthly planned maintenance,PL-PM
 WFI-01,2026-05-04T08:00:00+01:00,2026-05-04T14:00:00+01:00,"Monthly WFI still service: heat exchanger, vent filter, sensors",PL-PM
 CIP-01,2026-05-05T08:00:00+01:00,2026-05-05T12:00:00+01:00,Monthly planned maintenance,PL-PM
@@ -183,6 +187,7 @@ WB-02,2026-06-02T08:00:00+01:00,2026-06-02T12:00:00+01:00,Monthly planned mainte
 MP-01,2026-06-03T08:00:00+01:00,2026-06-03T12:00:00+01:00,Monthly planned maintenance,PL-PM
 WFI-01,2026-06-04T08:00:00+01:00,2026-06-04T14:00:00+01:00,"Monthly WFI still service: heat exchanger, vent filter, sensors",PL-PM
 CIP-01,2026-06-05T08:00:00+01:00,2026-06-05T12:00:00+01:00,Monthly planned maintenance,PL-PM
+CS-02,2026-06-05T09:30:00+01:00,2026-06-06T01:30:00+01:00,CEX column repacked: asymmetry 1.83,PL-COL
 CF-01,2026-06-06T08:00:00+01:00,2026-06-06T14:00:00+01:00,Monthly centrifuge maintenance and vibration check,PL-PM
 DF-01,2026-06-06T08:00:00+01:00,2026-06-06T11:00:00+01:00,Monthly planned maintenance,PL-PM
 BP-01,2026-06-07T08:00:00+01:00,2026-06-07T12:00:00+01:00,Monthly planned maintenance,PL-PM
@@ -194,16 +199,15 @@ VF-01,2026-06-10T08:00:00+01:00,2026-06-10T11:00:00+01:00,Monthly planned mainte
 BF-01,2026-06-12T08:00:00+01:00,2026-06-12T11:00:00+01:00,Monthly planned maintenance,PL-PM
 CIP-02,2026-06-12T08:00:00+01:00,2026-06-12T12:00:00+01:00,Monthly planned maintenance,PL-PM
 FL-01,2026-06-14T08:00:00+01:00,2026-06-14T16:00:00+01:00,"Monthly filler maintenance: pumps, needles, checkweigher",PL-PM
-BR-02,2026-06-14T08:09:18+01:00,2026-06-15T20:09:18+01:00,"Six-monthly bioreactor maintenance: seal, valves, probes",PL-PM
 LY-01,2026-06-15T08:00:00+01:00,2026-06-15T18:00:00+01:00,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps",PL-PM
 CP-01,2026-06-16T08:00:00+01:00,2026-06-16T12:00:00+01:00,Monthly planned maintenance,PL-PM
 AVI-01,2026-06-17T08:00:00+01:00,2026-06-17T12:00:00+01:00,Monthly planned maintenance,PL-PM
-BR-01,2026-06-23T06:00:00+01:00,2026-06-24T18:00:00+01:00,"Six-monthly bioreactor maintenance: seal, valves, probes",PL-PM
-BR-03,2026-06-28T09:25:27+01:00,2026-06-29T21:25:27+01:00,"Six-monthly bioreactor maintenance: seal, valves, probes",PL-PM
+BR-01,2026-06-28T15:17:24+01:00,2026-06-30T03:17:24+01:00,"Bioreactor maintenance every six batches: seal, valves, probes",PL-PM
 SB-01,2026-07-02T08:00:00+01:00,2026-07-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
 SB-02,2026-07-02T08:00:00+01:00,2026-07-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
-WB-01,2026-07-02T08:00:00+01:00,2026-07-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
 WB-02,2026-07-02T08:00:00+01:00,2026-07-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
+WB-01,2026-07-02T12:00:00+01:00,2026-07-02T16:00:00+01:00,Monthly planned maintenance,PL-PM
+BR-02,2026-07-03T02:24:00+01:00,2026-07-04T14:24:00+01:00,"Bioreactor maintenance every six batches: seal, valves, probes",PL-PM
 MP-01,2026-07-03T08:00:00+01:00,2026-07-03T12:00:00+01:00,Monthly planned maintenance,PL-PM
 WFI-01,2026-07-04T08:00:00+01:00,2026-07-04T14:00:00+01:00,"Monthly WFI still service: heat exchanger, vent filter, sensors",PL-PM
 CIP-01,2026-07-05T08:00:00+01:00,2026-07-05T12:00:00+01:00,Monthly planned maintenance,PL-PM
@@ -215,7 +219,6 @@ VT-01,2026-07-08T08:00:00+01:00,2026-07-08T11:00:00+01:00,Monthly planned mainte
 CS-02,2026-07-09T08:00:00+01:00,2026-07-09T14:00:00+01:00,Monthly planned maintenance,PL-PM
 UF-01,2026-07-10T08:00:00+01:00,2026-07-10T12:00:00+01:00,Monthly planned maintenance,PL-PM
 VF-01,2026-07-10T08:00:00+01:00,2026-07-10T11:00:00+01:00,Monthly planned maintenance,PL-PM
-BR-04,2026-07-11T11:04:46+01:00,2026-07-12T23:04:46+01:00,"Six-monthly bioreactor maintenance: seal, valves, probes",PL-PM
 BF-01,2026-07-12T08:00:00+01:00,2026-07-12T11:00:00+01:00,Monthly planned maintenance,PL-PM
 CIP-02,2026-07-12T08:00:00+01:00,2026-07-12T12:00:00+01:00,Monthly planned maintenance,PL-PM
 FL-01,2026-07-14T08:00:00+01:00,2026-07-14T16:00:00+01:00,"Monthly filler maintenance: pumps, needles, checkweigher",PL-PM
@@ -245,21 +248,23 @@ LY-01,2026-08-15T08:00:00+01:00,2026-08-15T18:00:00+01:00,"Monthly lyophiliser m
 CP-01,2026-08-16T08:00:00+01:00,2026-08-16T12:00:00+01:00,Monthly planned maintenance,PL-PM
 AVI-01,2026-08-17T08:00:00+01:00,2026-08-17T12:00:00+01:00,Monthly planned maintenance,PL-PM
 SB-01,2026-09-02T08:00:00+01:00,2026-09-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
+SB-02,2026-09-02T08:00:00+01:00,2026-09-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
 WB-01,2026-09-02T08:00:00+01:00,2026-09-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
-WB-02,2026-09-02T08:00:00+01:00,2026-09-02T12:00:00+01:00,Monthly planned maintenance,PL-PM
+WB-02,2026-09-02T12:00:00+01:00,2026-09-02T16:00:00+01:00,Monthly planned maintenance,PL-PM
+BR-03,2026-09-03T02:24:00+01:00,2026-09-04T14:24:00+01:00,"Bioreactor maintenance every six batches: seal, valves, probes",PL-PM
 MP-01,2026-09-03T08:00:00+01:00,2026-09-03T12:00:00+01:00,Monthly planned maintenance,PL-PM
 WFI-01,2026-09-04T08:00:00+01:00,2026-09-04T14:00:00+01:00,"Monthly WFI still service: heat exchanger, vent filter, sensors",PL-PM
 CIP-01,2026-09-05T08:00:00+01:00,2026-09-05T12:00:00+01:00,Monthly planned maintenance,PL-PM
+BR-04,2026-09-06T02:24:00+01:00,2026-09-07T14:24:00+01:00,"Bioreactor maintenance every six batches: seal, valves, probes",PL-PM
 CF-01,2026-09-06T08:00:00+01:00,2026-09-06T14:00:00+01:00,Monthly centrifuge maintenance and vibration check,PL-PM
 DF-01,2026-09-06T08:00:00+01:00,2026-09-06T11:00:00+01:00,Monthly planned maintenance,PL-PM
 BP-01,2026-09-07T08:00:00+01:00,2026-09-07T12:00:00+01:00,Monthly planned maintenance,PL-PM
 CS-01,2026-09-08T08:00:00+01:00,2026-09-08T14:00:00+01:00,Monthly planned maintenance,PL-PM
 VT-01,2026-09-08T08:00:00+01:00,2026-09-08T11:00:00+01:00,Monthly planned maintenance,PL-PM
-SB-02,2026-09-08T12:24:00+01:00,2026-09-08T16:24:00+01:00,Monthly planned maintenance,PL-PM
 CS-02,2026-09-09T08:00:00+01:00,2026-09-09T14:00:00+01:00,Monthly planned maintenance,PL-PM
+BR-01,2026-09-10T01:00:00+01:00,2026-09-11T01:00:00+01:00,Agitator seal replaced at turnaround: barrier fluid loss 5.4 mL/h,PL-PM
 UF-01,2026-09-10T08:00:00+01:00,2026-09-10T12:00:00+01:00,Monthly planned maintenance,PL-PM
 VF-01,2026-09-10T08:00:00+01:00,2026-09-10T11:00:00+01:00,Monthly planned maintenance,PL-PM
-BR-01,2026-09-10T19:10:46+01:00,2026-09-11T19:10:46+01:00,Agitator seal replaced at turnaround: barrier fluid loss 5.8 mL/h,PL-PM
 BF-01,2026-09-12T08:00:00+01:00,2026-09-12T11:00:00+01:00,Monthly planned maintenance,PL-PM
 CIP-02,2026-09-12T08:00:00+01:00,2026-09-12T12:00:00+01:00,Monthly planned maintenance,PL-PM
 FL-01,2026-09-14T08:00:00+01:00,2026-09-14T16:00:00+01:00,"Monthly filler maintenance: pumps, needles, checkweigher",PL-PM

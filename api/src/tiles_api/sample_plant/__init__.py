@@ -13,6 +13,7 @@ DATA = Path(__file__).resolve().parents[4] / "data" / "sample-plants"
 PLANTS = {
     "die-casting": "tiles_api.sample_plant.die_casting",
     "battery": "tiles_api.sample_plant.battery",
+    "graphene": "tiles_api.sample_plant.graphene",
     "biologics": "tiles_api.sample_plant.biologics",
 }
 

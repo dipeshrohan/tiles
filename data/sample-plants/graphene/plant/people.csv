@@ -1,0 +1,13 @@
+name,email,tiles_role,job,crew
+Fiona Marsh,fiona.marsh@example.com,admin,Site director (sponsor),
+Rajesh Iyer,rajesh.iyer@example.com,engineer,"Process engineer, CVD",
+Chloe Whitfield,chloe.whitfield@example.com,engineer,"Process engineer, transfer",
+Gareth Owen,gareth.owen@example.com,engineer,Maintenance lead,
+Abena Mensah,abena.mensah@example.com,engineer,Quality lead,
+Liam Doherty,liam.doherty@example.com,engineer,Maintenance technician,A
+Sophie Clarke,sophie.clarke@example.com,engineer,Maintenance technician,B
+Tomasz Nowak,tomasz.nowak@example.com,engineer,Maintenance technician,C
+Hannah Price,hannah.price@example.com,viewer,Shift lead,A
+Daniel Okafor,daniel.okafor@example.com,viewer,Shift lead,B
+Megan Hughes,megan.hughes@example.com,viewer,Shift lead,C
+Imran Siddiqui,imran.siddiqui@example.com,admin,IT and OT lead,

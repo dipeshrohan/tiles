@@ -1,0 +1,2770 @@
+{
+  "format": "tiles-ontology",
+  "version": 1,
+  "nodes": [
+    {
+      "id": "sorrel",
+      "type": "Enterprise",
+      "label": "Sorrel Carbon",
+      "props": {}
+    },
+    {
+      "id": "ashcombe",
+      "type": "Site",
+      "label": "Ashcombe film plant",
+      "props": {
+        "location": "Ashcombe, United Kingdom",
+        "timezone": "Europe/London"
+      }
+    },
+    {
+      "id": "growth",
+      "type": "Workcenter",
+      "label": "Growth",
+      "props": {}
+    },
+    {
+      "id": "transfer-and-finishing",
+      "type": "Workcenter",
+      "label": "Transfer and finishing",
+      "props": {}
+    },
+    {
+      "id": "quality-lab",
+      "type": "Workcenter",
+      "label": "Quality lab",
+      "props": {}
+    },
+    {
+      "id": "utilities",
+      "type": "Workcenter",
+      "label": "Utilities",
+      "props": {}
+    },
+    {
+      "id": "foil-preparation",
+      "type": "Line",
+      "label": "Foil preparation",
+      "props": {}
+    },
+    {
+      "id": "cvd-hall",
+      "type": "Line",
+      "label": "CVD hall",
+      "props": {}
+    },
+    {
+      "id": "transfer-cleanroom",
+      "type": "Line",
+      "label": "Transfer cleanroom",
+      "props": {}
+    },
+    {
+      "id": "inspection-and-finishing",
+      "type": "Line",
+      "label": "Inspection and finishing",
+      "props": {}
+    },
+    {
+      "id": "plc-foil-preparation",
+      "type": "PLC",
+      "label": "PLC Foil preparation",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Siemens S7-1500"
+      }
+    },
+    {
+      "id": "plc-cvd-01",
+      "type": "PLC",
+      "label": "PLC CVD-01",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Beckhoff CX5240"
+      }
+    },
+    {
+      "id": "plc-cvd-02",
+      "type": "PLC",
+      "label": "PLC CVD-02",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Beckhoff CX5240"
+      }
+    },
+    {
+      "id": "plc-cvd-03",
+      "type": "PLC",
+      "label": "PLC CVD-03",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Beckhoff CX5240"
+      }
+    },
+    {
+      "id": "plc-cvd-04",
+      "type": "PLC",
+      "label": "PLC CVD-04",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Beckhoff CX5240"
+      }
+    },
+    {
+      "id": "plc-tl-01",
+      "type": "PLC",
+      "label": "PLC TL-01",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Siemens S7-1500"
+      }
+    },
+    {
+      "id": "plc-tl-02",
+      "type": "PLC",
+      "label": "PLC TL-02",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Siemens S7-1500"
+      }
+    },
+    {
+      "id": "plc-finishing",
+      "type": "PLC",
+      "label": "PLC Finishing",
+      "props": {
+        "protocol": "MQTT",
+        "model": "Suragus inline gateway"
+      }
+    },
+    {
+      "id": "plc-utilities",
+      "type": "PLC",
+      "label": "PLC Utilities",
+      "props": {
+        "protocol": "Modbus TCP",
+        "model": "Schneider M580"
+      }
+    },
+    {
+      "id": "ep-01",
+      "type": "Machine",
+      "label": "Electropolishing line EP-01",
+      "props": {
+        "vendor": "Atotech",
+        "model": "Horizon EP 320",
+        "kind": "electropolishing-line",
+        "asset": "EP-01",
+        "year": 2021
+      }
+    },
+    {
+      "id": "cvd-01",
+      "type": "Machine",
+      "label": "Roll-to-roll CVD reactor CVD-01",
+      "props": {
+        "vendor": "Aixtron",
+        "model": "BM Pro R2R",
+        "kind": "cvd-reactor",
+        "asset": "CVD-01",
+        "year": 2021
+      }
+    },
+    {
+      "id": "cvd-02",
+      "type": "Machine",
+      "label": "Roll-to-roll CVD reactor CVD-02",
+      "props": {
+        "vendor": "Aixtron",
+        "model": "BM Pro R2R",
+        "kind": "cvd-reactor",
+        "asset": "CVD-02",
+        "year": 2021
+      }
+    },
+    {
+      "id": "cvd-03",
+      "type": "Machine",
+      "label": "Roll-to-roll CVD reactor CVD-03",
+      "props": {
+        "vendor": "Aixtron",
+        "model": "BM Pro R2R",
+        "kind": "cvd-reactor",
+        "asset": "CVD-03",
+        "year": 2023
+      }
+    },
+    {
+      "id": "cvd-04",
+      "type": "Machine",
+      "label": "Roll-to-roll CVD reactor CVD-04",
+      "props": {
+        "vendor": "Aixtron",
+        "model": "BM Pro R2R",
+        "kind": "cvd-reactor",
+        "asset": "CVD-04",
+        "year": 2023
+      }
+    },
+    {
+      "id": "sc-01",
+      "type": "Machine",
+      "label": "Exhaust scrubber SC-01",
+      "props": {
+        "vendor": "Edwards",
+        "model": "Atlas TPU",
+        "kind": "scrubber",
+        "asset": "SC-01",
+        "year": 2021
+      }
+    },
+    {
+      "id": "gs-01",
+      "type": "Machine",
+      "label": "Process gas supply GS-01",
+      "props": {
+        "vendor": "Linde",
+        "model": "GC-4 gas cabinets",
+        "kind": "gas-supply",
+        "asset": "GS-01",
+        "year": 2021
+      }
+    },
+    {
+      "id": "tl-01",
+      "type": "Machine",
+      "label": "Transfer line TL-01",
+      "props": {
+        "vendor": "Coatema",
+        "model": "TL 320",
+        "kind": "transfer-line",
+        "asset": "TL-01",
+        "year": 2021
+      }
+    },
+    {
+      "id": "tl-02",
+      "type": "Machine",
+      "label": "Transfer line TL-02",
+      "props": {
+        "vendor": "Coatema",
+        "model": "TL 320",
+        "kind": "transfer-line",
+        "asset": "TL-02",
+        "year": 2023
+      }
+    },
+    {
+      "id": "cr-01",
+      "type": "Machine",
+      "label": "Transfer cleanroom CR-01 (ISO 6)",
+      "props": {
+        "vendor": "Camfil",
+        "model": "ISO 6 cleanroom",
+        "kind": "cleanroom",
+        "asset": "CR-01",
+        "year": 2021
+      }
+    },
+    {
+      "id": "in-01",
+      "type": "Machine",
+      "label": "Inline inspection IN-01",
+      "props": {
+        "vendor": "Suragus",
+        "model": "EddyCus inline 320",
+        "kind": "inspection-line",
+        "asset": "IN-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "sp-01",
+      "type": "Machine",
+      "label": "Slitter and packer SP-01",
+      "props": {
+        "vendor": "Atlas Converting",
+        "model": "Titan SR9",
+        "kind": "slitter",
+        "asset": "SP-01",
+        "year": 2021
+      }
+    },
+    {
+      "id": "ch-01",
+      "type": "Machine",
+      "label": "Process chiller CH-01",
+      "props": {
+        "vendor": "Carrier",
+        "model": "30RB 160",
+        "kind": "chiller",
+        "asset": "CH-01",
+        "year": 2021
+      }
+    },
+    {
+      "id": "di-01",
+      "type": "Machine",
+      "label": "DI water plant DI-01",
+      "props": {
+        "vendor": "Veolia",
+        "model": "Sirion 2000",
+        "kind": "water-treatment",
+        "asset": "DI-01",
+        "year": 2021
+      }
+    },
+    {
+      "id": "rm-01",
+      "type": "Machine",
+      "label": "Raman spectrometer RM-01",
+      "props": {
+        "vendor": "Renishaw",
+        "model": "inVia Qontor",
+        "kind": "lab-instrument",
+        "asset": "RM-01",
+        "year": 2021
+      }
+    },
+    {
+      "id": "fp-01",
+      "type": "Machine",
+      "label": "Four-point probe FP-01",
+      "props": {
+        "vendor": "Jandel",
+        "model": "RM3000+",
+        "kind": "lab-instrument",
+        "asset": "FP-01",
+        "year": 2021
+      }
+    },
+    {
+      "id": "af-01",
+      "type": "Machine",
+      "label": "Atomic force microscope AF-01",
+      "props": {
+        "vendor": "Bruker",
+        "model": "Dimension Icon",
+        "kind": "lab-instrument",
+        "asset": "AF-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "sig-ep01-current-density",
+      "type": "Signal",
+      "label": "EP-01 polishing current density",
+      "props": {
+        "unit": "A/dm²",
+        "tag": "ep01.current_density",
+        "measure": "current"
+      }
+    },
+    {
+      "id": "sig-ep01-line-speed",
+      "type": "Signal",
+      "label": "EP-01 foil speed",
+      "props": {
+        "unit": "m/min",
+        "tag": "ep01.line_speed",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-ep01-bath-temp",
+      "type": "Signal",
+      "label": "EP-01 polishing bath temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "ep01.bath_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-ep01-bath-conductivity",
+      "type": "Signal",
+      "label": "EP-01 polishing bath conductivity",
+      "props": {
+        "unit": "mS/cm",
+        "tag": "ep01.bath_conductivity",
+        "measure": "conductivity"
+      }
+    },
+    {
+      "id": "sig-ep01-current-ripple",
+      "type": "Signal",
+      "label": "EP-01 rectifier current ripple",
+      "props": {
+        "unit": "%",
+        "tag": "ep01.current_ripple",
+        "measure": "ripple"
+      }
+    },
+    {
+      "id": "sig-cvd01-foil-speed",
+      "type": "Signal",
+      "label": "CVD-01 foil speed through the hot zone",
+      "props": {
+        "unit": "m/min",
+        "tag": "cvd01.foil_speed",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-cvd01-foil-tension",
+      "type": "Signal",
+      "label": "CVD-01 foil tension at the take-up",
+      "props": {
+        "unit": "N",
+        "tag": "cvd01.foil_tension",
+        "measure": "tension"
+      }
+    },
+    {
+      "id": "sig-cvd01-ch4-flow",
+      "type": "Signal",
+      "label": "CVD-01 methane flow (its mass flow controller)",
+      "props": {
+        "unit": "sccm",
+        "tag": "cvd01.ch4_flow",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-cvd01-h2-flow",
+      "type": "Signal",
+      "label": "CVD-01 hydrogen flow",
+      "props": {
+        "unit": "sccm",
+        "tag": "cvd01.h2_flow",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-cvd01-chamber-pressure",
+      "type": "Signal",
+      "label": "CVD-01 chamber pressure during growth",
+      "props": {
+        "unit": "mbar",
+        "tag": "cvd01.chamber_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-cvd01-zone1-temp",
+      "type": "Signal",
+      "label": "CVD-01 furnace zone 1 temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cvd01.zone1_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cvd01-zone2-temp",
+      "type": "Signal",
+      "label": "CVD-01 furnace zone 2 (growth) temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cvd01.zone2_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cvd01-zone3-temp",
+      "type": "Signal",
+      "label": "CVD-01 furnace zone 3 temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cvd01.zone3_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cvd01-heater-power",
+      "type": "Signal",
+      "label": "CVD-01 zone 2 heater power",
+      "props": {
+        "unit": "kW",
+        "tag": "cvd01.heater_power",
+        "measure": "power"
+      }
+    },
+    {
+      "id": "sig-cvd01-oxygen",
+      "type": "Signal",
+      "label": "CVD-01 oxygen in the chamber exhaust (residual gas analyser)",
+      "props": {
+        "unit": "ppm",
+        "tag": "cvd01.oxygen",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "sig-cvd01-pump-current",
+      "type": "Signal",
+      "label": "CVD-01 dry vacuum pump motor current",
+      "props": {
+        "unit": "A",
+        "tag": "cvd01.pump_current",
+        "measure": "current"
+      }
+    },
+    {
+      "id": "sig-cvd01-base-pressure",
+      "type": "Signal",
+      "label": "CVD-01 base pressure after pump-down, each run",
+      "props": {
+        "unit": "mbar",
+        "tag": "cvd01.base_pressure",
+        "measure": "vacuum"
+      }
+    },
+    {
+      "id": "sig-cvd02-foil-speed",
+      "type": "Signal",
+      "label": "CVD-02 foil speed through the hot zone",
+      "props": {
+        "unit": "m/min",
+        "tag": "cvd02.foil_speed",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-cvd02-foil-tension",
+      "type": "Signal",
+      "label": "CVD-02 foil tension at the take-up",
+      "props": {
+        "unit": "N",
+        "tag": "cvd02.foil_tension",
+        "measure": "tension"
+      }
+    },
+    {
+      "id": "sig-cvd02-ch4-flow",
+      "type": "Signal",
+      "label": "CVD-02 methane flow (its mass flow controller)",
+      "props": {
+        "unit": "sccm",
+        "tag": "cvd02.ch4_flow",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-cvd02-h2-flow",
+      "type": "Signal",
+      "label": "CVD-02 hydrogen flow",
+      "props": {
+        "unit": "sccm",
+        "tag": "cvd02.h2_flow",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-cvd02-chamber-pressure",
+      "type": "Signal",
+      "label": "CVD-02 chamber pressure during growth",
+      "props": {
+        "unit": "mbar",
+        "tag": "cvd02.chamber_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-cvd02-zone1-temp",
+      "type": "Signal",
+      "label": "CVD-02 furnace zone 1 temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cvd02.zone1_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cvd02-zone2-temp",
+      "type": "Signal",
+      "label": "CVD-02 furnace zone 2 (growth) temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cvd02.zone2_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cvd02-zone3-temp",
+      "type": "Signal",
+      "label": "CVD-02 furnace zone 3 temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cvd02.zone3_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cvd02-heater-power",
+      "type": "Signal",
+      "label": "CVD-02 zone 2 heater power",
+      "props": {
+        "unit": "kW",
+        "tag": "cvd02.heater_power",
+        "measure": "power"
+      }
+    },
+    {
+      "id": "sig-cvd02-oxygen",
+      "type": "Signal",
+      "label": "CVD-02 oxygen in the chamber exhaust (residual gas analyser)",
+      "props": {
+        "unit": "ppm",
+        "tag": "cvd02.oxygen",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "sig-cvd02-pump-current",
+      "type": "Signal",
+      "label": "CVD-02 dry vacuum pump motor current",
+      "props": {
+        "unit": "A",
+        "tag": "cvd02.pump_current",
+        "measure": "current"
+      }
+    },
+    {
+      "id": "sig-cvd02-base-pressure",
+      "type": "Signal",
+      "label": "CVD-02 base pressure after pump-down, each run",
+      "props": {
+        "unit": "mbar",
+        "tag": "cvd02.base_pressure",
+        "measure": "vacuum"
+      }
+    },
+    {
+      "id": "sig-cvd03-foil-speed",
+      "type": "Signal",
+      "label": "CVD-03 foil speed through the hot zone",
+      "props": {
+        "unit": "m/min",
+        "tag": "cvd03.foil_speed",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-cvd03-foil-tension",
+      "type": "Signal",
+      "label": "CVD-03 foil tension at the take-up",
+      "props": {
+        "unit": "N",
+        "tag": "cvd03.foil_tension",
+        "measure": "tension"
+      }
+    },
+    {
+      "id": "sig-cvd03-ch4-flow",
+      "type": "Signal",
+      "label": "CVD-03 methane flow (its mass flow controller)",
+      "props": {
+        "unit": "sccm",
+        "tag": "cvd03.ch4_flow",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-cvd03-h2-flow",
+      "type": "Signal",
+      "label": "CVD-03 hydrogen flow",
+      "props": {
+        "unit": "sccm",
+        "tag": "cvd03.h2_flow",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-cvd03-chamber-pressure",
+      "type": "Signal",
+      "label": "CVD-03 chamber pressure during growth",
+      "props": {
+        "unit": "mbar",
+        "tag": "cvd03.chamber_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-cvd03-zone1-temp",
+      "type": "Signal",
+      "label": "CVD-03 furnace zone 1 temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cvd03.zone1_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cvd03-zone2-temp",
+      "type": "Signal",
+      "label": "CVD-03 furnace zone 2 (growth) temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cvd03.zone2_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cvd03-zone3-temp",
+      "type": "Signal",
+      "label": "CVD-03 furnace zone 3 temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cvd03.zone3_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cvd03-heater-power",
+      "type": "Signal",
+      "label": "CVD-03 zone 2 heater power",
+      "props": {
+        "unit": "kW",
+        "tag": "cvd03.heater_power",
+        "measure": "power"
+      }
+    },
+    {
+      "id": "sig-cvd03-oxygen",
+      "type": "Signal",
+      "label": "CVD-03 oxygen in the chamber exhaust (residual gas analyser)",
+      "props": {
+        "unit": "ppm",
+        "tag": "cvd03.oxygen",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "sig-cvd03-pump-current",
+      "type": "Signal",
+      "label": "CVD-03 dry vacuum pump motor current",
+      "props": {
+        "unit": "A",
+        "tag": "cvd03.pump_current",
+        "measure": "current"
+      }
+    },
+    {
+      "id": "sig-cvd03-base-pressure",
+      "type": "Signal",
+      "label": "CVD-03 base pressure after pump-down, each run",
+      "props": {
+        "unit": "mbar",
+        "tag": "cvd03.base_pressure",
+        "measure": "vacuum"
+      }
+    },
+    {
+      "id": "sig-cvd04-foil-speed",
+      "type": "Signal",
+      "label": "CVD-04 foil speed through the hot zone",
+      "props": {
+        "unit": "m/min",
+        "tag": "cvd04.foil_speed",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-cvd04-foil-tension",
+      "type": "Signal",
+      "label": "CVD-04 foil tension at the take-up",
+      "props": {
+        "unit": "N",
+        "tag": "cvd04.foil_tension",
+        "measure": "tension"
+      }
+    },
+    {
+      "id": "sig-cvd04-ch4-flow",
+      "type": "Signal",
+      "label": "CVD-04 methane flow (its mass flow controller)",
+      "props": {
+        "unit": "sccm",
+        "tag": "cvd04.ch4_flow",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-cvd04-h2-flow",
+      "type": "Signal",
+      "label": "CVD-04 hydrogen flow",
+      "props": {
+        "unit": "sccm",
+        "tag": "cvd04.h2_flow",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-cvd04-chamber-pressure",
+      "type": "Signal",
+      "label": "CVD-04 chamber pressure during growth",
+      "props": {
+        "unit": "mbar",
+        "tag": "cvd04.chamber_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-cvd04-zone1-temp",
+      "type": "Signal",
+      "label": "CVD-04 furnace zone 1 temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cvd04.zone1_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cvd04-zone2-temp",
+      "type": "Signal",
+      "label": "CVD-04 furnace zone 2 (growth) temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cvd04.zone2_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cvd04-zone3-temp",
+      "type": "Signal",
+      "label": "CVD-04 furnace zone 3 temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cvd04.zone3_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cvd04-heater-power",
+      "type": "Signal",
+      "label": "CVD-04 zone 2 heater power",
+      "props": {
+        "unit": "kW",
+        "tag": "cvd04.heater_power",
+        "measure": "power"
+      }
+    },
+    {
+      "id": "sig-cvd04-oxygen",
+      "type": "Signal",
+      "label": "CVD-04 oxygen in the chamber exhaust (residual gas analyser)",
+      "props": {
+        "unit": "ppm",
+        "tag": "cvd04.oxygen",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "sig-cvd04-pump-current",
+      "type": "Signal",
+      "label": "CVD-04 dry vacuum pump motor current",
+      "props": {
+        "unit": "A",
+        "tag": "cvd04.pump_current",
+        "measure": "current"
+      }
+    },
+    {
+      "id": "sig-cvd04-base-pressure",
+      "type": "Signal",
+      "label": "CVD-04 base pressure after pump-down, each run",
+      "props": {
+        "unit": "mbar",
+        "tag": "cvd04.base_pressure",
+        "measure": "vacuum"
+      }
+    },
+    {
+      "id": "sig-tl01-line-speed",
+      "type": "Signal",
+      "label": "TL-01 web speed",
+      "props": {
+        "unit": "m/min",
+        "tag": "tl01.line_speed",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-tl01-nip-pressure",
+      "type": "Signal",
+      "label": "TL-01 laminator nip pressure",
+      "props": {
+        "unit": "bar",
+        "tag": "tl01.nip_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-tl01-etch-rate",
+      "type": "Signal",
+      "label": "TL-01 copper etch rate (inline thickness gauge)",
+      "props": {
+        "unit": "µm/min",
+        "tag": "tl01.etch_rate",
+        "measure": "rate"
+      }
+    },
+    {
+      "id": "sig-tl01-rinse-conductivity",
+      "type": "Signal",
+      "label": "TL-01 rinse water conductivity after the etch",
+      "props": {
+        "unit": "µS/cm",
+        "tag": "tl01.rinse_conductivity",
+        "measure": "conductivity"
+      }
+    },
+    {
+      "id": "sig-tl01-laminator-temp",
+      "type": "Signal",
+      "label": "TL-01 laminator roll temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "tl01.laminator_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-tl01-roll-temp-spread",
+      "type": "Signal",
+      "label": "TL-01 laminator roll temperature spread across the width",
+      "props": {
+        "unit": "°C",
+        "tag": "tl01.roll_temp_spread",
+        "measure": "variation"
+      }
+    },
+    {
+      "id": "sig-tl01-etch-temp",
+      "type": "Signal",
+      "label": "TL-01 etch bath temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "tl01.etch_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-tl01-etch-flow",
+      "type": "Signal",
+      "label": "TL-01 etchant circulation flow",
+      "props": {
+        "unit": "L/min",
+        "tag": "tl01.etch_flow",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-tl01-bath-copper",
+      "type": "Signal",
+      "label": "TL-01 copper dissolved in the etch bath",
+      "props": {
+        "unit": "g/L",
+        "tag": "tl01.bath_copper",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "sig-tl02-line-speed",
+      "type": "Signal",
+      "label": "TL-02 web speed",
+      "props": {
+        "unit": "m/min",
+        "tag": "tl02.line_speed",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-tl02-nip-pressure",
+      "type": "Signal",
+      "label": "TL-02 laminator nip pressure",
+      "props": {
+        "unit": "bar",
+        "tag": "tl02.nip_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-tl02-etch-rate",
+      "type": "Signal",
+      "label": "TL-02 copper etch rate (inline thickness gauge)",
+      "props": {
+        "unit": "µm/min",
+        "tag": "tl02.etch_rate",
+        "measure": "rate"
+      }
+    },
+    {
+      "id": "sig-tl02-rinse-conductivity",
+      "type": "Signal",
+      "label": "TL-02 rinse water conductivity after the etch",
+      "props": {
+        "unit": "µS/cm",
+        "tag": "tl02.rinse_conductivity",
+        "measure": "conductivity"
+      }
+    },
+    {
+      "id": "sig-tl02-laminator-temp",
+      "type": "Signal",
+      "label": "TL-02 laminator roll temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "tl02.laminator_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-tl02-roll-temp-spread",
+      "type": "Signal",
+      "label": "TL-02 laminator roll temperature spread across the width",
+      "props": {
+        "unit": "°C",
+        "tag": "tl02.roll_temp_spread",
+        "measure": "variation"
+      }
+    },
+    {
+      "id": "sig-tl02-etch-temp",
+      "type": "Signal",
+      "label": "TL-02 etch bath temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "tl02.etch_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-tl02-etch-flow",
+      "type": "Signal",
+      "label": "TL-02 etchant circulation flow",
+      "props": {
+        "unit": "L/min",
+        "tag": "tl02.etch_flow",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-tl02-bath-copper",
+      "type": "Signal",
+      "label": "TL-02 copper dissolved in the etch bath",
+      "props": {
+        "unit": "g/L",
+        "tag": "tl02.bath_copper",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "sig-in01-sheet-resistance",
+      "type": "Signal",
+      "label": "IN-01 sheet resistance (contactless, eddy current), a minute's average",
+      "props": {
+        "unit": "Ω/sq",
+        "tag": "in01.sheet_resistance",
+        "measure": "resistance"
+      }
+    },
+    {
+      "id": "sig-in01-transmittance",
+      "type": "Signal",
+      "label": "IN-01 optical transmittance at 550 nm, a minute's average",
+      "props": {
+        "unit": "%",
+        "tag": "in01.transmittance",
+        "measure": "transmittance"
+      }
+    },
+    {
+      "id": "sig-in01-defects",
+      "type": "Signal",
+      "label": "IN-01 holes, tears and bubbles found by the camera, a minute's film",
+      "props": {
+        "unit": "/m²",
+        "tag": "in01.defects",
+        "measure": "count"
+      }
+    },
+    {
+      "id": "sig-sc01-differential-pressure",
+      "type": "Signal",
+      "label": "Exhaust scrubber SC-01 pressure drop over the packing",
+      "props": {
+        "unit": "mbar",
+        "tag": "sc01.differential_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-sc01-exhaust-flow",
+      "type": "Signal",
+      "label": "Exhaust scrubber SC-01 flow",
+      "props": {
+        "unit": "m³/h",
+        "tag": "sc01.exhaust_flow",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-sc01-scrub-ph",
+      "type": "Signal",
+      "label": "Exhaust scrubber SC-01 scrubbing liquid pH",
+      "props": {
+        "unit": "pH",
+        "tag": "sc01.scrub_ph",
+        "measure": "ph"
+      }
+    },
+    {
+      "id": "sig-gs01-h2-pressure",
+      "type": "Signal",
+      "label": "Hydrogen supply pressure",
+      "props": {
+        "unit": "bar",
+        "tag": "gs01.h2_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-cr01-particles",
+      "type": "Signal",
+      "label": "Cleanroom CR-01 particles of 0.5 µm and over",
+      "props": {
+        "unit": "/m³",
+        "tag": "cr01.particles",
+        "measure": "count"
+      }
+    },
+    {
+      "id": "sig-cr01-temperature",
+      "type": "Signal",
+      "label": "Cleanroom CR-01 air temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cr01.temperature",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-ch01-supply-temp",
+      "type": "Signal",
+      "label": "Furnace cooling water supply",
+      "props": {
+        "unit": "°C",
+        "tag": "ch01.supply_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-di01-conductivity",
+      "type": "Signal",
+      "label": "DI water conductivity at the loop's return",
+      "props": {
+        "unit": "µS/cm",
+        "tag": "di01.conductivity",
+        "measure": "conductivity"
+      }
+    },
+    {
+      "id": "sig-lab-d-g-ratio",
+      "type": "Signal",
+      "label": "Raman D/G peak ratio, a sample each run (RM-01): defects in the graphene",
+      "props": {
+        "unit": "1",
+        "tag": "lab.d_g_ratio",
+        "measure": "ratio"
+      }
+    },
+    {
+      "id": "sig-lab-2d-g-ratio",
+      "type": "Signal",
+      "label": "Raman 2D/G peak ratio, a sample each run (RM-01): above 2 is monolayer",
+      "props": {
+        "unit": "1",
+        "tag": "lab.2d_g_ratio",
+        "measure": "ratio"
+      }
+    },
+    {
+      "id": "sig-lab-sheet-resistance-4pp",
+      "type": "Signal",
+      "label": "Four-point probe sheet resistance, a sample each run (FP-01)",
+      "props": {
+        "unit": "Ω/sq",
+        "tag": "lab.sheet_resistance_4pp",
+        "measure": "resistance"
+      }
+    },
+    {
+      "id": "sig-lab-foil-roughness",
+      "type": "Signal",
+      "label": "Copper foil roughness Ra after electropolishing, a sample each foil lot (AF-01)",
+      "props": {
+        "unit": "nm",
+        "tag": "lab.foil_roughness",
+        "measure": "roughness"
+      }
+    },
+    {
+      "id": "proc-polishing",
+      "type": "Process",
+      "label": "Copper foil electropolishing",
+      "props": {}
+    },
+    {
+      "id": "proc-growth",
+      "type": "Process",
+      "label": "Graphene growth by CVD",
+      "props": {}
+    },
+    {
+      "id": "proc-transfer",
+      "type": "Process",
+      "label": "Transfer: lamination and copper etching",
+      "props": {}
+    },
+    {
+      "id": "proc-inspection",
+      "type": "Process",
+      "label": "Inspection, slitting and packing",
+      "props": {}
+    },
+    {
+      "id": "mat-copper-foil",
+      "type": "Material",
+      "label": "Copper foil, 18 µm, 320 mm",
+      "props": {}
+    },
+    {
+      "id": "mat-methane",
+      "type": "Material",
+      "label": "Methane, 5.5",
+      "props": {}
+    },
+    {
+      "id": "mat-hydrogen",
+      "type": "Material",
+      "label": "Hydrogen, 6.0",
+      "props": {}
+    },
+    {
+      "id": "mat-pet",
+      "type": "Material",
+      "label": "PET film with adhesive, 125 µm",
+      "props": {}
+    },
+    {
+      "id": "mat-etchant",
+      "type": "Material",
+      "label": "Ammonium persulfate etchant",
+      "props": {}
+    },
+    {
+      "id": "cvd-05",
+      "type": "Machine",
+      "label": "CVD reactor CVD-05 (commissioning)",
+      "props": {
+        "vendor": "Aixtron",
+        "kind": "cvd-reactor",
+        "asset": "CVD-05"
+      }
+    },
+    {
+      "id": "doc-sop-cvd-01",
+      "type": "Document",
+      "label": "SOP-CVD-01: Graphene growth: the recipe and the furnace",
+      "props": {
+        "number": "SOP-CVD-01"
+      }
+    },
+    {
+      "id": "doc-sop-cvd-02",
+      "type": "Document",
+      "label": "SOP-CVD-02: Vacuum: leaks and pumps",
+      "props": {
+        "number": "SOP-CVD-02"
+      }
+    },
+    {
+      "id": "doc-sop-cvd-03",
+      "type": "Document",
+      "label": "SOP-CVD-03: Process gases and their controllers",
+      "props": {
+        "number": "SOP-CVD-03"
+      }
+    },
+    {
+      "id": "doc-sop-ep-01",
+      "type": "Document",
+      "label": "SOP-EP-01: Copper foil electropolishing",
+      "props": {
+        "number": "SOP-EP-01"
+      }
+    },
+    {
+      "id": "doc-sop-tr-01",
+      "type": "Document",
+      "label": "SOP-TR-01: Transfer: lamination",
+      "props": {
+        "number": "SOP-TR-01"
+      }
+    },
+    {
+      "id": "doc-sop-tr-02",
+      "type": "Document",
+      "label": "SOP-TR-02: Transfer: copper etching and the bath",
+      "props": {
+        "number": "SOP-TR-02"
+      }
+    },
+    {
+      "id": "doc-sop-qa-01",
+      "type": "Document",
+      "label": "SOP-QA-01: Inspection and grading",
+      "props": {
+        "number": "SOP-QA-01"
+      }
+    },
+    {
+      "id": "doc-sop-ehs-01",
+      "type": "Document",
+      "label": "SOP-EHS-01: Exhaust scrubber and hydrogen safety",
+      "props": {
+        "number": "SOP-EHS-01"
+      }
+    },
+    {
+      "id": "doc-plant-overview",
+      "type": "Document",
+      "label": "Ashcombe film plant overview",
+      "props": {
+        "number": "PLANT-OVERVIEW"
+      }
+    },
+    {
+      "id": "doc-ll-2025-01",
+      "type": "Document",
+      "label": "Lessons learned: scrubber packing on SC-01, 28 October 2025",
+      "props": {
+        "number": "LL-2025-01"
+      }
+    },
+    {
+      "id": "doc-ll-2025-02",
+      "type": "Document",
+      "label": "Lessons learned: quartz tube seals on CVD-03, 03 November 2025",
+      "props": {
+        "number": "LL-2025-02"
+      }
+    },
+    {
+      "id": "doc-ll-2025-03",
+      "type": "Document",
+      "label": "Lessons learned: quartz tube seals on CVD-04, 16 December 2025",
+      "props": {
+        "number": "LL-2025-03"
+      }
+    },
+    {
+      "id": "doc-ll-2026-01",
+      "type": "Document",
+      "label": "Lessons learned: zone 2 heating element on CVD-04, 03 March 2026",
+      "props": {
+        "number": "LL-2026-01"
+      }
+    },
+    {
+      "id": "doc-ll-2026-02",
+      "type": "Document",
+      "label": "Lessons learned: quartz tube seals on CVD-03, 23 March 2026",
+      "props": {
+        "number": "LL-2026-02"
+      }
+    },
+    {
+      "id": "doc-ll-2026-03",
+      "type": "Document",
+      "label": "Lessons learned: zone 2 heating element on CVD-01, 27 March 2026",
+      "props": {
+        "number": "LL-2026-03"
+      }
+    },
+    {
+      "id": "doc-ll-2026-04",
+      "type": "Document",
+      "label": "Lessons learned: dry vacuum pump on CVD-02, 07 April 2026",
+      "props": {
+        "number": "LL-2026-04"
+      }
+    },
+    {
+      "id": "doc-ll-2026-05",
+      "type": "Document",
+      "label": "Lessons learned: quartz tube seals on CVD-01, 27 April 2026",
+      "props": {
+        "number": "LL-2026-05"
+      }
+    },
+    {
+      "id": "doc-ll-2026-06",
+      "type": "Document",
+      "label": "Lessons learned: zone 2 heating element on CVD-02, 09 June 2026",
+      "props": {
+        "number": "LL-2026-06"
+      }
+    },
+    {
+      "id": "doc-ll-2026-07",
+      "type": "Document",
+      "label": "Lessons learned: zone 2 heating element on CVD-03, 10 July 2026",
+      "props": {
+        "number": "LL-2026-07"
+      }
+    },
+    {
+      "id": "doc-mr-2025-10",
+      "type": "Document",
+      "label": "Maintenance report, October 2025",
+      "props": {
+        "number": "MR-2025-10"
+      }
+    },
+    {
+      "id": "doc-mr-2025-11",
+      "type": "Document",
+      "label": "Maintenance report, November 2025",
+      "props": {
+        "number": "MR-2025-11"
+      }
+    },
+    {
+      "id": "doc-mr-2025-12",
+      "type": "Document",
+      "label": "Maintenance report, December 2025",
+      "props": {
+        "number": "MR-2025-12"
+      }
+    },
+    {
+      "id": "doc-mr-2026-01",
+      "type": "Document",
+      "label": "Maintenance report, January 2026",
+      "props": {
+        "number": "MR-2026-01"
+      }
+    },
+    {
+      "id": "doc-mr-2026-02",
+      "type": "Document",
+      "label": "Maintenance report, February 2026",
+      "props": {
+        "number": "MR-2026-02"
+      }
+    },
+    {
+      "id": "doc-mr-2026-03",
+      "type": "Document",
+      "label": "Maintenance report, March 2026",
+      "props": {
+        "number": "MR-2026-03"
+      }
+    },
+    {
+      "id": "doc-mr-2026-04",
+      "type": "Document",
+      "label": "Maintenance report, April 2026",
+      "props": {
+        "number": "MR-2026-04"
+      }
+    },
+    {
+      "id": "doc-mr-2026-05",
+      "type": "Document",
+      "label": "Maintenance report, May 2026",
+      "props": {
+        "number": "MR-2026-05"
+      }
+    },
+    {
+      "id": "doc-mr-2026-06",
+      "type": "Document",
+      "label": "Maintenance report, June 2026",
+      "props": {
+        "number": "MR-2026-06"
+      }
+    },
+    {
+      "id": "doc-mr-2026-07",
+      "type": "Document",
+      "label": "Maintenance report, July 2026",
+      "props": {
+        "number": "MR-2026-07"
+      }
+    },
+    {
+      "id": "doc-mr-2026-08",
+      "type": "Document",
+      "label": "Maintenance report, August 2026",
+      "props": {
+        "number": "MR-2026-08"
+      }
+    },
+    {
+      "id": "doc-mr-2026-09",
+      "type": "Document",
+      "label": "Maintenance report, September 2026",
+      "props": {
+        "number": "MR-2026-09"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "sorrel-contains-ashcombe",
+      "from": "sorrel",
+      "rel": "contains",
+      "to": "ashcombe"
+    },
+    {
+      "id": "ashcombe-contains-growth",
+      "from": "ashcombe",
+      "rel": "contains",
+      "to": "growth"
+    },
+    {
+      "id": "ashcombe-contains-transfer-and-finishing",
+      "from": "ashcombe",
+      "rel": "contains",
+      "to": "transfer-and-finishing"
+    },
+    {
+      "id": "ashcombe-contains-quality-lab",
+      "from": "ashcombe",
+      "rel": "contains",
+      "to": "quality-lab"
+    },
+    {
+      "id": "ashcombe-contains-utilities",
+      "from": "ashcombe",
+      "rel": "contains",
+      "to": "utilities"
+    },
+    {
+      "id": "growth-contains-foil-preparation",
+      "from": "growth",
+      "rel": "contains",
+      "to": "foil-preparation"
+    },
+    {
+      "id": "growth-contains-cvd-hall",
+      "from": "growth",
+      "rel": "contains",
+      "to": "cvd-hall"
+    },
+    {
+      "id": "transfer-and-finishing-contains-transfer-cleanroom",
+      "from": "transfer-and-finishing",
+      "rel": "contains",
+      "to": "transfer-cleanroom"
+    },
+    {
+      "id": "transfer-and-finishing-contains-inspection-and-finishing",
+      "from": "transfer-and-finishing",
+      "rel": "contains",
+      "to": "inspection-and-finishing"
+    },
+    {
+      "id": "foil-preparation-contains-ep-01",
+      "from": "foil-preparation",
+      "rel": "contains",
+      "to": "ep-01"
+    },
+    {
+      "id": "ep-01-controlledBy-plc-foil-preparation",
+      "from": "ep-01",
+      "rel": "controlledBy",
+      "to": "plc-foil-preparation"
+    },
+    {
+      "id": "cvd-hall-contains-cvd-01",
+      "from": "cvd-hall",
+      "rel": "contains",
+      "to": "cvd-01"
+    },
+    {
+      "id": "cvd-01-controlledBy-plc-cvd-01",
+      "from": "cvd-01",
+      "rel": "controlledBy",
+      "to": "plc-cvd-01"
+    },
+    {
+      "id": "cvd-hall-contains-cvd-02",
+      "from": "cvd-hall",
+      "rel": "contains",
+      "to": "cvd-02"
+    },
+    {
+      "id": "cvd-02-controlledBy-plc-cvd-02",
+      "from": "cvd-02",
+      "rel": "controlledBy",
+      "to": "plc-cvd-02"
+    },
+    {
+      "id": "cvd-hall-contains-cvd-03",
+      "from": "cvd-hall",
+      "rel": "contains",
+      "to": "cvd-03"
+    },
+    {
+      "id": "cvd-03-controlledBy-plc-cvd-03",
+      "from": "cvd-03",
+      "rel": "controlledBy",
+      "to": "plc-cvd-03"
+    },
+    {
+      "id": "cvd-hall-contains-cvd-04",
+      "from": "cvd-hall",
+      "rel": "contains",
+      "to": "cvd-04"
+    },
+    {
+      "id": "cvd-04-controlledBy-plc-cvd-04",
+      "from": "cvd-04",
+      "rel": "controlledBy",
+      "to": "plc-cvd-04"
+    },
+    {
+      "id": "cvd-hall-contains-sc-01",
+      "from": "cvd-hall",
+      "rel": "contains",
+      "to": "sc-01"
+    },
+    {
+      "id": "sc-01-controlledBy-plc-utilities",
+      "from": "sc-01",
+      "rel": "controlledBy",
+      "to": "plc-utilities"
+    },
+    {
+      "id": "cvd-hall-contains-gs-01",
+      "from": "cvd-hall",
+      "rel": "contains",
+      "to": "gs-01"
+    },
+    {
+      "id": "gs-01-controlledBy-plc-utilities",
+      "from": "gs-01",
+      "rel": "controlledBy",
+      "to": "plc-utilities"
+    },
+    {
+      "id": "transfer-cleanroom-contains-tl-01",
+      "from": "transfer-cleanroom",
+      "rel": "contains",
+      "to": "tl-01"
+    },
+    {
+      "id": "tl-01-controlledBy-plc-tl-01",
+      "from": "tl-01",
+      "rel": "controlledBy",
+      "to": "plc-tl-01"
+    },
+    {
+      "id": "transfer-cleanroom-contains-tl-02",
+      "from": "transfer-cleanroom",
+      "rel": "contains",
+      "to": "tl-02"
+    },
+    {
+      "id": "tl-02-controlledBy-plc-tl-02",
+      "from": "tl-02",
+      "rel": "controlledBy",
+      "to": "plc-tl-02"
+    },
+    {
+      "id": "transfer-cleanroom-contains-cr-01",
+      "from": "transfer-cleanroom",
+      "rel": "contains",
+      "to": "cr-01"
+    },
+    {
+      "id": "cr-01-controlledBy-plc-utilities",
+      "from": "cr-01",
+      "rel": "controlledBy",
+      "to": "plc-utilities"
+    },
+    {
+      "id": "inspection-and-finishing-contains-in-01",
+      "from": "inspection-and-finishing",
+      "rel": "contains",
+      "to": "in-01"
+    },
+    {
+      "id": "in-01-controlledBy-plc-finishing",
+      "from": "in-01",
+      "rel": "controlledBy",
+      "to": "plc-finishing"
+    },
+    {
+      "id": "inspection-and-finishing-contains-sp-01",
+      "from": "inspection-and-finishing",
+      "rel": "contains",
+      "to": "sp-01"
+    },
+    {
+      "id": "sp-01-controlledBy-plc-finishing",
+      "from": "sp-01",
+      "rel": "controlledBy",
+      "to": "plc-finishing"
+    },
+    {
+      "id": "utilities-contains-ch-01",
+      "from": "utilities",
+      "rel": "contains",
+      "to": "ch-01"
+    },
+    {
+      "id": "ch-01-controlledBy-plc-utilities",
+      "from": "ch-01",
+      "rel": "controlledBy",
+      "to": "plc-utilities"
+    },
+    {
+      "id": "utilities-contains-di-01",
+      "from": "utilities",
+      "rel": "contains",
+      "to": "di-01"
+    },
+    {
+      "id": "di-01-controlledBy-plc-utilities",
+      "from": "di-01",
+      "rel": "controlledBy",
+      "to": "plc-utilities"
+    },
+    {
+      "id": "quality-lab-contains-rm-01",
+      "from": "quality-lab",
+      "rel": "contains",
+      "to": "rm-01"
+    },
+    {
+      "id": "quality-lab-contains-fp-01",
+      "from": "quality-lab",
+      "rel": "contains",
+      "to": "fp-01"
+    },
+    {
+      "id": "quality-lab-contains-af-01",
+      "from": "quality-lab",
+      "rel": "contains",
+      "to": "af-01"
+    },
+    {
+      "id": "plc-foil-preparation-emits-sig-ep01-current-density",
+      "from": "plc-foil-preparation",
+      "rel": "emits",
+      "to": "sig-ep01-current-density"
+    },
+    {
+      "id": "plc-foil-preparation-emits-sig-ep01-line-speed",
+      "from": "plc-foil-preparation",
+      "rel": "emits",
+      "to": "sig-ep01-line-speed"
+    },
+    {
+      "id": "plc-foil-preparation-emits-sig-ep01-bath-temp",
+      "from": "plc-foil-preparation",
+      "rel": "emits",
+      "to": "sig-ep01-bath-temp"
+    },
+    {
+      "id": "plc-foil-preparation-emits-sig-ep01-bath-conductivity",
+      "from": "plc-foil-preparation",
+      "rel": "emits",
+      "to": "sig-ep01-bath-conductivity"
+    },
+    {
+      "id": "plc-foil-preparation-emits-sig-ep01-current-ripple",
+      "from": "plc-foil-preparation",
+      "rel": "emits",
+      "to": "sig-ep01-current-ripple"
+    },
+    {
+      "id": "plc-cvd-01-emits-sig-cvd01-foil-speed",
+      "from": "plc-cvd-01",
+      "rel": "emits",
+      "to": "sig-cvd01-foil-speed"
+    },
+    {
+      "id": "plc-cvd-01-emits-sig-cvd01-foil-tension",
+      "from": "plc-cvd-01",
+      "rel": "emits",
+      "to": "sig-cvd01-foil-tension"
+    },
+    {
+      "id": "plc-cvd-01-emits-sig-cvd01-ch4-flow",
+      "from": "plc-cvd-01",
+      "rel": "emits",
+      "to": "sig-cvd01-ch4-flow"
+    },
+    {
+      "id": "plc-cvd-01-emits-sig-cvd01-h2-flow",
+      "from": "plc-cvd-01",
+      "rel": "emits",
+      "to": "sig-cvd01-h2-flow"
+    },
+    {
+      "id": "plc-cvd-01-emits-sig-cvd01-chamber-pressure",
+      "from": "plc-cvd-01",
+      "rel": "emits",
+      "to": "sig-cvd01-chamber-pressure"
+    },
+    {
+      "id": "plc-cvd-01-emits-sig-cvd01-zone1-temp",
+      "from": "plc-cvd-01",
+      "rel": "emits",
+      "to": "sig-cvd01-zone1-temp"
+    },
+    {
+      "id": "plc-cvd-01-emits-sig-cvd01-zone2-temp",
+      "from": "plc-cvd-01",
+      "rel": "emits",
+      "to": "sig-cvd01-zone2-temp"
+    },
+    {
+      "id": "plc-cvd-01-emits-sig-cvd01-zone3-temp",
+      "from": "plc-cvd-01",
+      "rel": "emits",
+      "to": "sig-cvd01-zone3-temp"
+    },
+    {
+      "id": "plc-cvd-01-emits-sig-cvd01-heater-power",
+      "from": "plc-cvd-01",
+      "rel": "emits",
+      "to": "sig-cvd01-heater-power"
+    },
+    {
+      "id": "plc-cvd-01-emits-sig-cvd01-oxygen",
+      "from": "plc-cvd-01",
+      "rel": "emits",
+      "to": "sig-cvd01-oxygen"
+    },
+    {
+      "id": "plc-cvd-01-emits-sig-cvd01-pump-current",
+      "from": "plc-cvd-01",
+      "rel": "emits",
+      "to": "sig-cvd01-pump-current"
+    },
+    {
+      "id": "plc-cvd-01-emits-sig-cvd01-base-pressure",
+      "from": "plc-cvd-01",
+      "rel": "emits",
+      "to": "sig-cvd01-base-pressure"
+    },
+    {
+      "id": "plc-cvd-02-emits-sig-cvd02-foil-speed",
+      "from": "plc-cvd-02",
+      "rel": "emits",
+      "to": "sig-cvd02-foil-speed"
+    },
+    {
+      "id": "plc-cvd-02-emits-sig-cvd02-foil-tension",
+      "from": "plc-cvd-02",
+      "rel": "emits",
+      "to": "sig-cvd02-foil-tension"
+    },
+    {
+      "id": "plc-cvd-02-emits-sig-cvd02-ch4-flow",
+      "from": "plc-cvd-02",
+      "rel": "emits",
+      "to": "sig-cvd02-ch4-flow"
+    },
+    {
+      "id": "plc-cvd-02-emits-sig-cvd02-h2-flow",
+      "from": "plc-cvd-02",
+      "rel": "emits",
+      "to": "sig-cvd02-h2-flow"
+    },
+    {
+      "id": "plc-cvd-02-emits-sig-cvd02-chamber-pressure",
+      "from": "plc-cvd-02",
+      "rel": "emits",
+      "to": "sig-cvd02-chamber-pressure"
+    },
+    {
+      "id": "plc-cvd-02-emits-sig-cvd02-zone1-temp",
+      "from": "plc-cvd-02",
+      "rel": "emits",
+      "to": "sig-cvd02-zone1-temp"
+    },
+    {
+      "id": "plc-cvd-02-emits-sig-cvd02-zone2-temp",
+      "from": "plc-cvd-02",
+      "rel": "emits",
+      "to": "sig-cvd02-zone2-temp"
+    },
+    {
+      "id": "plc-cvd-02-emits-sig-cvd02-zone3-temp",
+      "from": "plc-cvd-02",
+      "rel": "emits",
+      "to": "sig-cvd02-zone3-temp"
+    },
+    {
+      "id": "plc-cvd-02-emits-sig-cvd02-heater-power",
+      "from": "plc-cvd-02",
+      "rel": "emits",
+      "to": "sig-cvd02-heater-power"
+    },
+    {
+      "id": "plc-cvd-02-emits-sig-cvd02-oxygen",
+      "from": "plc-cvd-02",
+      "rel": "emits",
+      "to": "sig-cvd02-oxygen"
+    },
+    {
+      "id": "plc-cvd-02-emits-sig-cvd02-pump-current",
+      "from": "plc-cvd-02",
+      "rel": "emits",
+      "to": "sig-cvd02-pump-current"
+    },
+    {
+      "id": "plc-cvd-02-emits-sig-cvd02-base-pressure",
+      "from": "plc-cvd-02",
+      "rel": "emits",
+      "to": "sig-cvd02-base-pressure"
+    },
+    {
+      "id": "plc-cvd-03-emits-sig-cvd03-foil-speed",
+      "from": "plc-cvd-03",
+      "rel": "emits",
+      "to": "sig-cvd03-foil-speed"
+    },
+    {
+      "id": "plc-cvd-03-emits-sig-cvd03-foil-tension",
+      "from": "plc-cvd-03",
+      "rel": "emits",
+      "to": "sig-cvd03-foil-tension"
+    },
+    {
+      "id": "plc-cvd-03-emits-sig-cvd03-ch4-flow",
+      "from": "plc-cvd-03",
+      "rel": "emits",
+      "to": "sig-cvd03-ch4-flow"
+    },
+    {
+      "id": "plc-cvd-03-emits-sig-cvd03-h2-flow",
+      "from": "plc-cvd-03",
+      "rel": "emits",
+      "to": "sig-cvd03-h2-flow"
+    },
+    {
+      "id": "plc-cvd-03-emits-sig-cvd03-chamber-pressure",
+      "from": "plc-cvd-03",
+      "rel": "emits",
+      "to": "sig-cvd03-chamber-pressure"
+    },
+    {
+      "id": "plc-cvd-03-emits-sig-cvd03-zone1-temp",
+      "from": "plc-cvd-03",
+      "rel": "emits",
+      "to": "sig-cvd03-zone1-temp"
+    },
+    {
+      "id": "plc-cvd-03-emits-sig-cvd03-zone2-temp",
+      "from": "plc-cvd-03",
+      "rel": "emits",
+      "to": "sig-cvd03-zone2-temp"
+    },
+    {
+      "id": "plc-cvd-03-emits-sig-cvd03-zone3-temp",
+      "from": "plc-cvd-03",
+      "rel": "emits",
+      "to": "sig-cvd03-zone3-temp"
+    },
+    {
+      "id": "plc-cvd-03-emits-sig-cvd03-heater-power",
+      "from": "plc-cvd-03",
+      "rel": "emits",
+      "to": "sig-cvd03-heater-power"
+    },
+    {
+      "id": "plc-cvd-03-emits-sig-cvd03-oxygen",
+      "from": "plc-cvd-03",
+      "rel": "emits",
+      "to": "sig-cvd03-oxygen"
+    },
+    {
+      "id": "plc-cvd-03-emits-sig-cvd03-pump-current",
+      "from": "plc-cvd-03",
+      "rel": "emits",
+      "to": "sig-cvd03-pump-current"
+    },
+    {
+      "id": "plc-cvd-03-emits-sig-cvd03-base-pressure",
+      "from": "plc-cvd-03",
+      "rel": "emits",
+      "to": "sig-cvd03-base-pressure"
+    },
+    {
+      "id": "plc-cvd-04-emits-sig-cvd04-foil-speed",
+      "from": "plc-cvd-04",
+      "rel": "emits",
+      "to": "sig-cvd04-foil-speed"
+    },
+    {
+      "id": "plc-cvd-04-emits-sig-cvd04-foil-tension",
+      "from": "plc-cvd-04",
+      "rel": "emits",
+      "to": "sig-cvd04-foil-tension"
+    },
+    {
+      "id": "plc-cvd-04-emits-sig-cvd04-ch4-flow",
+      "from": "plc-cvd-04",
+      "rel": "emits",
+      "to": "sig-cvd04-ch4-flow"
+    },
+    {
+      "id": "plc-cvd-04-emits-sig-cvd04-h2-flow",
+      "from": "plc-cvd-04",
+      "rel": "emits",
+      "to": "sig-cvd04-h2-flow"
+    },
+    {
+      "id": "plc-cvd-04-emits-sig-cvd04-chamber-pressure",
+      "from": "plc-cvd-04",
+      "rel": "emits",
+      "to": "sig-cvd04-chamber-pressure"
+    },
+    {
+      "id": "plc-cvd-04-emits-sig-cvd04-zone1-temp",
+      "from": "plc-cvd-04",
+      "rel": "emits",
+      "to": "sig-cvd04-zone1-temp"
+    },
+    {
+      "id": "plc-cvd-04-emits-sig-cvd04-zone2-temp",
+      "from": "plc-cvd-04",
+      "rel": "emits",
+      "to": "sig-cvd04-zone2-temp"
+    },
+    {
+      "id": "plc-cvd-04-emits-sig-cvd04-zone3-temp",
+      "from": "plc-cvd-04",
+      "rel": "emits",
+      "to": "sig-cvd04-zone3-temp"
+    },
+    {
+      "id": "plc-cvd-04-emits-sig-cvd04-heater-power",
+      "from": "plc-cvd-04",
+      "rel": "emits",
+      "to": "sig-cvd04-heater-power"
+    },
+    {
+      "id": "plc-cvd-04-emits-sig-cvd04-oxygen",
+      "from": "plc-cvd-04",
+      "rel": "emits",
+      "to": "sig-cvd04-oxygen"
+    },
+    {
+      "id": "plc-cvd-04-emits-sig-cvd04-pump-current",
+      "from": "plc-cvd-04",
+      "rel": "emits",
+      "to": "sig-cvd04-pump-current"
+    },
+    {
+      "id": "plc-cvd-04-emits-sig-cvd04-base-pressure",
+      "from": "plc-cvd-04",
+      "rel": "emits",
+      "to": "sig-cvd04-base-pressure"
+    },
+    {
+      "id": "plc-tl-01-emits-sig-tl01-line-speed",
+      "from": "plc-tl-01",
+      "rel": "emits",
+      "to": "sig-tl01-line-speed"
+    },
+    {
+      "id": "plc-tl-01-emits-sig-tl01-nip-pressure",
+      "from": "plc-tl-01",
+      "rel": "emits",
+      "to": "sig-tl01-nip-pressure"
+    },
+    {
+      "id": "plc-tl-01-emits-sig-tl01-etch-rate",
+      "from": "plc-tl-01",
+      "rel": "emits",
+      "to": "sig-tl01-etch-rate"
+    },
+    {
+      "id": "plc-tl-01-emits-sig-tl01-rinse-conductivity",
+      "from": "plc-tl-01",
+      "rel": "emits",
+      "to": "sig-tl01-rinse-conductivity"
+    },
+    {
+      "id": "plc-tl-01-emits-sig-tl01-laminator-temp",
+      "from": "plc-tl-01",
+      "rel": "emits",
+      "to": "sig-tl01-laminator-temp"
+    },
+    {
+      "id": "plc-tl-01-emits-sig-tl01-roll-temp-spread",
+      "from": "plc-tl-01",
+      "rel": "emits",
+      "to": "sig-tl01-roll-temp-spread"
+    },
+    {
+      "id": "plc-tl-01-emits-sig-tl01-etch-temp",
+      "from": "plc-tl-01",
+      "rel": "emits",
+      "to": "sig-tl01-etch-temp"
+    },
+    {
+      "id": "plc-tl-01-emits-sig-tl01-etch-flow",
+      "from": "plc-tl-01",
+      "rel": "emits",
+      "to": "sig-tl01-etch-flow"
+    },
+    {
+      "id": "plc-tl-01-emits-sig-tl01-bath-copper",
+      "from": "plc-tl-01",
+      "rel": "emits",
+      "to": "sig-tl01-bath-copper"
+    },
+    {
+      "id": "plc-tl-02-emits-sig-tl02-line-speed",
+      "from": "plc-tl-02",
+      "rel": "emits",
+      "to": "sig-tl02-line-speed"
+    },
+    {
+      "id": "plc-tl-02-emits-sig-tl02-nip-pressure",
+      "from": "plc-tl-02",
+      "rel": "emits",
+      "to": "sig-tl02-nip-pressure"
+    },
+    {
+      "id": "plc-tl-02-emits-sig-tl02-etch-rate",
+      "from": "plc-tl-02",
+      "rel": "emits",
+      "to": "sig-tl02-etch-rate"
+    },
+    {
+      "id": "plc-tl-02-emits-sig-tl02-rinse-conductivity",
+      "from": "plc-tl-02",
+      "rel": "emits",
+      "to": "sig-tl02-rinse-conductivity"
+    },
+    {
+      "id": "plc-tl-02-emits-sig-tl02-laminator-temp",
+      "from": "plc-tl-02",
+      "rel": "emits",
+      "to": "sig-tl02-laminator-temp"
+    },
+    {
+      "id": "plc-tl-02-emits-sig-tl02-roll-temp-spread",
+      "from": "plc-tl-02",
+      "rel": "emits",
+      "to": "sig-tl02-roll-temp-spread"
+    },
+    {
+      "id": "plc-tl-02-emits-sig-tl02-etch-temp",
+      "from": "plc-tl-02",
+      "rel": "emits",
+      "to": "sig-tl02-etch-temp"
+    },
+    {
+      "id": "plc-tl-02-emits-sig-tl02-etch-flow",
+      "from": "plc-tl-02",
+      "rel": "emits",
+      "to": "sig-tl02-etch-flow"
+    },
+    {
+      "id": "plc-tl-02-emits-sig-tl02-bath-copper",
+      "from": "plc-tl-02",
+      "rel": "emits",
+      "to": "sig-tl02-bath-copper"
+    },
+    {
+      "id": "plc-finishing-emits-sig-in01-sheet-resistance",
+      "from": "plc-finishing",
+      "rel": "emits",
+      "to": "sig-in01-sheet-resistance"
+    },
+    {
+      "id": "plc-finishing-emits-sig-in01-transmittance",
+      "from": "plc-finishing",
+      "rel": "emits",
+      "to": "sig-in01-transmittance"
+    },
+    {
+      "id": "plc-finishing-emits-sig-in01-defects",
+      "from": "plc-finishing",
+      "rel": "emits",
+      "to": "sig-in01-defects"
+    },
+    {
+      "id": "plc-utilities-emits-sig-sc01-differential-pressure",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-sc01-differential-pressure"
+    },
+    {
+      "id": "plc-utilities-emits-sig-sc01-exhaust-flow",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-sc01-exhaust-flow"
+    },
+    {
+      "id": "plc-utilities-emits-sig-sc01-scrub-ph",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-sc01-scrub-ph"
+    },
+    {
+      "id": "plc-utilities-emits-sig-gs01-h2-pressure",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-gs01-h2-pressure"
+    },
+    {
+      "id": "plc-utilities-emits-sig-cr01-particles",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-cr01-particles"
+    },
+    {
+      "id": "plc-utilities-emits-sig-cr01-temperature",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-cr01-temperature"
+    },
+    {
+      "id": "plc-utilities-emits-sig-ch01-supply-temp",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-ch01-supply-temp"
+    },
+    {
+      "id": "plc-utilities-emits-sig-di01-conductivity",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-di01-conductivity"
+    },
+    {
+      "id": "plc-finishing-emits-sig-lab-d-g-ratio",
+      "from": "plc-finishing",
+      "rel": "emits",
+      "to": "sig-lab-d-g-ratio"
+    },
+    {
+      "id": "plc-finishing-emits-sig-lab-2d-g-ratio",
+      "from": "plc-finishing",
+      "rel": "emits",
+      "to": "sig-lab-2d-g-ratio"
+    },
+    {
+      "id": "plc-finishing-emits-sig-lab-sheet-resistance-4pp",
+      "from": "plc-finishing",
+      "rel": "emits",
+      "to": "sig-lab-sheet-resistance-4pp"
+    },
+    {
+      "id": "plc-finishing-emits-sig-lab-foil-roughness",
+      "from": "plc-finishing",
+      "rel": "emits",
+      "to": "sig-lab-foil-roughness"
+    },
+    {
+      "id": "ep-01-feeds-cvd-01",
+      "from": "ep-01",
+      "rel": "feeds",
+      "to": "cvd-01"
+    },
+    {
+      "id": "cvd-01-feeds-tl-01",
+      "from": "cvd-01",
+      "rel": "feeds",
+      "to": "tl-01"
+    },
+    {
+      "id": "cvd-01-feeds-tl-02",
+      "from": "cvd-01",
+      "rel": "feeds",
+      "to": "tl-02"
+    },
+    {
+      "id": "ep-01-feeds-cvd-02",
+      "from": "ep-01",
+      "rel": "feeds",
+      "to": "cvd-02"
+    },
+    {
+      "id": "cvd-02-feeds-tl-01",
+      "from": "cvd-02",
+      "rel": "feeds",
+      "to": "tl-01"
+    },
+    {
+      "id": "cvd-02-feeds-tl-02",
+      "from": "cvd-02",
+      "rel": "feeds",
+      "to": "tl-02"
+    },
+    {
+      "id": "ep-01-feeds-cvd-03",
+      "from": "ep-01",
+      "rel": "feeds",
+      "to": "cvd-03"
+    },
+    {
+      "id": "cvd-03-feeds-tl-01",
+      "from": "cvd-03",
+      "rel": "feeds",
+      "to": "tl-01"
+    },
+    {
+      "id": "cvd-03-feeds-tl-02",
+      "from": "cvd-03",
+      "rel": "feeds",
+      "to": "tl-02"
+    },
+    {
+      "id": "ep-01-feeds-cvd-04",
+      "from": "ep-01",
+      "rel": "feeds",
+      "to": "cvd-04"
+    },
+    {
+      "id": "cvd-04-feeds-tl-01",
+      "from": "cvd-04",
+      "rel": "feeds",
+      "to": "tl-01"
+    },
+    {
+      "id": "cvd-04-feeds-tl-02",
+      "from": "cvd-04",
+      "rel": "feeds",
+      "to": "tl-02"
+    },
+    {
+      "id": "tl-01-feeds-in-01",
+      "from": "tl-01",
+      "rel": "feeds",
+      "to": "in-01"
+    },
+    {
+      "id": "tl-02-feeds-in-01",
+      "from": "tl-02",
+      "rel": "feeds",
+      "to": "in-01"
+    },
+    {
+      "id": "in-01-feeds-sp-01",
+      "from": "in-01",
+      "rel": "feeds",
+      "to": "sp-01"
+    },
+    {
+      "id": "gs-01-feeds-cvd-01",
+      "from": "gs-01",
+      "rel": "feeds",
+      "to": "cvd-01"
+    },
+    {
+      "id": "cvd-01-feeds-sc-01",
+      "from": "cvd-01",
+      "rel": "feeds",
+      "to": "sc-01"
+    },
+    {
+      "id": "gs-01-feeds-cvd-02",
+      "from": "gs-01",
+      "rel": "feeds",
+      "to": "cvd-02"
+    },
+    {
+      "id": "cvd-02-feeds-sc-01",
+      "from": "cvd-02",
+      "rel": "feeds",
+      "to": "sc-01"
+    },
+    {
+      "id": "gs-01-feeds-cvd-03",
+      "from": "gs-01",
+      "rel": "feeds",
+      "to": "cvd-03"
+    },
+    {
+      "id": "cvd-03-feeds-sc-01",
+      "from": "cvd-03",
+      "rel": "feeds",
+      "to": "sc-01"
+    },
+    {
+      "id": "gs-01-feeds-cvd-04",
+      "from": "gs-01",
+      "rel": "feeds",
+      "to": "cvd-04"
+    },
+    {
+      "id": "cvd-04-feeds-sc-01",
+      "from": "cvd-04",
+      "rel": "feeds",
+      "to": "sc-01"
+    },
+    {
+      "id": "ep-01-runs-proc-polishing",
+      "from": "ep-01",
+      "rel": "runs",
+      "to": "proc-polishing"
+    },
+    {
+      "id": "cvd-01-runs-proc-growth",
+      "from": "cvd-01",
+      "rel": "runs",
+      "to": "proc-growth"
+    },
+    {
+      "id": "cvd-02-runs-proc-growth",
+      "from": "cvd-02",
+      "rel": "runs",
+      "to": "proc-growth"
+    },
+    {
+      "id": "cvd-03-runs-proc-growth",
+      "from": "cvd-03",
+      "rel": "runs",
+      "to": "proc-growth"
+    },
+    {
+      "id": "cvd-04-runs-proc-growth",
+      "from": "cvd-04",
+      "rel": "runs",
+      "to": "proc-growth"
+    },
+    {
+      "id": "tl-01-runs-proc-transfer",
+      "from": "tl-01",
+      "rel": "runs",
+      "to": "proc-transfer"
+    },
+    {
+      "id": "tl-02-runs-proc-transfer",
+      "from": "tl-02",
+      "rel": "runs",
+      "to": "proc-transfer"
+    },
+    {
+      "id": "in-01-runs-proc-inspection",
+      "from": "in-01",
+      "rel": "runs",
+      "to": "proc-inspection"
+    },
+    {
+      "id": "proc-polishing-consumes-mat-copper-foil",
+      "from": "proc-polishing",
+      "rel": "consumes",
+      "to": "mat-copper-foil"
+    },
+    {
+      "id": "proc-growth-consumes-mat-methane",
+      "from": "proc-growth",
+      "rel": "consumes",
+      "to": "mat-methane"
+    },
+    {
+      "id": "proc-growth-consumes-mat-hydrogen",
+      "from": "proc-growth",
+      "rel": "consumes",
+      "to": "mat-hydrogen"
+    },
+    {
+      "id": "proc-transfer-consumes-mat-pet",
+      "from": "proc-transfer",
+      "rel": "consumes",
+      "to": "mat-pet"
+    },
+    {
+      "id": "proc-transfer-consumes-mat-etchant",
+      "from": "proc-transfer",
+      "rel": "consumes",
+      "to": "mat-etchant"
+    },
+    {
+      "id": "doc-sop-cvd-01-describes-cvd-01",
+      "from": "doc-sop-cvd-01",
+      "rel": "describes",
+      "to": "cvd-01"
+    },
+    {
+      "id": "doc-sop-cvd-01-describes-cvd-02",
+      "from": "doc-sop-cvd-01",
+      "rel": "describes",
+      "to": "cvd-02"
+    },
+    {
+      "id": "doc-sop-cvd-01-describes-cvd-03",
+      "from": "doc-sop-cvd-01",
+      "rel": "describes",
+      "to": "cvd-03"
+    },
+    {
+      "id": "doc-sop-cvd-01-describes-cvd-04",
+      "from": "doc-sop-cvd-01",
+      "rel": "describes",
+      "to": "cvd-04"
+    },
+    {
+      "id": "doc-sop-cvd-02-describes-cvd-01",
+      "from": "doc-sop-cvd-02",
+      "rel": "describes",
+      "to": "cvd-01"
+    },
+    {
+      "id": "doc-sop-cvd-02-describes-cvd-02",
+      "from": "doc-sop-cvd-02",
+      "rel": "describes",
+      "to": "cvd-02"
+    },
+    {
+      "id": "doc-sop-cvd-02-describes-cvd-03",
+      "from": "doc-sop-cvd-02",
+      "rel": "describes",
+      "to": "cvd-03"
+    },
+    {
+      "id": "doc-sop-cvd-02-describes-cvd-04",
+      "from": "doc-sop-cvd-02",
+      "rel": "describes",
+      "to": "cvd-04"
+    },
+    {
+      "id": "doc-sop-cvd-03-describes-cvd-01",
+      "from": "doc-sop-cvd-03",
+      "rel": "describes",
+      "to": "cvd-01"
+    },
+    {
+      "id": "doc-sop-cvd-03-describes-cvd-02",
+      "from": "doc-sop-cvd-03",
+      "rel": "describes",
+      "to": "cvd-02"
+    },
+    {
+      "id": "doc-sop-cvd-03-describes-cvd-03",
+      "from": "doc-sop-cvd-03",
+      "rel": "describes",
+      "to": "cvd-03"
+    },
+    {
+      "id": "doc-sop-cvd-03-describes-cvd-04",
+      "from": "doc-sop-cvd-03",
+      "rel": "describes",
+      "to": "cvd-04"
+    },
+    {
+      "id": "doc-sop-ep-01-describes-ep-01",
+      "from": "doc-sop-ep-01",
+      "rel": "describes",
+      "to": "ep-01"
+    },
+    {
+      "id": "doc-sop-tr-01-describes-tl-01",
+      "from": "doc-sop-tr-01",
+      "rel": "describes",
+      "to": "tl-01"
+    },
+    {
+      "id": "doc-sop-tr-01-describes-tl-02",
+      "from": "doc-sop-tr-01",
+      "rel": "describes",
+      "to": "tl-02"
+    },
+    {
+      "id": "doc-sop-tr-02-describes-tl-01",
+      "from": "doc-sop-tr-02",
+      "rel": "describes",
+      "to": "tl-01"
+    },
+    {
+      "id": "doc-sop-tr-02-describes-tl-02",
+      "from": "doc-sop-tr-02",
+      "rel": "describes",
+      "to": "tl-02"
+    },
+    {
+      "id": "doc-sop-qa-01-describes-in-01",
+      "from": "doc-sop-qa-01",
+      "rel": "describes",
+      "to": "in-01"
+    },
+    {
+      "id": "doc-sop-qa-01-describes-sp-01",
+      "from": "doc-sop-qa-01",
+      "rel": "describes",
+      "to": "sp-01"
+    },
+    {
+      "id": "doc-sop-qa-01-describes-rm-01",
+      "from": "doc-sop-qa-01",
+      "rel": "describes",
+      "to": "rm-01"
+    },
+    {
+      "id": "doc-sop-qa-01-describes-fp-01",
+      "from": "doc-sop-qa-01",
+      "rel": "describes",
+      "to": "fp-01"
+    },
+    {
+      "id": "doc-sop-ehs-01-describes-sc-01",
+      "from": "doc-sop-ehs-01",
+      "rel": "describes",
+      "to": "sc-01"
+    },
+    {
+      "id": "doc-plant-overview-describes-ashcombe",
+      "from": "doc-plant-overview",
+      "rel": "describes",
+      "to": "ashcombe"
+    },
+    {
+      "id": "doc-ll-2025-01-describes-sc-01",
+      "from": "doc-ll-2025-01",
+      "rel": "describes",
+      "to": "sc-01"
+    },
+    {
+      "id": "doc-ll-2025-02-describes-cvd-03",
+      "from": "doc-ll-2025-02",
+      "rel": "describes",
+      "to": "cvd-03"
+    },
+    {
+      "id": "doc-ll-2025-03-describes-cvd-04",
+      "from": "doc-ll-2025-03",
+      "rel": "describes",
+      "to": "cvd-04"
+    },
+    {
+      "id": "doc-ll-2026-01-describes-cvd-04",
+      "from": "doc-ll-2026-01",
+      "rel": "describes",
+      "to": "cvd-04"
+    },
+    {
+      "id": "doc-ll-2026-02-describes-cvd-03",
+      "from": "doc-ll-2026-02",
+      "rel": "describes",
+      "to": "cvd-03"
+    },
+    {
+      "id": "doc-ll-2026-03-describes-cvd-01",
+      "from": "doc-ll-2026-03",
+      "rel": "describes",
+      "to": "cvd-01"
+    },
+    {
+      "id": "doc-ll-2026-04-describes-cvd-02",
+      "from": "doc-ll-2026-04",
+      "rel": "describes",
+      "to": "cvd-02"
+    },
+    {
+      "id": "doc-ll-2026-05-describes-cvd-01",
+      "from": "doc-ll-2026-05",
+      "rel": "describes",
+      "to": "cvd-01"
+    },
+    {
+      "id": "doc-ll-2026-06-describes-cvd-02",
+      "from": "doc-ll-2026-06",
+      "rel": "describes",
+      "to": "cvd-02"
+    },
+    {
+      "id": "doc-ll-2026-07-describes-cvd-03",
+      "from": "doc-ll-2026-07",
+      "rel": "describes",
+      "to": "cvd-03"
+    },
+    {
+      "id": "doc-mr-2025-10-describes-ashcombe",
+      "from": "doc-mr-2025-10",
+      "rel": "describes",
+      "to": "ashcombe"
+    },
+    {
+      "id": "doc-mr-2025-11-describes-ashcombe",
+      "from": "doc-mr-2025-11",
+      "rel": "describes",
+      "to": "ashcombe"
+    },
+    {
+      "id": "doc-mr-2025-12-describes-ashcombe",
+      "from": "doc-mr-2025-12",
+      "rel": "describes",
+      "to": "ashcombe"
+    },
+    {
+      "id": "doc-mr-2026-01-describes-ashcombe",
+      "from": "doc-mr-2026-01",
+      "rel": "describes",
+      "to": "ashcombe"
+    },
+    {
+      "id": "doc-mr-2026-02-describes-ashcombe",
+      "from": "doc-mr-2026-02",
+      "rel": "describes",
+      "to": "ashcombe"
+    },
+    {
+      "id": "doc-mr-2026-03-describes-ashcombe",
+      "from": "doc-mr-2026-03",
+      "rel": "describes",
+      "to": "ashcombe"
+    },
+    {
+      "id": "doc-mr-2026-04-describes-ashcombe",
+      "from": "doc-mr-2026-04",
+      "rel": "describes",
+      "to": "ashcombe"
+    },
+    {
+      "id": "doc-mr-2026-05-describes-ashcombe",
+      "from": "doc-mr-2026-05",
+      "rel": "describes",
+      "to": "ashcombe"
+    },
+    {
+      "id": "doc-mr-2026-06-describes-ashcombe",
+      "from": "doc-mr-2026-06",
+      "rel": "describes",
+      "to": "ashcombe"
+    },
+    {
+      "id": "doc-mr-2026-07-describes-ashcombe",
+      "from": "doc-mr-2026-07",
+      "rel": "describes",
+      "to": "ashcombe"
+    },
+    {
+      "id": "doc-mr-2026-08-describes-ashcombe",
+      "from": "doc-mr-2026-08",
+      "rel": "describes",
+      "to": "ashcombe"
+    },
+    {
+      "id": "doc-mr-2026-09-describes-ashcombe",
+      "from": "doc-mr-2026-09",
+      "rel": "describes",
+      "to": "ashcombe"
+    }
+  ]
+}

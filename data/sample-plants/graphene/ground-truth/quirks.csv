@@ -1,0 +1,10 @@
+quirk,where,from,to,what
+sensor drift,cvd02.zone2_temp,2026-01-12T06:00:00+00:00,2026-02-06T10:00:00+00:00,The zone 2 thermocouple read 8 °C high until its recalibration: the furnace grew 8 °C cooler than logged
+wrong unit,tl01.etch_temp,2026-05-11T06:00:00+01:00,2026-05-18T06:00:00+01:00,Logged in °F after an HMI update
+historian outage,sc01.*,2026-04-14T00:00:00+01:00,2026-04-15T12:00:00+01:00,No scrubber readings: its collector was down
+tag renamed,ep01.current_ripple,2025-10-01T00:00:00+01:00,2025-12-01T06:00:00+00:00,Logged as ep01.ripple_pct until the PLC update renamed the tag
+stuck value,cr01.particles,2026-05-18T10:00:00+01:00,2026-05-21T14:00:00+01:00,The particle counter froze at one reading until it was reset
+code renamed,mes/stops.csv,2025-10-01T00:00:00+01:00,2026-02-02T00:00:00+00:00,"The scrubber's stops are SCRB before the MES update, DT-EXH after"
+duplicate rows,mes/stops.csv,2025-10-01T00:00:00+01:00,2026-10-01T00:00:00+01:00,About 0.4% of stops are logged twice
+no end time,mes/stops.csv,2025-10-01T00:00:00+01:00,2026-10-01T00:00:00+01:00,About 0.3% of unplanned stops have no end time
+model gap,plant/ontology.json,2025-10-01T00:00:00+01:00,2026-10-01T00:00:00+01:00,"A fifth reactor (CVD-05), being commissioned, with no relationships"

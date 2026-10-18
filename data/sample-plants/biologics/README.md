@@ -48,7 +48,8 @@ results and the vials' fate come from that genealogy, by the process model in
 The year runs from 1 October 2025 to 30 September 2026 on the site's clock (Europe/Dublin), around
 the clock: four crews (A to D) on twelve-hour shifts (07:00 to 19:00 and 19:00 to 07:00) on a 2-2-3
 rotation. Cell culture can't stop, so the site closes only for a fortnight's annual shutdown
-(27 July to 10 August 2026), and no culture runs over it. [baseline.md](baseline.md) gives each
+(27 July to 10 August 2026), and no culture runs over it. Each reactor's next seed train starts as
+its batch is inoculated, to be ready when the reactor is; an N-1 culture may wait 24 hours for it. [baseline.md](baseline.md) gives each
 machine's stops, hours and their cost, the batches and the vials.
 
 ## The files
@@ -124,12 +125,12 @@ maintenance, by a pre-use test, at a turnaround check or by a planned change.
 
 | Mode | Machines | Stops the machine with | Shows in | Builds up over |
 | --- | --- | --- | --- | --- |
-| Agitator seal wear | BR-01 to BR-04 | DT-SEAL; during a batch the batch is lost (BATCH-SEAL), unless the turnaround check changes the seal | `seal_loss` up; contamination likelier | 12 to 30 working days |
+| Agitator seal wear | BR-01 to BR-04 | DT-SEAL; during a batch the batch is lost (BATCH-SEAL), unless the turnaround check (over 3 mL/h) or the maintenance every six batches changes the seal | `seal_loss` up; contamination likelier | 12 to 30 working days |
 | WFI still fouling | WFI-01 | DT-WFI, stopping media and buffer preparation and the CIP skids | `wfi01.conductivity` and `wfi01.toc` up | 7 to 18 days |
-| HVAC final filter loading | AHU-01 | DT-HVAC on FR-01, stopping filling and capping, unless the six-monthly change comes first | `ahu01.filter_dp` up, then `fr01.room_dp` down and particles up | 9 to 24 days |
-| Centrifuge spindle bearings | CF-01 | DT-CEN, a vibration trip at start-up; the culture waits | `cf01.vibration` up | 20 to 25 days |
+| HVAC final filter loading | AHU-01 | DT-HVAC on FR-01, stopping filling and capping, unless the change at 450 Pa (on the next weekday day shift) or the six-monthly one comes first | `ahu01.filter_dp` up, then `fr01.room_dp` down and particles up | 5 to 19 days |
+| Centrifuge spindle bearings | CF-01 | DT-CEN, a vibration trip at start-up at 7.1 mm/s (the culture waits), unless the bearing change planned past 4.5 mm/s (PL-BRG) comes first | `cf01.vibration` up | 20 to 25 days |
 | CEX bed compression | CS-02 | DT-COL, or a planned repack when the pre-use test finds it | `cs02.cex_asymmetry` and `cs02.cex_dp` up; the drug substance's aggregates up | 9 to 20 days |
-| UF/DF cassette fouling | UF-01 | DT-UF | `uf01.nwp` down, `uf01.tmp` up | 8 to 24 days |
+| UF/DF cassette fouling | UF-01 | DT-UF, or a planned cassette change when the pre-use test finds it | `uf01.nwp` down, `uf01.tmp` up | 8 to 24 days |
 | Lyophiliser leak | LY-01 | DT-LYO, at the leak test before a cycle | `ly01.leak_rate` and the chamber pressure up; moisture and collapsed cakes up | 16 to 19 days |
 | Dosing pump wear | FL-01 | DT-FIL | One needle's `fl01.fill_weight` down; FIL-WT rejects | 8 to 9 days |
 
@@ -145,7 +146,8 @@ The process model, [ground-truth/process-model.json](ground-truth/process-model.
 - **Host cell protein:** from the viability at harvest and the hold before capture.
 - **Cakes and moisture:** the chamber pressure rises with the leak rate; a vial's product temperature
   with the pressure, its shelf and whether it stands at the edge; past the collapse temperature its
-  cake collapses. Moisture rises with the pressure.
+  cake collapses. Moisture rises with the pressure, so a cycle run while the lyophiliser leaks (a
+  leak rate past about 11 µbar·L/s) gives a lot that fails its 2.0 %.
 - **Fill weights:** a worn pump fills its needle's vials less and less evenly.
 
 The specifications are those of the SOPs: drug substance at most 2.0 % aggregates, 50 ppm host cell
@@ -162,8 +164,8 @@ uv run tiles-sample-plant generate biologics --all
 This writes `generated/` (about 36 MB, not in Git) in about two minutes:
 
 - `historian/<month>/<stream>.csv.gz`: the historian export, one row per reading (timestamp in UTC,
-  tag, value, quality): about 8.5 million readings.
-- `tables/vials-<month>.csv.gz`: every vial filled that month (about 375,000 in the year) with its
+  tag, value, quality): about 8.6 million readings.
+- `tables/vials-<month>.csv.gz`: every vial filled that month (about 390,000 in the year) with its
   genealogy, needle, fill weight, shelf, the cycle's leak rate and pressure, its product
   temperature, its batch's harvest viability, resin cycle, CEX asymmetry and aggregates, and its
   inspection.
