@@ -3632,6 +3632,14 @@ test('a 2,000-node ontology: folded, zoomed, panned and searched on the canvas',
   await page.waitForSelector('.statusbar:has-text("(21 shown)")');
   // The badge counts all a line holds: 8 machines, their PLCs and 112 signals.
   assert.equal(await page.locator('[data-node="wc1-line1"] .fold').textContent(), '+128');
+  // A node's and a relationship's tooltip is made when it is first pointed at.
+  const line = page.locator('[data-node="wc1-line1"]');
+  assert.equal(await line.locator(':scope > title').count(), 0);
+  await line.hover();
+  assert.match(await line.locator(':scope > title').textContent(), /^Line: .* \(128 folded/);
+  const edge = page.locator('svg[data-canvas] path.edge').first();
+  await edge.dispatchEvent('pointerover');
+  assert.match(await edge.locator('title').textContent(), / —\w+→ /);
   await page.dblclick('[data-node="wc1-line1"]');
   // Only the line was folded: its 8 machines, their PLCs and the PLCs' 112 signals show.
   await page.waitForSelector('.statusbar:has-text("(149 shown)")');
