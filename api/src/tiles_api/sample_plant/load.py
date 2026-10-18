@@ -21,6 +21,7 @@ import csv
 import gzip
 import json
 import math
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -62,7 +63,10 @@ class HttpClient:
 
     def __init__(self, base: str) -> None:
         self.base = base.rstrip("/")
-        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # the API is local
+        host = urllib.parse.urlsplit(self.base).hostname or ""
+        local = host in ("localhost", "127.0.0.1", "::1")
+        # The system's proxy settings, but never a proxy for an API on this machine.
+        self.opener = urllib.request.build_opener(*([urllib.request.ProxyHandler({})] if local else []))
 
     def _call(
         self,
@@ -87,6 +91,8 @@ class HttpClient:
                 return _Reply(res.status, res.read())
         except urllib.error.HTTPError as e:
             return _Reply(e.code, e.read())
+        except urllib.error.URLError as e:
+            raise LoadError(f"Can't reach the API at {self.base}: {e.reason}") from e
 
     def get(self, url: str, **kw: Any) -> _Reply:
         return self._call("GET", url, params=kw.get("params"), headers=kw.get("headers"))
@@ -258,29 +264,55 @@ class Loader:
         return done
 
     def planned(self, root: Path) -> int:
+        """The planned codes, and each planned stop the site doesn't have yet (by asset and start)."""
         _ok(
             self.api.put(self.url("/planned-codes"), json={"codes": planned_codes(root)}, headers=self.who),
             "the planned codes",
         )
+        known: dict[str, set[tuple[str | None, float]]] = {}  # a month's stops on the site
+
+        def have(month: datetime) -> set[tuple[str | None, float]]:
+            key = month.strftime("%Y-%m")
+            if key not in known:
+                nxt = (month.replace(day=28) + timedelta(days=4)).replace(day=1)
+                got = _ok(
+                    self.api.get(
+                        self.url("/planned-stops"),
+                        params={"since": month.isoformat(), "until": nxt.isoformat()},
+                        headers=self.who,
+                    ),
+                    "the planned stops",
+                )
+                known[key] = {(p["asset"], datetime.fromisoformat(p["starts_at"]).timestamp()) for p in got["stops"]}
+            return known[key]
+
         n = 0
         with (root / "calendar" / "planned-stops.csv").open(encoding="utf-8") as f:
             for row in csv.DictReader(f):
+                starts = datetime.fromisoformat(row["start"]) + self.shift
+                asset = row["asset"] or None
+                if (asset, starts.timestamp()) in have(starts.replace(day=1, hour=0, minute=0, second=0)):
+                    continue
                 body = {
-                    "asset": row["asset"] or None,
-                    "starts_at": _at(row["start"], self.shift),
+                    "asset": asset,
+                    "starts_at": starts.isoformat(),
                     "ends_at": _at(row["end"], self.shift),
                     "reason": row["reason"],
                 }
                 _ok(self.api.post(self.url("/planned-stops"), json=body, headers=self.who), "a planned stop")
                 n += 1
-        self.say(f"Planned stops: {n}")
+        self.say(f"Planned stops: {n} new")
         return n
 
     def documents(self, root: Path) -> int:
+        """Each document the site doesn't have yet (by title)."""
+        titles = {d["title"] for d in _ok(self.api.get(self.url("/documents"), headers=self.who), "the documents")}
         n = 0
         for path in sorted((root / "documents").glob("*.md")):
             text = path.read_text(encoding="utf-8")
             title = text.splitlines()[0].removeprefix("# ")[:200]
+            if title in titles:
+                continue
             _ok(
                 self.api.post(
                     self.url("/documents"),
@@ -291,7 +323,7 @@ class Loader:
                 f"document {path.name}",
             )
             n += 1
-        self.say(f"Documents: {n}")
+        self.say(f"Documents: {n} new")
         return n
 
     def dataset(self, name: str, description: str, rows: list[dict[str, Any]]) -> None:
@@ -359,6 +391,14 @@ def load(
 
 
 def main(args: Any) -> None:
+    try:
+        _main(args)
+    except LoadError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
+
+
+def _main(args: Any) -> None:
     api = HttpClient(args.api)
     who = {"Authorization": f"Bearer {args.token}"} if args.token else {"X-Tiles-User": getattr(args, "as")}
     shift = shift_to_now(datetime.now(UTC), year_end(args.root)) if args.shift_to_now else timedelta(0)

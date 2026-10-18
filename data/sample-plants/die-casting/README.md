@@ -147,7 +147,7 @@ This writes `generated/` (about 100 MB, not in Git) in about five minutes:
   tag, value, quality): about 14 million readings.
 - `quality/<cell>-<month>.csv.gz`: every shot of Line 2 with its process values and X-ray result.
 - `traces/dc01-shots.csv.gz`: DC-01's shot curves for the two weeks before its plunger seized on
-  23 May 2026.
+  26 May 2026.
 
 The manifest's `generated` section gives each file's rows and the SHA-256 of its text, so a run can
 be checked against the one recorded.

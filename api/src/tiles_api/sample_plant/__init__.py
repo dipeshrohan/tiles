@@ -24,7 +24,9 @@ def main(argv: list[str] | None = None) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     gen = sub.add_parser("generate", help="simulate a plant's year and write its files")
     gen.add_argument("plant", choices=[*PLANTS, "all"], help="which plant (all: every one)")
-    gen.add_argument("--out", type=Path, help="the folder (default: data/sample-plants/<plant>)")
+    gen.add_argument(
+        "--out", type=Path, help="the folder (default: data/sample-plants/<plant>; with all, a folder each in it)"
+    )
     gen.add_argument("--all", action="store_true", help="also write the large files under generated/")
     ld = sub.add_parser("load", help="load a plant's files into a site through the API")
     ld.add_argument("plant", choices=list(PLANTS), help="which plant")
@@ -44,7 +46,8 @@ def main(argv: list[str] | None = None) -> None:
         load.main(args)
         return
     for name in PLANTS if args.plant == "all" else [args.plant]:
-        out = args.out if args.out and args.plant != "all" else DATA / name
+        # --out is the plant's folder; with all, the folder each plant's goes in.
+        out = (args.out / name if args.plant == "all" else args.out) if args.out else DATA / name
         manifest = plant(name).generate(out, big=args.all)
         print(
             f"{name}: wrote {out}, {len(manifest['committed'])} files"

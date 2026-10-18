@@ -11,20 +11,16 @@ committed files.
 """
 
 import bisect
-import csv
-import gzip
-import hashlib
-import io
 import json
 import random
-from array import array
 from collections import defaultdict
-from collections.abc import Iterable
-from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from tiles_api.sample_plant.common import Capture, Historian, Stats, Text, iso, write_csv
+from tiles_api.sample_plant.common import local as local_in
 from tiles_api.sample_plant.die_casting import calendar as cal
 from tiles_api.sample_plant.die_casting import simulate as sim
 from tiles_api.sample_plant.die_casting.plant import (
@@ -89,131 +85,12 @@ PARTS = {
 }
 
 
-def iso(t: float) -> str:
-    """UTC with milliseconds, as the historian exports."""
-    return datetime.fromtimestamp(t, UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{int(t * 1000) % 1000:03d}Z"
-
-
 def local(t: float) -> str:
     """The plant's time with its offset, as the MES exports."""
-    return datetime.fromtimestamp(t, ZONE).isoformat(timespec="seconds")
-
-
-class Text:
-    """A text file written line by line, gzipped or not, with its rows and the SHA-256 of its text."""
-
-    def __init__(self, path: Path, header: str, gz: bool) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self.path = path
-        raw = path.open("wb")
-        self.raw = raw
-        self.out: Any = gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) if gz else raw
-        self.sha = hashlib.sha256()
-        self.rows = 0
-        self.buf: list[str] = []
-        self.line(header)
-        self.rows = 0
-
-    def line(self, text: str) -> None:
-        self.buf.append(text + "\n")
-        self.rows += 1
-        if len(self.buf) >= 20_000:
-            self.flush()
-
-    def flush(self) -> None:
-        if self.buf:
-            data = "".join(self.buf).encode()
-            self.sha.update(data)
-            self.out.write(data)
-            self.buf = []
-
-    def close(self) -> dict[str, Any]:
-        self.flush()
-        if self.out is not self.raw:
-            self.out.close()
-        self.raw.close()
-        return {"rows": self.rows, "sha256": self.sha.hexdigest()}
+    return local_in(t, ZONE)
 
 
 QUESTION_MONTH = (datetime(2026, 5, 1, tzinfo=ZONE), datetime(2026, 6, 1, tzinfo=ZONE))  # the question set's month
-
-
-@dataclass
-class Capture:
-    """May's readings (as the historian holds them) and its X-ray rows: what the question set
-    reads, and what its test loads into Tiles."""
-
-    start: float
-    end: float
-    readings: dict[str, tuple[array[float], array[float]]] = field(default_factory=dict)
-    quality: dict[str, list[dict[str, Any]]] = field(default_factory=lambda: defaultdict(list))
-
-    def add(self, tag: str, t: float, v: float) -> None:
-        if self.start <= t < self.end:
-            got = self.readings.get(tag)
-            if got is None:
-                got = self.readings[tag] = (array("d"), array("d"))
-            got[0].append(t)
-            got[1].append(v)
-
-
-@dataclass
-class Stats:
-    """Per tag and plant day: min, max, sum, count (for the question set and the baseline)."""
-
-    days: dict[tuple[str, str], list[float]] = field(default_factory=dict)
-
-    def add(self, tag: str, t: float, v: float) -> None:
-        day = datetime.fromtimestamp(t, ZONE).date().isoformat()
-        s = self.days.get((tag, day))
-        if s is None:
-            self.days[(tag, day)] = [v, v, v, 1]
-        else:
-            if v < s[0]:
-                s[0] = v
-            if v > s[1]:
-                s[1] = v
-            s[2] += v
-            s[3] += 1
-
-
-class Historian:
-    """The historian export: a gzipped CSV per stream (a cell, the site) and month."""
-
-    def __init__(self, root: Path | None, stats: Stats, capture: Capture) -> None:
-        self.root = root
-        self.stats = stats
-        self.capture = capture
-        self.open: dict[str, tuple[str, Text]] = {}
-        self.files: dict[str, dict[str, Any]] = {}
-        self.month_cache: tuple[int, str] = (-1, "")
-
-    def _month(self, t: float) -> str:
-        hour = int(t // 3600)
-        if self.month_cache[0] != hour:
-            self.month_cache = (hour, datetime.fromtimestamp(t, UTC).strftime("%Y-%m"))
-        return self.month_cache[1]
-
-    def write(self, stream: str, tag: str, t: float, value: float | str) -> None:
-        if isinstance(value, float | int):
-            self.stats.add(tag, t, float(value))
-            self.capture.add(tag, t, float(value))
-        if self.root is None:
-            return
-        month = self._month(t)
-        current = self.open.get(stream)
-        if current is None or current[0] != month:
-            if current:
-                self.files[f"historian/{current[0]}/{stream}.csv.gz"] = current[1].close()
-            text = Text(self.root / "historian" / month / f"{stream}.csv.gz", "timestamp,tag,value,quality", True)
-            current = (month, text)
-            self.open[stream] = current
-        current[1].line(f"{iso(t)},{tag},{value},Good")
-
-    def close(self) -> None:
-        for stream, (month, text) in self.open.items():
-            self.files[f"historian/{month}/{stream}.csv.gz"] = text.close()
-        self.open = {}
 
 
 def quirk(tag: str, t: float, value: float) -> float | None:
@@ -304,7 +181,7 @@ def simulate(out: Path, big: bool) -> Year:
     shifts = cal.shifts()
     working = sim.Working(cal.working_intervals(shifts))
     site = sim.site_series(working, shifts)
-    stats = Stats()
+    stats = Stats(ZONE)
     capture = Capture(QUESTION_MONTH[0].timestamp(), QUESTION_MONTH[1].timestamp())
     hist = Historian(out / "generated" if big else None, stats, capture)
     starts = [s.start.timestamp() for s in shifts]
@@ -410,19 +287,6 @@ def simulate(out: Path, big: bool) -> Year:
 
 
 # ---- the committed files -------------------------------------------------------------------------
-
-
-def write_csv(path: Path, header: Iterable[str], rows: Iterable[Iterable[Any]]) -> int:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    buf = io.StringIO()
-    w = csv.writer(buf, lineterminator="\n")
-    w.writerow(header)
-    n = 0
-    for row in rows:
-        w.writerow(["" if v is None else v for v in row])
-        n += 1
-    path.write_text(buf.getvalue(), encoding="utf-8")
-    return n
 
 
 def mes_stops(year: Year) -> list[list[Any]]:

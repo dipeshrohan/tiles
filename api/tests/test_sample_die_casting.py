@@ -2,8 +2,10 @@
 makes, its year behaves like a die-casting plant's, its physics is the plunger model's, and its
 copilot questions are answered by the tools from the data, once it is loaded into a site."""
 
+import bisect
 import csv
 import io
+import itertools
 import json
 import math
 import statistics
@@ -21,6 +23,7 @@ from tiles_api import evaluation, grounding, ontology, ontology_io
 from tiles_api.assistant import Turn
 from tiles_api.evaluation import Case
 from tiles_api.models.plunger import PlungerFriction
+from tiles_api.sample_plant import common
 from tiles_api.sample_plant.die_casting import generate, questions, simulate
 from tiles_api.sample_plant.die_casting.plant import PILOT, ZONE
 from tiles_api.sample_plant.load import Loader, event_readings, historian_readings
@@ -72,6 +75,17 @@ def test_the_year_runs_like_a_die_casting_plant(built: tuple[Path, generate.Year
             if e.failed_at:
                 assert any(s.episode == e.id and s.code == simulate.MODES[e.mode].code for s in r.stops)
     assert set(failed_modes) >= {"plunger", "accumulator", "cooling", "spray", "furnace"}
+    # No shot is cast while its cell is stopped, and a cell's stops don't overlap.
+    for c in simulate.CELLS:
+        r = year.cells[c.asset]
+        stops = sorted((s.start, s.end) for s in r.stops)
+        assert all(b[0] >= a[1] - 1e-6 for a, b in itertools.pairwise(stops)), c.asset
+        starts = [a for a, _ in stops]
+        inside = 0
+        for t in r.shot_times:
+            k = bisect.bisect_right(starts, t) - 1
+            inside += k >= 0 and t < stops[k][1] - 1e-6
+        assert inside == 0, (c.asset, inside)
     # The MES's per-shift production adds up to the shots cast.
     rows = list(csv.DictReader(io.StringIO((DATA / "mes" / "production.csv").read_text())))
     for c in PILOT:
@@ -155,9 +169,9 @@ def test_the_questions_are_a_set_tiles_evaluate_can_score() -> None:
 
 
 def test_the_historian_files_read_back_as_they_were_written(tmp_path: Path) -> None:
-    stats = generate.Stats()
+    stats = common.Stats(ZONE)
     month = datetime(2026, 5, 1, tzinfo=ZONE).timestamp()
-    hist = generate.Historian(tmp_path / "generated", stats, generate.Capture(month, month + 86400))
+    hist = common.Historian(tmp_path / "generated", stats, common.Capture(month, month + 86400))
     t = datetime(2026, 4, 30, 23, 59, 59, tzinfo=ZONE).timestamp()  # 21:59:59 UTC: April's file
     hist.write("site", "lab.hydrogen", t, 0.12)
     hist.write("site", "lab.hydrogen", t + 4 * 3600, 0.13)  # 01:59:59 UTC on 1 May: May's file
@@ -172,6 +186,36 @@ def test_the_historian_files_read_back_as_they_were_written(tmp_path: Path) -> N
     assert (
         generate.quirk("dc04.intensification_pressure", datetime(2026, 5, 12, tzinfo=ZONE).timestamp(), 940.0) == 94.0
     )
+
+
+def test_times_are_written_rounded_once() -> None:
+    assert common.iso(1767225599.9999996) == "2026-01-01T00:00:00.000Z"
+    assert common.iso(1767225599.1234) == "2025-12-31T23:59:59.123Z"
+
+
+def test_the_historian_refuses_to_reopen_a_month(tmp_path: Path) -> None:
+    hist = common.Historian(tmp_path, common.Stats(ZONE), common.Capture(0, 0))
+    hist.write("s", "x", datetime(2026, 4, 30, 12, tzinfo=ZONE).timestamp(), 1.0)
+    hist.write("s", "x", datetime(2026, 5, 2, tzinfo=ZONE).timestamp(), 2.0)
+    with pytest.raises(ValueError, match="after a later month"):
+        hist.write("s", "x", datetime(2026, 4, 30, 13, tzinfo=ZONE).timestamp(), 3.0)
+
+
+def test_generate_all_writes_each_plant_in_out(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import types
+
+    from tiles_api import sample_plant
+
+    wrote: list[Path] = []
+
+    def fake(out: Path, big: bool = False) -> dict[str, Any]:
+        wrote.append(out)
+        return {"committed": {}, "generated": {}}
+
+    monkeypatch.setattr(sample_plant, "plant", lambda name: types.SimpleNamespace(generate=fake))
+    with pytest.raises(SystemExit):
+        sample_plant.main(["generate", "all", "--out", str(tmp_path)])
+    assert wrote == [tmp_path / name for name in sample_plant.PLANTS]
 
 
 class Oracle:
@@ -229,13 +273,14 @@ def test_every_question_is_answered_from_the_loaded_plant(
         times, values = year.capture.readings[tag]
         for t, v in zip(times, values, strict=True):
             if any(a - 3600 <= t < b + 3600 for a, b in spans):
-                readings.append((tag, generate.iso(t), v))
+                readings.append((tag, common.iso(t), v))
     loader.readings("questions' readings", readings)
     start, end = year.capture.start, year.capture.end
     may = [r for r in event_readings(out) if start <= datetime.fromisoformat(r[1]).timestamp() < end]
     loader.readings("May's MES events", may)
     loader.catalogue(out)
-    loader.documents(out)
+    assert loader.documents(out) > 0 and loader.planned(out) > 0
+    assert (loader.documents(out), loader.planned(out)) == (0, 0)  # loaded again: nothing twice
     month = datetime.fromtimestamp(start, ZONE)
     for c in PILOT:
         loader.dataset(questions.dataset_name(c.asset, month), "", year.capture.quality[c.asset])

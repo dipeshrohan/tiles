@@ -9,15 +9,13 @@ calls the plan, so every fact is proved to be in what the tools give. Readings q
 May 2026 (`QUESTION_MONTH`), the month with most breakdowns on Line 2.
 """
 
-import json
-import math
 from collections.abc import Iterator
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from tiles_api import correlate
+from tiles_api.sample_plant.common import Question, borderline, number, write_questions
 from tiles_api.sample_plant.die_casting import simulate as sim
 from tiles_api.sample_plant.die_casting.plant import CELLS, PILOT, ZONE, Cell
 
@@ -50,37 +48,12 @@ PRECURSOR = {
 }
 
 
-@dataclass
-class Question:
-    id: str
-    question: str
-    tools: list[str] = field(default_factory=list)
-    facts: list[str] = field(default_factory=list)  # a fact's alternatives joined by " | "
-    absent: list[str] = field(default_factory=list)
-    decline: bool = False
-    notes: str = ""
-    plan: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
-    data: list[tuple[str, str, str]] = field(default_factory=list)  # (tag, from, to)
-
-
 def iso(d: datetime) -> str:
     return d.isoformat(timespec="seconds")
 
 
 def day(d: datetime) -> str:
     return f"{d.day} {d:%B %Y}"
-
-
-def number(v: float, places: int) -> str:
-    """As the grounding check reads it: rounded half up, without a trailing .0."""
-    text = f"{math.floor(v * 10.0**places + 0.5) / 10.0**places:.{places}f}"
-    return text[:-2] if text.endswith(".0") else text
-
-
-def borderline(v: float, places: int) -> bool:
-    """Too near a rounding boundary to be stated safely (the API sums in another order)."""
-    x = v * 10.0**places
-    return abs(x - math.floor(x) - 0.5) < 0.01
 
 
 def stat(year: "Year", tag: str, d: datetime) -> list[float] | None:
@@ -710,28 +683,7 @@ def all_questions(year: "Year") -> list[Question]:
 
 
 def write(out: Path, year: "Year") -> dict[str, int]:
-    from tiles_api.sample_plant.die_casting.generate import write_csv
-
-    qs = all_questions(year)
-    n = write_csv(
-        out / "copilot" / "questions.csv",
-        ("id", "question", "tools", "facts", "absent", "decline", "notes", "plan", "data"),
-        (
-            (
-                q.id,
-                q.question,
-                "; ".join(q.tools),
-                "; ".join(q.facts),
-                "; ".join(q.absent),
-                "yes" if q.decline else "",
-                q.notes,
-                json.dumps(q.plan, ensure_ascii=False) if q.plan else "",
-                "; ".join(f"{t}@{a}/{b}" for t, a, b in q.data),
-            )
-            for q in qs
-        ),
-    )
-    return {"copilot/questions.csv": n}
+    return {"copilot/questions.csv": write_questions(out / "copilot" / "questions.csv", all_questions(year))}
 
 
 __all__ = ["Question", "all_questions", "dataset_name", "write"]

@@ -13,8 +13,9 @@ from tiles_api.sample_plant.die_casting.plant import END, START, ZONE
 SHIFTS = (("N", 22), ("E", 6), ("L", 14))  # night (from the evening before), early, late
 CREWS = ("A", "B", "C")
 
-# Public holidays (Germany, those of every state) and the plant's shutdowns, as local dates: no
-# shift starts on them (the night shift of the evening before is the holiday's first).
+# Public holidays (Germany, those of every state) and the plant's shutdowns, as local dates: none of
+# their production day's shifts runs (its night shift starts the evening before; the night shift
+# starting on the holiday's evening belongs to the next day, and runs).
 HOLIDAYS = {
     date(2025, 10, 3): "German Unity Day",
     date(2026, 4, 3): "Good Friday",
@@ -110,5 +111,6 @@ def gaps(intervals: list[tuple[float, float]]) -> list[tuple[float, float, str]]
             reasons.add(r or "Weekend: no shift planned")
             t += 3600 * 6
         named = sorted(r for r in reasons if not r.startswith("Weekend"))
-        out.append((a, b, named[0] if named else "Weekend: no shift planned"))
+        weekend = any(datetime.fromtimestamp(x, ZONE).weekday() >= 5 for x in (a, (a + b) / 2, b))
+        out.append((a, b, named[0] if named else "Weekend: no shift planned" if weekend else "No shift planned"))
     return out

@@ -24,10 +24,12 @@ year is the same on every run.
 import bisect
 import math
 import random
+from array import array
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
+from tiles_api.sample_plant.common import Episode, Maintenance, Stop, Working
 from tiles_api.sample_plant.die_casting import calendar as cal
 from tiles_api.sample_plant.die_casting.plant import (
     CELLS,
@@ -141,84 +143,6 @@ COMMENTS = {
 
 
 @dataclass
-class Episode:
-    id: str
-    asset: str
-    mode: str
-    onset: float  # epoch seconds
-    ramp_s: float  # working seconds from onset to failure
-    shape: float
-    catchable: bool
-    resolved_at: float | None = None
-    outcome: str = ""  # failed, caught at maintenance, found in a quality hold, cleared by a die change…
-    failed_at: float | None = None
-    peak: float = 0.0  # the severity reached
-    w_onset: float = 0.0  # working seconds at onset
-
-    def severity(self, w: float, t: float) -> float:
-        if t < self.onset or (self.resolved_at is not None and t >= self.resolved_at):
-            return 0.0
-        return float(max(0.0, (w - self.w_onset) / self.ramp_s) ** self.shape)
-
-
-@dataclass
-class Stop:
-    asset: str
-    start: float
-    end: float
-    code: str
-    planned: bool
-    comment: str
-    episode: str | None = None
-
-
-@dataclass
-class Maintenance:
-    """A job maintenance did: planned (PM, tip change), or a repair after a stop, or a find."""
-
-    asset: str
-    start: float
-    end: float
-    kind: str  # PM, CM (corrective), INSP (a find during maintenance)
-    component: str
-    code: str
-    text: str
-    episode: str | None = None
-
-
-class Working:
-    """The working calendar: is a time in a shift, and how many working seconds lie before it."""
-
-    def __init__(self, intervals: list[tuple[float, float]]) -> None:
-        self.intervals = intervals
-        self.starts = [a for a, _ in intervals]
-        self.cum = [0.0]
-        for a, b in intervals:
-            self.cum.append(self.cum[-1] + b - a)
-
-    def index(self, t: float) -> int:
-        """The interval at or after t."""
-        i = bisect.bisect_right(self.starts, t) - 1
-        if i >= 0 and t < self.intervals[i][1]:
-            return i
-        return i + 1
-
-    def seconds(self, t: float) -> float:
-        i = bisect.bisect_right(self.starts, t) - 1
-        if i < 0:
-            return 0.0
-        a, b = self.intervals[i]
-        return self.cum[i] + min(t, b) - a
-
-    def at_seconds(self, w: float) -> float:
-        """The time when `w` working seconds have passed."""
-        i = max(0, bisect.bisect_right(self.cum, w) - 1)
-        if i >= len(self.intervals):
-            return self.intervals[-1][1]
-        return self.intervals[i][0] + (w - self.cum[i])
-
-
-@dataclass
 class SiteSeries:
     """What the whole site shares, on the 5-minute grid: the hall's air, the cooling water, the
     melt from MF-01 and its hydrogen, sampled by the lab."""
@@ -274,7 +198,7 @@ def site_series(working: Working, shifts: list[cal.Shift]) -> SiteSeries:
     degas = []
     for k in range(3):
         onset = working.at_seconds(rng.uniform(0.05, 0.95) * working.cum[-1])
-        ep = Episode(f"EP-DG01-{k + 1}", "DG-01", "degassing", onset, rng.uniform(3, 10) * 86400 * 0.7, 1.5, False)
+        ep = Episode(f"EP-DG01-{k + 1}", "DG-01", "degassing", onset, rng.uniform(3, 10) * 86400, 1.5, False)
         ep.w_onset = working.seconds(onset)
         degas.append(ep)
     degas.sort(key=lambda e: e.onset)
@@ -362,6 +286,7 @@ class CellResult:
     shots: int = 0
     parts: int = 0
     die_changes: list[tuple[float, str]] = field(default_factory=list)  # time, the product now cast
+    shot_times: array[float] = field(default_factory=lambda: array("d"))  # when each shot began
 
 
 class CellSim:
@@ -411,6 +336,7 @@ class CellSim:
         self.bucket: dict[str, list[float]] = {}  # an older cell's 5-minute averages
         self.pm_count = 0
         self.tip_due: float | None = None
+        self.hold_until = 0.0  # a quality hold's end
 
     # ---- planning -------------------------------------------------------------------------------
 
@@ -426,7 +352,7 @@ class CellSim:
                     month = datetime.fromtimestamp(onset, ZONE).month
                     if month not in (6, 7, 8, 9):
                         continue
-                ramp = self.r_ep.uniform(*mode.ramp_days) * 86400 * 0.75  # working seconds
+                ramp = self.r_ep.uniform(*mode.ramp_days) * 86400  # working seconds
                 if w0 < last_end + 3 * 86400:
                     continue
                 last_end = w0 + ramp
@@ -494,28 +420,25 @@ class CellSim:
         li = 0
         pi = 0
         intervals = self.w.intervals
-        i = 0
         t = intervals[0][0]
-        while i < len(intervals):
+        while True:
+            # The working stretch at or after t: a breakdown may have carried t into a later one.
+            i = self.w.index(t)
+            if i >= len(intervals):
+                break
             a, b = intervals[i]
-            if t >= b:
-                i += 1
-                if i < len(intervals):
-                    self._advance(intervals[i][0], "off")
-                    t = intervals[i][0]
-                continue
             if t < a:
                 self._advance(a, "off")
                 t = a
-            # Planned stops due (in this shift)
+            # Planned stops due (in this shift); one a breakdown overtook didn't happen.
             if pi < len(planned) and planned[pi][0] <= t:
                 start, end, code, text = planned[pi]
                 pi += 1
-                if start < a or start >= b:
+                begin, end = max(t, start), min(end, b)
+                if start < a or end - begin < 60:
                     continue
-                end = min(end, b)
-                self._stop(max(t, start), end, code, True, text)
-                self._after_planned(code, max(t, start), end)
+                self._stop(begin, end, code, True, text)
+                self._after_planned(code, begin, end)
                 t = end
                 continue
             if self.tip_due is not None and t >= self.tip_due:
@@ -571,6 +494,8 @@ class CellSim:
             run_s += cycle
             self._advance(t + cycle, "run")
             t += cycle
+            if self.hold_until > t:  # a quality hold: the cell waits for QA
+                t = self.hold_until
         self._advance(END.timestamp(), "off")
         for ep in self.res.episodes:
             if ep.resolved_at is None and ep.failed_at is None:
@@ -801,9 +726,11 @@ class CellSim:
         }
         at = t + cycle  # readings carry the time the shot finished
         self.res.shots += 1
+        self.res.shot_times.append(t)
         self.res.parts += parts
         for k in range(scrapped):  # the X-ray books each part a second after the one before
             self.res.scrap.append((at + k, p.code, defect, f"{shot_id}-{k + 1}"))
+        self._advance(at, "run")  # the 5-minute readings up to the shot's end first: a stream is in time order
         if self.full:
             for name, v in values.items():
                 self.reading(f"{self.c.key}.{name}", at, v)
@@ -852,6 +779,10 @@ class CellSim:
         return ""
 
     def _quality_hold(self, t: float, hold: float) -> None:
+        i = self.w.index(t)
+        if i < len(self.w.intervals):  # the hold ends with the shift at the latest
+            hold = min(hold, max(0.0, self.w.intervals[i][1] - t))
+        self.hold_until = t + hold
         self.res.stops.append(Stop(self.c.asset, t, t + hold, "DT-QH", False, self.r_stop.choice(COMMENTS["DT-QH"])))
         self._advance(t + hold, "stop")
         w = self.w.seconds(t)
