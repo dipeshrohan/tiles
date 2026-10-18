@@ -1,0 +1,13 @@
+{
+  "cell": {
+    "moisture_ppm": "0.5 * (cathode_moisture + anode_moisture) + 9 * max(0, dew_point + 45)",
+    "weld_weakness": "0.15 * (welds_since_horn_change / 200000) ** 2 + horn_wear ** 1.6 (horn_wear: 0 to 1, the ground truth)",
+    "burr_um": "max(cathode_burr, anode_burr)",
+    "capacity_ah": "60.9 * cathode_loading / 22.0 - 0.012 * max(0, moisture_ppm - 200) - 0.35 * max(0, 245 - fill_g) + noise(0.22)",
+    "dcir_mohm": "0.78 + 0.25 * weld_weakness + 0.0006 * max(0, moisture_ppm - 200) + noise(0.025)",
+    "k_value_mv_day": "0.07 + 0.0004 * max(0, moisture_ppm - 200) + noise(0.015), plus 0.4 to 3.0 when a micro-short forms",
+    "micro_short_chance": "0.002 + 0.25 / (1 + exp(-(burr_um - 13) / 1.2)) + 0.03 * max(0, overhang_mm - 0.5)",
+    "grade": "A: capacity >= 60.0, DCIR <= 0.90, K <= 0.20; B: capacity >= 58.8, DCIR <= 0.95, K <= 0.25; else NG"
+  },
+  "notes": "The cell's end-of-line results from its genealogy (simulate.py)"
+}

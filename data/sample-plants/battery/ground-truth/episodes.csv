@@ -1,0 +1,48 @@
+episode,asset,mode,code,onset,failed_at,resolved_at,outcome,peak_severity,ramp_working_days,precursors
+EP-CT-C1-die-lip-1,CT-C1,die-lip,DT-DIE,2025-10-13T05:57:26+02:00,,2025-10-15T08:00:00+02:00,Cleared by the planned die cleaning,0.73,2.49,ctc1.coating_weight_cv; ctc1.streaks
+EP-SL-C1-blade-chip-1,SL-C1,blade-chip,DT-BLD,2025-10-16T23:33:34+02:00,,2025-10-19T03:53:21+02:00,Found by the burr measurement: blades changed,0.81,2.4,slc1.burr_height; eol01.k_value (two weeks later)
+EP-CT-A1-die-lip-1,CT-A1,die-lip,DT-DIE,2025-10-17T10:08:59+02:00,2025-10-22T00:28:54+02:00,2025-10-22T03:20:35+02:00,Failed: the machine stopped,1.0,4.53,cta1.coating_weight_cv; cta1.streaks
+EP-ST-02-tension-1,ST-02,tension,DT-STK,2025-11-06T13:00:15+01:00,2025-11-09T21:58:00+01:00,2025-11-09T23:33:37+01:00,Failed: the machine stopped,1.0,3.37,st02.overhang_dev; st02.separator_tension
+EP-SL-A1-blade-chip-1,SL-A1,blade-chip,DT-BLD,2025-11-10T09:52:30+01:00,,2025-11-11T17:53:42+01:00,Found by the burr measurement: blades changed,0.77,1.47,sla1.burr_height; eol01.k_value (two weeks later)
+EP-ST-02-tension-3,ST-02,tension,DT-STK,2025-11-12T22:58:38+01:00,2025-11-15T08:49:26+01:00,2025-11-15T10:16:49+01:00,Failed: the machine stopped,1.0,2.4,st02.overhang_dev; st02.separator_tension
+EP-FM-02-contacts-1,FM-02,contacts,DT-FRM,2025-11-23T02:20:35+01:00,,2025-12-27T07:00:00+01:00,Found and fixed at planned maintenance,0.99,31.37,fm02.contact_resistance; fm02.rack_temp
+EP-CT-A1-die-lip-2,CT-A1,die-lip,DT-DIE,2025-11-24T16:42:31+01:00,,2025-11-27T08:00:00+01:00,Cleared by the planned die cleaning,0.3,5.13,cta1.coating_weight_cv; cta1.streaks
+EP-ST-01-tension-1,ST-01,tension,DT-STK,2025-11-27T19:46:31+01:00,2025-11-29T10:57:44+01:00,2025-11-29T13:35:54+01:00,Failed: the machine stopped,1.0,1.63,st01.overhang_dev; st01.separator_tension
+EP-ST-02-tension-4,ST-02,tension,DT-STK,2025-12-12T19:00:48+01:00,2025-12-15T15:10:45+01:00,2025-12-15T16:16:56+01:00,Failed: the machine stopped,1.0,2.84,st02.overhang_dev; st02.separator_tension
+EP-FM-01-contacts-1,FM-01,contacts,DT-FRM,2025-12-14T02:05:18+01:00,2026-01-26T13:00:35+01:00,2026-01-26T19:49:37+01:00,Failed: the machine stopped,1.0,38.9,fm01.contact_resistance; fm01.rack_temp
+EP-CT-A1-die-lip-3,CT-A1,die-lip,DT-DIE,2025-12-15T14:40:54+01:00,,2025-12-18T08:00:00+01:00,Cleared by the planned die cleaning,0.37,4.75,cta1.coating_weight_cv; cta1.streaks
+EP-CT-A1-die-lip-4,CT-A1,die-lip,DT-DIE,2025-12-23T16:30:47+01:00,2025-12-31T04:39:03+01:00,2025-12-31T07:47:34+01:00,Failed: the machine stopped,1.0,4.42,cta1.coating_weight_cv; cta1.streaks
+EP-DH-01-desiccant-1,DH-01,desiccant,DT-DRM,2025-12-30T15:59:25+01:00,2026-01-13T08:30:00+01:00,2026-01-13T12:09:22+01:00,Failed: the dry room went out of specification,0.91,12.88,dr01.dew_point; dh01.wheel_dp; lab.moisture_electrode
+EP-UW-01-horn-1,UW-01,horn,DT-WLD,2026-01-19T20:32:32+01:00,2026-01-25T01:09:13+01:00,2026-01-25T04:35:31+01:00,Failed: the machine stopped,1.0,5.19,uw01.weld_energy; lab.weld_peel; eol01.dcir
+EP-FM-02-contacts-2,FM-02,contacts,DT-FRM,2026-01-23T11:35:51+01:00,2026-02-05T23:38:44+01:00,2026-02-06T08:17:14+01:00,Failed: the machine stopped,1.0,13.5,fm02.contact_resistance; fm02.rack_temp
+EP-SL-C1-blade-chip-2,SL-C1,blade-chip,DT-BLD,2026-01-25T04:49:55+01:00,,2026-01-25T07:00:00+01:00,Cleared by the planned blade change,0.01,2.43,slc1.burr_height; eol01.k_value (two weeks later)
+EP-CT-A1-dryer-1,CT-A1,dryer,DT-DRY,2026-02-12T17:21:55+01:00,2026-03-03T03:06:12+01:00,2026-03-03T06:58:45+01:00,Failed: the machine stopped,1.0,18.33,cta1.dryer_fan_current; cta1.dryer_temp_z3; cta1.residual_solvent; lab.peel_cathode
+EP-CT-A1-die-lip-5,CT-A1,die-lip,DT-DIE,2026-02-13T01:56:57+01:00,2026-02-16T18:16:11+01:00,2026-02-16T21:49:00+01:00,Failed: the machine stopped,1.0,3.59,cta1.coating_weight_cv; cta1.streaks
+EP-SL-A1-blade-chip-2,SL-A1,blade-chip,DT-BLD,2026-02-13T02:34:35+01:00,,2026-02-15T01:18:53+01:00,Found by the burr measurement: blades changed,0.89,2.0,sla1.burr_height; eol01.k_value (two weeks later)
+EP-CT-C1-die-lip-2,CT-C1,die-lip,DT-DIE,2026-02-16T07:23:07+01:00,,2026-02-18T08:00:00+01:00,Cleared by the planned die cleaning,0.15,5.81,ctc1.coating_weight_cv; ctc1.streaks
+EP-SL-C1-blade-chip-3,SL-C1,blade-chip,DT-BLD,2026-03-04T22:03:07+01:00,,2026-03-06T07:00:00+01:00,Cleared by the planned blade change,0.21,3.87,slc1.burr_height; eol01.k_value (two weeks later)
+EP-ST-01-tension-2,ST-01,tension,DT-STK,2026-03-09T14:17:18+01:00,2026-03-11T14:50:54+01:00,2026-03-11T16:38:04+01:00,Failed: the machine stopped,1.0,2.02,st01.overhang_dev; st01.separator_tension
+EP-CT-A1-die-lip-6,CT-A1,die-lip,DT-DIE,2026-03-15T18:46:38+01:00,,2026-03-19T08:00:00+01:00,Cleared by the planned die cleaning,0.57,4.87,cta1.coating_weight_cv; cta1.streaks
+EP-SL-C1-blade-chip-4,SL-C1,blade-chip,DT-BLD,2026-03-19T00:14:08+01:00,,2026-03-21T07:00:00+01:00,Cleared by the planned blade change,0.84,2.57,slc1.burr_height; eol01.k_value (two weeks later)
+EP-SL-A1-blade-chip-4,SL-A1,blade-chip,DT-BLD,2026-03-26T18:36:07+01:00,,2026-03-29T04:31:26+02:00,Found by the burr measurement: blades changed,0.53,3.49,sla1.burr_height; eol01.k_value (two weeks later)
+EP-CT-C1-die-lip-4,CT-C1,die-lip,DT-DIE,2026-04-03T03:20:32+02:00,,2026-04-08T07:00:00+02:00,Cleared by the planned die cleaning,0.81,5.8,ctc1.coating_weight_cv; ctc1.streaks
+EP-SL-A1-blade-chip-5,SL-A1,blade-chip,DT-BLD,2026-05-06T14:51:09+02:00,,2026-05-07T20:33:27+02:00,Found by the burr measurement: blades changed,0.74,1.39,sla1.burr_height; eol01.k_value (two weeks later)
+EP-ST-02-tension-5,ST-02,tension,DT-STK,2026-05-09T08:43:06+02:00,2026-05-14T07:08:36+02:00,2026-05-14T09:09:28+02:00,Failed: the machine stopped,1.0,4.93,st02.overhang_dev; st02.separator_tension
+EP-ST-01-tension-3,ST-01,tension,DT-STK,2026-05-16T20:24:16+02:00,2026-05-21T18:08:15+02:00,2026-05-21T20:30:28+02:00,Failed: the machine stopped,1.0,4.9,st01.overhang_dev; st01.separator_tension
+EP-CL-A1-bearing-1,CL-A1,bearing,DT-CAL,2026-05-16T21:07:20+02:00,,2026-06-13T07:00:00+02:00,Found and fixed at planned maintenance,0.63,34.65,cla1.bearing_vibration; cla1.thickness_sd
+EP-FM-01-contacts-2,FM-01,contacts,DT-FRM,2026-05-18T06:18:10+02:00,2026-06-11T14:35:02+02:00,2026-06-11T21:03:28+02:00,Failed: the machine stopped,1.0,24.34,fm01.contact_resistance; fm01.rack_temp
+EP-DH-01-desiccant-2,DH-01,desiccant,DT-DRM,2026-05-20T06:18:35+02:00,,2026-06-03T07:00:00+02:00,Found and fixed at planned maintenance,0.7,17.28,dr01.dew_point; dh01.wheel_dp; lab.moisture_electrode
+EP-ST-02-tension-6,ST-02,tension,DT-STK,2026-05-30T01:55:07+02:00,2026-06-01T05:28:54+02:00,2026-06-01T06:20:18+02:00,Failed: the machine stopped,1.0,2.15,st02.overhang_dev; st02.separator_tension
+EP-CT-A1-die-lip-7,CT-A1,die-lip,DT-DIE,2026-06-11T17:12:29+02:00,2026-06-17T07:02:27+02:00,2026-06-17T10:42:43+02:00,Failed: the machine stopped,1.0,5.45,cta1.coating_weight_cv; cta1.streaks
+EP-UW-01-horn-2,UW-01,horn,DT-WLD,2026-06-15T07:39:54+02:00,2026-06-17T12:36:57+02:00,2026-06-17T15:54:10+02:00,Failed: the machine stopped,1.0,2.21,uw01.weld_energy; lab.weld_peel; eol01.dcir
+EP-EF-01-pump-1,EF-01,pump,DT-FIL,2026-06-16T05:49:42+02:00,2026-06-23T03:43:58+02:00,2026-06-23T05:41:28+02:00,Failed: the machine stopped,1.0,6.91,ef01.fill_weight; eol01.capacity
+EP-ST-01-tension-4,ST-01,tension,DT-STK,2026-06-23T12:43:28+02:00,2026-06-25T12:30:35+02:00,2026-06-25T13:38:40+02:00,Failed: the machine stopped,1.0,1.88,st01.overhang_dev; st01.separator_tension
+EP-ST-02-tension-7,ST-02,tension,DT-STK,2026-06-30T22:04:57+02:00,2026-07-05T18:45:43+02:00,2026-07-05T21:02:15+02:00,Failed: the machine stopped,1.0,4.86,st02.overhang_dev; st02.separator_tension
+EP-CL-A1-bearing-2,CL-A1,bearing,DT-CAL,2026-07-06T15:44:09+02:00,2026-08-15T00:29:43+02:00,2026-08-15T06:03:04+02:00,Failed: the machine stopped,1.0,32.28,cla1.bearing_vibration; cla1.thickness_sd
+EP-CT-A1-dryer-2,CT-A1,dryer,DT-DRY,2026-08-05T02:53:28+02:00,2026-08-24T05:20:43+02:00,2026-08-24T13:47:13+02:00,Failed: the machine stopped,1.0,19.08,cta1.dryer_fan_current; cta1.dryer_temp_z3; cta1.residual_solvent; lab.peel_cathode
+EP-SL-A1-blade-chip-6,SL-A1,blade-chip,DT-BLD,2026-08-08T10:36:18+02:00,,2026-08-10T06:24:06+02:00,Found by the burr measurement: blades changed,0.49,2.78,sla1.burr_height; eol01.k_value (two weeks later)
+EP-FM-01-contacts-3,FM-01,contacts,DT-FRM,2026-09-09T13:38:03+02:00,,,Still building up at the end of the year,0.39,35.85,fm01.contact_resistance; fm01.rack_temp
+EP-SL-C1-blade-chip-5,SL-C1,blade-chip,DT-BLD,2026-09-10T18:56:20+02:00,,2026-09-12T07:33:43+02:00,Found by the burr measurement: blades changed,0.53,2.18,slc1.burr_height; eol01.k_value (two weeks later)
+EP-FM-02-contacts-3,FM-02,contacts,DT-FRM,2026-09-13T11:58:59+02:00,,,Still building up at the end of the year,0.38,29.46,fm02.contact_resistance; fm02.rack_temp
+EP-CT-C1-die-lip-5,CT-C1,die-lip,DT-DIE,2026-09-13T17:44:48+02:00,,2026-09-16T08:00:00+02:00,Cleared by the planned die cleaning,0.45,4.06,ctc1.coating_weight_cv; ctc1.streaks
+EP-SL-A1-blade-chip-8,SL-A1,blade-chip,DT-BLD,2026-09-17T08:09:08+02:00,,2026-09-19T07:14:36+02:00,Found by the burr measurement: blades changed,0.81,2.15,sla1.burr_height; eol01.k_value (two weeks later)

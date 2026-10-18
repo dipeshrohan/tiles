@@ -1,0 +1,15 @@
+name,email,tiles_role,job,crew
+Ingrid Lindqvist,ingrid.lindqvist@example.com,admin,Plant manager (sponsor),
+Oskar Berg,oskar.berg@example.com,engineer,"Process engineer, electrodes",
+Amina Haddad,amina.haddad@example.com,engineer,"Process engineer, assembly and formation",
+Johan Ek,johan.ek@example.com,engineer,Maintenance lead,
+Leila Sandberg,leila.sandberg@example.com,engineer,Quality lead,
+Erik Nyström,erik.nystrom@example.com,engineer,Maintenance technician,A
+Sara Holm,sara.holm@example.com,engineer,Maintenance technician,B
+Mikael Öberg,mikael.oberg@example.com,engineer,Maintenance technician,C
+Hanna Strand,hanna.strand@example.com,engineer,Maintenance technician,D
+Ali Rahimi,ali.rahimi@example.com,viewer,Shift lead,A
+Karin Dahl,karin.dahl@example.com,viewer,Shift lead,B
+Tomas Wik,tomas.wik@example.com,viewer,Shift lead,C
+Nadia Ivanova,nadia.ivanova@example.com,viewer,Shift lead,D
+Petra Lund,petra.lund@example.com,admin,IT and OT lead,

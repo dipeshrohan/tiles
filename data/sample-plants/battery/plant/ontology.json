@@ -1,0 +1,2911 @@
+{
+  "format": "tiles-ontology",
+  "version": 1,
+  "nodes": [
+    {
+      "id": "kestrel",
+      "type": "Enterprise",
+      "label": "Kestrel Energy",
+      "props": {}
+    },
+    {
+      "id": "varnhem",
+      "type": "Site",
+      "label": "Varnhem cell plant",
+      "props": {
+        "location": "Varnhem, Sweden",
+        "timezone": "Europe/Stockholm"
+      }
+    },
+    {
+      "id": "electrodes",
+      "type": "Workcenter",
+      "label": "Electrodes",
+      "props": {}
+    },
+    {
+      "id": "cell-assembly",
+      "type": "Workcenter",
+      "label": "Cell assembly",
+      "props": {}
+    },
+    {
+      "id": "formation-and-aging",
+      "type": "Workcenter",
+      "label": "Formation and aging",
+      "props": {}
+    },
+    {
+      "id": "quality-lab",
+      "type": "Workcenter",
+      "label": "Quality lab",
+      "props": {}
+    },
+    {
+      "id": "utilities",
+      "type": "Workcenter",
+      "label": "Utilities",
+      "props": {}
+    },
+    {
+      "id": "cathode-line",
+      "type": "Line",
+      "label": "Cathode line",
+      "props": {}
+    },
+    {
+      "id": "anode-line",
+      "type": "Line",
+      "label": "Anode line",
+      "props": {}
+    },
+    {
+      "id": "assembly-line",
+      "type": "Line",
+      "label": "Assembly line",
+      "props": {}
+    },
+    {
+      "id": "plc-cathode-line",
+      "type": "PLC",
+      "label": "PLC Cathode line",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Siemens S7-1500"
+      }
+    },
+    {
+      "id": "plc-anode-line",
+      "type": "PLC",
+      "label": "PLC Anode line",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Siemens S7-1500"
+      }
+    },
+    {
+      "id": "plc-dry-room",
+      "type": "PLC",
+      "label": "PLC Dry room",
+      "props": {
+        "protocol": "Modbus TCP",
+        "model": "Munters Climate Controller"
+      }
+    },
+    {
+      "id": "plc-assembly",
+      "type": "PLC",
+      "label": "PLC Assembly",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Beckhoff CX2040"
+      }
+    },
+    {
+      "id": "plc-formation",
+      "type": "PLC",
+      "label": "PLC Formation",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Chroma Formation Manager"
+      }
+    },
+    {
+      "id": "plc-utilities",
+      "type": "PLC",
+      "label": "PLC Utilities",
+      "props": {
+        "protocol": "Modbus TCP",
+        "model": "Wago 750"
+      }
+    },
+    {
+      "id": "mx-c1",
+      "type": "Machine",
+      "label": "Cathode mixer MX-C1",
+      "props": {
+        "vendor": "Bühler",
+        "model": "ECM 1000",
+        "kind": "mixer",
+        "asset": "MX-C1",
+        "year": 2022
+      }
+    },
+    {
+      "id": "ct-c1",
+      "type": "Machine",
+      "label": "Cathode coater CT-C1",
+      "props": {
+        "vendor": "Hirano Tecseed",
+        "model": "M-400L",
+        "kind": "coater",
+        "asset": "CT-C1",
+        "year": 2022
+      }
+    },
+    {
+      "id": "cl-c1",
+      "type": "Machine",
+      "label": "Cathode calender CL-C1",
+      "props": {
+        "vendor": "Saueressig",
+        "model": "GKL 700",
+        "kind": "calender",
+        "asset": "CL-C1",
+        "year": 2022
+      }
+    },
+    {
+      "id": "sl-c1",
+      "type": "Machine",
+      "label": "Cathode slitter SL-C1",
+      "props": {
+        "vendor": "Kampf",
+        "model": "Conslitter",
+        "kind": "slitter",
+        "asset": "SL-C1",
+        "year": 2022
+      }
+    },
+    {
+      "id": "vd-c1",
+      "type": "Machine",
+      "label": "Cathode vacuum oven VD-C1",
+      "props": {
+        "vendor": "Memmert",
+        "model": "VO 1000",
+        "kind": "vacuum-oven",
+        "asset": "VD-C1",
+        "year": 2022
+      }
+    },
+    {
+      "id": "mx-a1",
+      "type": "Machine",
+      "label": "Anode mixer MX-A1",
+      "props": {
+        "vendor": "Bühler",
+        "model": "ECM 1000",
+        "kind": "mixer",
+        "asset": "MX-A1",
+        "year": 2022
+      }
+    },
+    {
+      "id": "ct-a1",
+      "type": "Machine",
+      "label": "Anode coater CT-A1",
+      "props": {
+        "vendor": "Hirano Tecseed",
+        "model": "M-400L",
+        "kind": "coater",
+        "asset": "CT-A1",
+        "year": 2022
+      }
+    },
+    {
+      "id": "cl-a1",
+      "type": "Machine",
+      "label": "Anode calender CL-A1",
+      "props": {
+        "vendor": "Saueressig",
+        "model": "GKL 700",
+        "kind": "calender",
+        "asset": "CL-A1",
+        "year": 2022
+      }
+    },
+    {
+      "id": "sl-a1",
+      "type": "Machine",
+      "label": "Anode slitter SL-A1",
+      "props": {
+        "vendor": "Kampf",
+        "model": "Conslitter",
+        "kind": "slitter",
+        "asset": "SL-A1",
+        "year": 2022
+      }
+    },
+    {
+      "id": "vd-a1",
+      "type": "Machine",
+      "label": "Anode vacuum oven VD-A1",
+      "props": {
+        "vendor": "Memmert",
+        "model": "VO 1000",
+        "kind": "vacuum-oven",
+        "asset": "VD-A1",
+        "year": 2022
+      }
+    },
+    {
+      "id": "dr-01",
+      "type": "Machine",
+      "label": "Dry room DR-01",
+      "props": {
+        "vendor": "Munters",
+        "model": "DryCool",
+        "kind": "dry-room",
+        "asset": "DR-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "dh-01",
+      "type": "Machine",
+      "label": "Dehumidifier DH-01",
+      "props": {
+        "vendor": "Munters",
+        "model": "MX2 3000",
+        "kind": "dehumidifier",
+        "asset": "DH-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "nt-c1",
+      "type": "Machine",
+      "label": "Cathode notcher NT-C1",
+      "props": {
+        "vendor": "Trumpf",
+        "model": "TruMicro 7000",
+        "kind": "notcher",
+        "asset": "NT-C1",
+        "year": 2022
+      }
+    },
+    {
+      "id": "nt-a1",
+      "type": "Machine",
+      "label": "Anode notcher NT-A1",
+      "props": {
+        "vendor": "Trumpf",
+        "model": "TruMicro 7000",
+        "kind": "notcher",
+        "asset": "NT-A1",
+        "year": 2022
+      }
+    },
+    {
+      "id": "st-01",
+      "type": "Machine",
+      "label": "Stacker ST-01",
+      "props": {
+        "vendor": "Manz",
+        "model": "BLS 500",
+        "kind": "stacker",
+        "asset": "ST-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "st-02",
+      "type": "Machine",
+      "label": "Stacker ST-02",
+      "props": {
+        "vendor": "Manz",
+        "model": "BLS 500",
+        "kind": "stacker",
+        "asset": "ST-02",
+        "year": 2023
+      }
+    },
+    {
+      "id": "uw-01",
+      "type": "Machine",
+      "label": "Tab welder UW-01",
+      "props": {
+        "vendor": "Herrmann Ultraschall",
+        "model": "HiQ VARIO",
+        "kind": "ultrasonic-welder",
+        "asset": "UW-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "ef-01",
+      "type": "Machine",
+      "label": "Electrolyte filler EF-01",
+      "props": {
+        "vendor": "Bühler",
+        "model": "EFS 200",
+        "kind": "electrolyte-filler",
+        "asset": "EF-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "fm-01",
+      "type": "Machine",
+      "label": "Formation rack FM-01",
+      "props": {
+        "vendor": "Chroma",
+        "model": "17208M",
+        "kind": "formation-rack",
+        "asset": "FM-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "fm-02",
+      "type": "Machine",
+      "label": "Formation rack FM-02",
+      "props": {
+        "vendor": "Chroma",
+        "model": "17208M",
+        "kind": "formation-rack",
+        "asset": "FM-02",
+        "year": 2022
+      }
+    },
+    {
+      "id": "fm-03",
+      "type": "Machine",
+      "label": "Formation rack FM-03",
+      "props": {
+        "vendor": "Chroma",
+        "model": "17208M",
+        "kind": "formation-rack",
+        "asset": "FM-03",
+        "year": 2022
+      }
+    },
+    {
+      "id": "fm-04",
+      "type": "Machine",
+      "label": "Formation rack FM-04",
+      "props": {
+        "vendor": "Chroma",
+        "model": "17208M",
+        "kind": "formation-rack",
+        "asset": "FM-04",
+        "year": 2022
+      }
+    },
+    {
+      "id": "ag-01",
+      "type": "Machine",
+      "label": "Aging room AG-01",
+      "props": {
+        "vendor": "Weiss",
+        "model": "WK3",
+        "kind": "aging-room",
+        "asset": "AG-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "eol-01",
+      "type": "Machine",
+      "label": "End-of-line tester EOL-01",
+      "props": {
+        "vendor": "Hioki",
+        "model": "BT4560 line",
+        "kind": "eol-tester",
+        "asset": "EOL-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "nr-01",
+      "type": "Machine",
+      "label": "NMP recovery NR-01",
+      "props": {
+        "vendor": "Dürr",
+        "model": "Oxi.X RE",
+        "kind": "solvent-recovery",
+        "asset": "NR-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "ch-01",
+      "type": "Machine",
+      "label": "Chiller CH-01",
+      "props": {
+        "vendor": "Carrier",
+        "model": "30XW",
+        "kind": "chiller",
+        "asset": "CH-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "cp-01",
+      "type": "Machine",
+      "label": "Air compressor CP-01",
+      "props": {
+        "vendor": "Atlas Copco",
+        "model": "ZR 160",
+        "kind": "compressor",
+        "asset": "CP-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "kf-01",
+      "type": "Machine",
+      "label": "Karl Fischer titrator KF-01",
+      "props": {
+        "vendor": "Metrohm",
+        "model": "917 Coulometer",
+        "kind": "lab-instrument",
+        "asset": "KF-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "pt-01",
+      "type": "Machine",
+      "label": "Peel tester PT-01",
+      "props": {
+        "vendor": "Zwick",
+        "model": "zwickiLine",
+        "kind": "lab-instrument",
+        "asset": "PT-01",
+        "year": 2022
+      }
+    },
+    {
+      "id": "sig-mxc1-viscosity",
+      "type": "Signal",
+      "label": "Cathode slurry viscosity, each batch",
+      "props": {
+        "unit": "mPa·s",
+        "tag": "mxc1.viscosity",
+        "measure": "viscosity"
+      }
+    },
+    {
+      "id": "sig-mxc1-solid-content",
+      "type": "Signal",
+      "label": "Cathode slurry solid content, each batch",
+      "props": {
+        "unit": "%",
+        "tag": "mxc1.solid_content",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "sig-ctc1-web-speed",
+      "type": "Signal",
+      "label": "CT-C1 web speed",
+      "props": {
+        "unit": "m/min",
+        "tag": "ctc1.web_speed",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-ctc1-coating-weight",
+      "type": "Signal",
+      "label": "CT-C1 coating weight (beta gauge), machine direction",
+      "props": {
+        "unit": "mg/cm²",
+        "tag": "ctc1.coating_weight",
+        "measure": "weight"
+      }
+    },
+    {
+      "id": "sig-ctc1-coating-weight-cv",
+      "type": "Signal",
+      "label": "CT-C1 coating weight variation across the web (coefficient of variation)",
+      "props": {
+        "unit": "%",
+        "tag": "ctc1.coating_weight_cv",
+        "measure": "variation"
+      }
+    },
+    {
+      "id": "sig-ctc1-slot-die-pressure",
+      "type": "Signal",
+      "label": "CT-C1 slot die slurry pressure",
+      "props": {
+        "unit": "bar",
+        "tag": "ctc1.slot_die_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-ctc1-streaks",
+      "type": "Signal",
+      "label": "CT-C1 streaks found by the inline camera, each coil",
+      "props": {
+        "unit": "/coil",
+        "tag": "ctc1.streaks",
+        "measure": "count"
+      }
+    },
+    {
+      "id": "sig-ctc1-dryer-temp-z1",
+      "type": "Signal",
+      "label": "CT-C1 dryer zone 1 air temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "ctc1.dryer_temp_z1",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-ctc1-dryer-temp-z3",
+      "type": "Signal",
+      "label": "CT-C1 dryer zone 3 air temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "ctc1.dryer_temp_z3",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-ctc1-dryer-temp-z5",
+      "type": "Signal",
+      "label": "CT-C1 dryer zone 5 air temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "ctc1.dryer_temp_z5",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-ctc1-dryer-fan-current",
+      "type": "Signal",
+      "label": "CT-C1 dryer zone 3 fan motor current",
+      "props": {
+        "unit": "A",
+        "tag": "ctc1.dryer_fan_current",
+        "measure": "current"
+      }
+    },
+    {
+      "id": "sig-ctc1-residual-solvent",
+      "type": "Signal",
+      "label": "CT-C1 residual NMP after the dryer (NIR)",
+      "props": {
+        "unit": "ppm",
+        "tag": "ctc1.residual_solvent",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "sig-clc1-roll-force",
+      "type": "Signal",
+      "label": "CL-C1 roll force",
+      "props": {
+        "unit": "kN",
+        "tag": "clc1.roll_force",
+        "measure": "force"
+      }
+    },
+    {
+      "id": "sig-clc1-thickness",
+      "type": "Signal",
+      "label": "CL-C1 electrode thickness after calendering (laser)",
+      "props": {
+        "unit": "µm",
+        "tag": "clc1.thickness",
+        "measure": "thickness"
+      }
+    },
+    {
+      "id": "sig-clc1-thickness-sd",
+      "type": "Signal",
+      "label": "CL-C1 thickness variation (standard deviation over a minute)",
+      "props": {
+        "unit": "µm",
+        "tag": "clc1.thickness_sd",
+        "measure": "variation"
+      }
+    },
+    {
+      "id": "sig-clc1-roll-temp",
+      "type": "Signal",
+      "label": "CL-C1 roll surface temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "clc1.roll_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-clc1-bearing-vibration",
+      "type": "Signal",
+      "label": "CL-C1 work roll bearing vibration (velocity, RMS)",
+      "props": {
+        "unit": "mm/s",
+        "tag": "clc1.bearing_vibration",
+        "measure": "vibration"
+      }
+    },
+    {
+      "id": "sig-slc1-burr-height",
+      "type": "Signal",
+      "label": "SL-C1 burr height on the slit edge, each daughter roll",
+      "props": {
+        "unit": "µm",
+        "tag": "slc1.burr_height",
+        "measure": "burr"
+      }
+    },
+    {
+      "id": "sig-slc1-blade-km",
+      "type": "Signal",
+      "label": "SL-C1 metres cut since the last blade change",
+      "props": {
+        "unit": "km",
+        "tag": "slc1.blade_km",
+        "measure": "counter"
+      }
+    },
+    {
+      "id": "sig-vdc1-oven-temp",
+      "type": "Signal",
+      "label": "VD-C1 oven temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "vdc1.oven_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-vdc1-vacuum",
+      "type": "Signal",
+      "label": "VD-C1 oven pressure",
+      "props": {
+        "unit": "mbar",
+        "tag": "vdc1.vacuum",
+        "measure": "vacuum"
+      }
+    },
+    {
+      "id": "sig-mxa1-viscosity",
+      "type": "Signal",
+      "label": "Anode slurry viscosity, each batch",
+      "props": {
+        "unit": "mPa·s",
+        "tag": "mxa1.viscosity",
+        "measure": "viscosity"
+      }
+    },
+    {
+      "id": "sig-mxa1-solid-content",
+      "type": "Signal",
+      "label": "Anode slurry solid content, each batch",
+      "props": {
+        "unit": "%",
+        "tag": "mxa1.solid_content",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "sig-cta1-web-speed",
+      "type": "Signal",
+      "label": "CT-A1 web speed",
+      "props": {
+        "unit": "m/min",
+        "tag": "cta1.web_speed",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-cta1-coating-weight",
+      "type": "Signal",
+      "label": "CT-A1 coating weight (beta gauge), machine direction",
+      "props": {
+        "unit": "mg/cm²",
+        "tag": "cta1.coating_weight",
+        "measure": "weight"
+      }
+    },
+    {
+      "id": "sig-cta1-coating-weight-cv",
+      "type": "Signal",
+      "label": "CT-A1 coating weight variation across the web (coefficient of variation)",
+      "props": {
+        "unit": "%",
+        "tag": "cta1.coating_weight_cv",
+        "measure": "variation"
+      }
+    },
+    {
+      "id": "sig-cta1-slot-die-pressure",
+      "type": "Signal",
+      "label": "CT-A1 slot die slurry pressure",
+      "props": {
+        "unit": "bar",
+        "tag": "cta1.slot_die_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-cta1-streaks",
+      "type": "Signal",
+      "label": "CT-A1 streaks found by the inline camera, each coil",
+      "props": {
+        "unit": "/coil",
+        "tag": "cta1.streaks",
+        "measure": "count"
+      }
+    },
+    {
+      "id": "sig-cta1-dryer-temp-z1",
+      "type": "Signal",
+      "label": "CT-A1 dryer zone 1 air temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cta1.dryer_temp_z1",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cta1-dryer-temp-z3",
+      "type": "Signal",
+      "label": "CT-A1 dryer zone 3 air temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cta1.dryer_temp_z3",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cta1-dryer-temp-z5",
+      "type": "Signal",
+      "label": "CT-A1 dryer zone 5 air temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cta1.dryer_temp_z5",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cta1-dryer-fan-current",
+      "type": "Signal",
+      "label": "CT-A1 dryer zone 3 fan motor current",
+      "props": {
+        "unit": "A",
+        "tag": "cta1.dryer_fan_current",
+        "measure": "current"
+      }
+    },
+    {
+      "id": "sig-cta1-residual-solvent",
+      "type": "Signal",
+      "label": "CT-A1 residual water after the dryer (NIR)",
+      "props": {
+        "unit": "ppm",
+        "tag": "cta1.residual_solvent",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "sig-cla1-roll-force",
+      "type": "Signal",
+      "label": "CL-A1 roll force",
+      "props": {
+        "unit": "kN",
+        "tag": "cla1.roll_force",
+        "measure": "force"
+      }
+    },
+    {
+      "id": "sig-cla1-thickness",
+      "type": "Signal",
+      "label": "CL-A1 electrode thickness after calendering (laser)",
+      "props": {
+        "unit": "µm",
+        "tag": "cla1.thickness",
+        "measure": "thickness"
+      }
+    },
+    {
+      "id": "sig-cla1-thickness-sd",
+      "type": "Signal",
+      "label": "CL-A1 thickness variation (standard deviation over a minute)",
+      "props": {
+        "unit": "µm",
+        "tag": "cla1.thickness_sd",
+        "measure": "variation"
+      }
+    },
+    {
+      "id": "sig-cla1-roll-temp",
+      "type": "Signal",
+      "label": "CL-A1 roll surface temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "cla1.roll_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cla1-bearing-vibration",
+      "type": "Signal",
+      "label": "CL-A1 work roll bearing vibration (velocity, RMS)",
+      "props": {
+        "unit": "mm/s",
+        "tag": "cla1.bearing_vibration",
+        "measure": "vibration"
+      }
+    },
+    {
+      "id": "sig-sla1-burr-height",
+      "type": "Signal",
+      "label": "SL-A1 burr height on the slit edge, each daughter roll",
+      "props": {
+        "unit": "µm",
+        "tag": "sla1.burr_height",
+        "measure": "burr"
+      }
+    },
+    {
+      "id": "sig-sla1-blade-km",
+      "type": "Signal",
+      "label": "SL-A1 metres cut since the last blade change",
+      "props": {
+        "unit": "km",
+        "tag": "sla1.blade_km",
+        "measure": "counter"
+      }
+    },
+    {
+      "id": "sig-vda1-oven-temp",
+      "type": "Signal",
+      "label": "VD-A1 oven temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "vda1.oven_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-vda1-vacuum",
+      "type": "Signal",
+      "label": "VD-A1 oven pressure",
+      "props": {
+        "unit": "mbar",
+        "tag": "vda1.vacuum",
+        "measure": "vacuum"
+      }
+    },
+    {
+      "id": "sig-dr01-dew-point",
+      "type": "Signal",
+      "label": "Dry room DR-01 dew point",
+      "props": {
+        "unit": "°C",
+        "tag": "dr01.dew_point",
+        "measure": "dew point"
+      }
+    },
+    {
+      "id": "sig-dr01-temperature",
+      "type": "Signal",
+      "label": "Dry room DR-01 air temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "dr01.temperature",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dh01-regen-temp",
+      "type": "Signal",
+      "label": "Dehumidifier DH-01 regeneration air temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "dh01.regen_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dh01-wheel-dp",
+      "type": "Signal",
+      "label": "Dehumidifier DH-01 pressure drop over the desiccant wheel",
+      "props": {
+        "unit": "Pa",
+        "tag": "dh01.wheel_dp",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-ntc1-laser-power",
+      "type": "Signal",
+      "label": "Cathode notcher NT-C1 laser power",
+      "props": {
+        "unit": "W",
+        "tag": "ntc1.laser_power",
+        "measure": "power"
+      }
+    },
+    {
+      "id": "sig-nta1-laser-power",
+      "type": "Signal",
+      "label": "Anode notcher NT-A1 laser power",
+      "props": {
+        "unit": "W",
+        "tag": "nta1.laser_power",
+        "measure": "power"
+      }
+    },
+    {
+      "id": "sig-st01-cycle-time",
+      "type": "Signal",
+      "label": "ST-01 stacking time, each cell",
+      "props": {
+        "unit": "s",
+        "tag": "st01.cycle_time",
+        "measure": "cycle"
+      }
+    },
+    {
+      "id": "sig-st01-overhang-dev",
+      "type": "Signal",
+      "label": "ST-01 largest anode overhang deviation from nominal, each cell (vision)",
+      "props": {
+        "unit": "mm",
+        "tag": "st01.overhang_dev",
+        "measure": "alignment"
+      }
+    },
+    {
+      "id": "sig-st01-separator-tension",
+      "type": "Signal",
+      "label": "ST-01 separator web tension, each cell",
+      "props": {
+        "unit": "N",
+        "tag": "st01.separator_tension",
+        "measure": "tension"
+      }
+    },
+    {
+      "id": "sig-st02-cycle-time",
+      "type": "Signal",
+      "label": "ST-02 stacking time, each cell",
+      "props": {
+        "unit": "s",
+        "tag": "st02.cycle_time",
+        "measure": "cycle"
+      }
+    },
+    {
+      "id": "sig-st02-overhang-dev",
+      "type": "Signal",
+      "label": "ST-02 largest anode overhang deviation from nominal, each cell (vision)",
+      "props": {
+        "unit": "mm",
+        "tag": "st02.overhang_dev",
+        "measure": "alignment"
+      }
+    },
+    {
+      "id": "sig-st02-separator-tension",
+      "type": "Signal",
+      "label": "ST-02 separator web tension, each cell",
+      "props": {
+        "unit": "N",
+        "tag": "st02.separator_tension",
+        "measure": "tension"
+      }
+    },
+    {
+      "id": "sig-uw01-weld-energy",
+      "type": "Signal",
+      "label": "Tab welder UW-01 weld energy, each cell",
+      "props": {
+        "unit": "J",
+        "tag": "uw01.weld_energy",
+        "measure": "energy"
+      }
+    },
+    {
+      "id": "sig-uw01-weld-time",
+      "type": "Signal",
+      "label": "Tab welder UW-01 weld time, each cell",
+      "props": {
+        "unit": "ms",
+        "tag": "uw01.weld_time",
+        "measure": "time"
+      }
+    },
+    {
+      "id": "sig-ef01-fill-weight",
+      "type": "Signal",
+      "label": "Electrolyte filler EF-01 fill weight, each cell",
+      "props": {
+        "unit": "g",
+        "tag": "ef01.fill_weight",
+        "measure": "weight"
+      }
+    },
+    {
+      "id": "sig-ef01-fill-vacuum",
+      "type": "Signal",
+      "label": "Electrolyte filler EF-01 cell vacuum before filling, each cell",
+      "props": {
+        "unit": "mbar",
+        "tag": "ef01.fill_vacuum",
+        "measure": "vacuum"
+      }
+    },
+    {
+      "id": "sig-fm01-rack-temp",
+      "type": "Signal",
+      "label": "FM-01 cell temperature, rack average",
+      "props": {
+        "unit": "°C",
+        "tag": "fm01.rack_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-fm01-contact-resistance",
+      "type": "Signal",
+      "label": "FM-01 channel contact resistance, rack average",
+      "props": {
+        "unit": "mΩ",
+        "tag": "fm01.contact_resistance",
+        "measure": "resistance"
+      }
+    },
+    {
+      "id": "sig-fm02-rack-temp",
+      "type": "Signal",
+      "label": "FM-02 cell temperature, rack average",
+      "props": {
+        "unit": "°C",
+        "tag": "fm02.rack_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-fm02-contact-resistance",
+      "type": "Signal",
+      "label": "FM-02 channel contact resistance, rack average",
+      "props": {
+        "unit": "mΩ",
+        "tag": "fm02.contact_resistance",
+        "measure": "resistance"
+      }
+    },
+    {
+      "id": "sig-fm03-rack-temp",
+      "type": "Signal",
+      "label": "FM-03 cell temperature, rack average",
+      "props": {
+        "unit": "°C",
+        "tag": "fm03.rack_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-fm03-contact-resistance",
+      "type": "Signal",
+      "label": "FM-03 channel contact resistance, rack average",
+      "props": {
+        "unit": "mΩ",
+        "tag": "fm03.contact_resistance",
+        "measure": "resistance"
+      }
+    },
+    {
+      "id": "sig-fm04-rack-temp",
+      "type": "Signal",
+      "label": "FM-04 cell temperature, rack average",
+      "props": {
+        "unit": "°C",
+        "tag": "fm04.rack_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-fm04-contact-resistance",
+      "type": "Signal",
+      "label": "FM-04 channel contact resistance, rack average",
+      "props": {
+        "unit": "mΩ",
+        "tag": "fm04.contact_resistance",
+        "measure": "resistance"
+      }
+    },
+    {
+      "id": "sig-ag01-room-temp",
+      "type": "Signal",
+      "label": "Aging room AG-01 temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "ag01.room_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-eol01-capacity",
+      "type": "Signal",
+      "label": "End-of-line capacity, each cell",
+      "props": {
+        "unit": "Ah",
+        "tag": "eol01.capacity",
+        "measure": "capacity"
+      }
+    },
+    {
+      "id": "sig-eol01-dcir",
+      "type": "Signal",
+      "label": "End-of-line DC internal resistance, each cell",
+      "props": {
+        "unit": "mΩ",
+        "tag": "eol01.dcir",
+        "measure": "resistance"
+      }
+    },
+    {
+      "id": "sig-eol01-k-value",
+      "type": "Signal",
+      "label": "Self-discharge over aging (K-value), each cell",
+      "props": {
+        "unit": "mV/day",
+        "tag": "eol01.k_value",
+        "measure": "self-discharge"
+      }
+    },
+    {
+      "id": "sig-lab-peel-cathode",
+      "type": "Signal",
+      "label": "Cathode peel strength, a sample each coil (PT-01)",
+      "props": {
+        "unit": "N/m",
+        "tag": "lab.peel_cathode",
+        "measure": "adhesion"
+      }
+    },
+    {
+      "id": "sig-lab-moisture-electrode",
+      "type": "Signal",
+      "label": "Electrode moisture after vacuum drying, a sample each roll (KF-01)",
+      "props": {
+        "unit": "ppm",
+        "tag": "lab.moisture_electrode",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "sig-lab-weld-peel",
+      "type": "Signal",
+      "label": "Tab weld pull test, a sample each 500 welds (PT-01)",
+      "props": {
+        "unit": "N",
+        "tag": "lab.weld_peel",
+        "measure": "strength"
+      }
+    },
+    {
+      "id": "sig-nr01-outlet-nmp",
+      "type": "Signal",
+      "label": "NMP recovery NR-01 outlet NMP",
+      "props": {
+        "unit": "ppm",
+        "tag": "nr01.outlet_nmp",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "sig-ch01-supply-temp",
+      "type": "Signal",
+      "label": "Chilled water supply temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "ch01.supply_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cp01-header-pressure",
+      "type": "Signal",
+      "label": "Compressed air header pressure",
+      "props": {
+        "unit": "bar",
+        "tag": "cp01.header_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "proc-coating",
+      "type": "Process",
+      "label": "Electrode coating and drying",
+      "props": {}
+    },
+    {
+      "id": "proc-calendering",
+      "type": "Process",
+      "label": "Calendering",
+      "props": {}
+    },
+    {
+      "id": "proc-assembly",
+      "type": "Process",
+      "label": "Cell assembly: notching, stacking, welding, filling",
+      "props": {}
+    },
+    {
+      "id": "proc-formation",
+      "type": "Process",
+      "label": "Formation and aging",
+      "props": {}
+    },
+    {
+      "id": "mat-nmc811",
+      "type": "Material",
+      "label": "NMC811 cathode active material",
+      "props": {}
+    },
+    {
+      "id": "mat-graphite",
+      "type": "Material",
+      "label": "Graphite anode active material",
+      "props": {}
+    },
+    {
+      "id": "mat-al-foil",
+      "type": "Material",
+      "label": "Aluminium foil, 13 µm",
+      "props": {}
+    },
+    {
+      "id": "mat-cu-foil",
+      "type": "Material",
+      "label": "Copper foil, 6 µm",
+      "props": {}
+    },
+    {
+      "id": "mat-separator",
+      "type": "Material",
+      "label": "Ceramic-coated PE separator, 12 µm",
+      "props": {}
+    },
+    {
+      "id": "mat-electrolyte",
+      "type": "Material",
+      "label": "Electrolyte, LiPF6 in carbonates",
+      "props": {}
+    },
+    {
+      "id": "vd-c2",
+      "type": "Machine",
+      "label": "Vacuum oven VD-C2 (spare)",
+      "props": {
+        "vendor": "Memmert",
+        "kind": "vacuum-oven",
+        "asset": "VD-C2"
+      }
+    },
+    {
+      "id": "doc-sop-el-01",
+      "type": "Document",
+      "label": "SOP-EL-01: Electrode coating: coating weight and die cleaning",
+      "props": {
+        "number": "SOP-EL-01"
+      }
+    },
+    {
+      "id": "doc-sop-el-02",
+      "type": "Document",
+      "label": "SOP-EL-02: Electrode drying: dryer zones and adhesion",
+      "props": {
+        "number": "SOP-EL-02"
+      }
+    },
+    {
+      "id": "doc-sop-el-03",
+      "type": "Document",
+      "label": "SOP-EL-03: Calendering: thickness and roll bearings",
+      "props": {
+        "number": "SOP-EL-03"
+      }
+    },
+    {
+      "id": "doc-sop-el-04",
+      "type": "Document",
+      "label": "SOP-EL-04: Slitting: blades and burrs",
+      "props": {
+        "number": "SOP-EL-04"
+      }
+    },
+    {
+      "id": "doc-sop-dr-01",
+      "type": "Document",
+      "label": "SOP-DR-01: Dry room: dew point and moisture",
+      "props": {
+        "number": "SOP-DR-01"
+      }
+    },
+    {
+      "id": "doc-sop-as-01",
+      "type": "Document",
+      "label": "SOP-AS-01: Stacking: alignment and separator tension",
+      "props": {
+        "number": "SOP-AS-01"
+      }
+    },
+    {
+      "id": "doc-sop-as-02",
+      "type": "Document",
+      "label": "SOP-AS-02: Tab welding: weld energy and horn changes",
+      "props": {
+        "number": "SOP-AS-02"
+      }
+    },
+    {
+      "id": "doc-sop-as-03",
+      "type": "Document",
+      "label": "SOP-AS-03: Electrolyte filling",
+      "props": {
+        "number": "SOP-AS-03"
+      }
+    },
+    {
+      "id": "doc-sop-fa-01",
+      "type": "Document",
+      "label": "SOP-FA-01: Formation and aging",
+      "props": {
+        "number": "SOP-FA-01"
+      }
+    },
+    {
+      "id": "doc-sop-qa-01",
+      "type": "Document",
+      "label": "SOP-QA-01: End-of-line test and grading",
+      "props": {
+        "number": "SOP-QA-01"
+      }
+    },
+    {
+      "id": "doc-plant-overview",
+      "type": "Document",
+      "label": "Varnhem cell plant overview",
+      "props": {
+        "number": "PLANT-OVERVIEW"
+      }
+    },
+    {
+      "id": "doc-ll-2026-01",
+      "type": "Document",
+      "label": "Lessons learned: desiccant wheel on DR-01, 13 January 2026",
+      "props": {
+        "number": "LL-2026-01"
+      }
+    },
+    {
+      "id": "doc-ll-2026-02",
+      "type": "Document",
+      "label": "Lessons learned: ultrasonic horn on UW-01, 25 January 2026",
+      "props": {
+        "number": "LL-2026-02"
+      }
+    },
+    {
+      "id": "doc-ll-2026-03",
+      "type": "Document",
+      "label": "Lessons learned: channel contacts on FM-01, 26 January 2026",
+      "props": {
+        "number": "LL-2026-03"
+      }
+    },
+    {
+      "id": "doc-ll-2026-04",
+      "type": "Document",
+      "label": "Lessons learned: channel contacts on FM-02, 05 February 2026",
+      "props": {
+        "number": "LL-2026-04"
+      }
+    },
+    {
+      "id": "doc-ll-2026-05",
+      "type": "Document",
+      "label": "Lessons learned: slot die on CT-A1, 16 February 2026",
+      "props": {
+        "number": "LL-2026-05"
+      }
+    },
+    {
+      "id": "doc-ll-2026-06",
+      "type": "Document",
+      "label": "Lessons learned: dryer zone 3 fan on CT-A1, 03 March 2026",
+      "props": {
+        "number": "LL-2026-06"
+      }
+    },
+    {
+      "id": "doc-ll-2026-07",
+      "type": "Document",
+      "label": "Lessons learned: channel contacts on FM-01, 11 June 2026",
+      "props": {
+        "number": "LL-2026-07"
+      }
+    },
+    {
+      "id": "doc-ll-2026-08",
+      "type": "Document",
+      "label": "Lessons learned: slot die on CT-A1, 17 June 2026",
+      "props": {
+        "number": "LL-2026-08"
+      }
+    },
+    {
+      "id": "doc-ll-2026-09",
+      "type": "Document",
+      "label": "Lessons learned: work roll bearing on CL-A1, 15 August 2026",
+      "props": {
+        "number": "LL-2026-09"
+      }
+    },
+    {
+      "id": "doc-ll-2026-10",
+      "type": "Document",
+      "label": "Lessons learned: dryer zone 3 fan on CT-A1, 24 August 2026",
+      "props": {
+        "number": "LL-2026-10"
+      }
+    },
+    {
+      "id": "doc-mr-2025-10",
+      "type": "Document",
+      "label": "Maintenance report, October 2025",
+      "props": {
+        "number": "MR-2025-10"
+      }
+    },
+    {
+      "id": "doc-mr-2025-11",
+      "type": "Document",
+      "label": "Maintenance report, November 2025",
+      "props": {
+        "number": "MR-2025-11"
+      }
+    },
+    {
+      "id": "doc-mr-2025-12",
+      "type": "Document",
+      "label": "Maintenance report, December 2025",
+      "props": {
+        "number": "MR-2025-12"
+      }
+    },
+    {
+      "id": "doc-mr-2026-01",
+      "type": "Document",
+      "label": "Maintenance report, January 2026",
+      "props": {
+        "number": "MR-2026-01"
+      }
+    },
+    {
+      "id": "doc-mr-2026-02",
+      "type": "Document",
+      "label": "Maintenance report, February 2026",
+      "props": {
+        "number": "MR-2026-02"
+      }
+    },
+    {
+      "id": "doc-mr-2026-03",
+      "type": "Document",
+      "label": "Maintenance report, March 2026",
+      "props": {
+        "number": "MR-2026-03"
+      }
+    },
+    {
+      "id": "doc-mr-2026-04",
+      "type": "Document",
+      "label": "Maintenance report, April 2026",
+      "props": {
+        "number": "MR-2026-04"
+      }
+    },
+    {
+      "id": "doc-mr-2026-05",
+      "type": "Document",
+      "label": "Maintenance report, May 2026",
+      "props": {
+        "number": "MR-2026-05"
+      }
+    },
+    {
+      "id": "doc-mr-2026-06",
+      "type": "Document",
+      "label": "Maintenance report, June 2026",
+      "props": {
+        "number": "MR-2026-06"
+      }
+    },
+    {
+      "id": "doc-mr-2026-07",
+      "type": "Document",
+      "label": "Maintenance report, July 2026",
+      "props": {
+        "number": "MR-2026-07"
+      }
+    },
+    {
+      "id": "doc-mr-2026-08",
+      "type": "Document",
+      "label": "Maintenance report, August 2026",
+      "props": {
+        "number": "MR-2026-08"
+      }
+    },
+    {
+      "id": "doc-mr-2026-09",
+      "type": "Document",
+      "label": "Maintenance report, September 2026",
+      "props": {
+        "number": "MR-2026-09"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "kestrel-contains-varnhem",
+      "from": "kestrel",
+      "rel": "contains",
+      "to": "varnhem"
+    },
+    {
+      "id": "varnhem-contains-electrodes",
+      "from": "varnhem",
+      "rel": "contains",
+      "to": "electrodes"
+    },
+    {
+      "id": "varnhem-contains-cell-assembly",
+      "from": "varnhem",
+      "rel": "contains",
+      "to": "cell-assembly"
+    },
+    {
+      "id": "varnhem-contains-formation-and-aging",
+      "from": "varnhem",
+      "rel": "contains",
+      "to": "formation-and-aging"
+    },
+    {
+      "id": "varnhem-contains-quality-lab",
+      "from": "varnhem",
+      "rel": "contains",
+      "to": "quality-lab"
+    },
+    {
+      "id": "varnhem-contains-utilities",
+      "from": "varnhem",
+      "rel": "contains",
+      "to": "utilities"
+    },
+    {
+      "id": "electrodes-contains-cathode-line",
+      "from": "electrodes",
+      "rel": "contains",
+      "to": "cathode-line"
+    },
+    {
+      "id": "electrodes-contains-anode-line",
+      "from": "electrodes",
+      "rel": "contains",
+      "to": "anode-line"
+    },
+    {
+      "id": "cell-assembly-contains-assembly-line",
+      "from": "cell-assembly",
+      "rel": "contains",
+      "to": "assembly-line"
+    },
+    {
+      "id": "cathode-line-contains-mx-c1",
+      "from": "cathode-line",
+      "rel": "contains",
+      "to": "mx-c1"
+    },
+    {
+      "id": "mx-c1-controlledBy-plc-cathode-line",
+      "from": "mx-c1",
+      "rel": "controlledBy",
+      "to": "plc-cathode-line"
+    },
+    {
+      "id": "cathode-line-contains-ct-c1",
+      "from": "cathode-line",
+      "rel": "contains",
+      "to": "ct-c1"
+    },
+    {
+      "id": "ct-c1-controlledBy-plc-cathode-line",
+      "from": "ct-c1",
+      "rel": "controlledBy",
+      "to": "plc-cathode-line"
+    },
+    {
+      "id": "cathode-line-contains-cl-c1",
+      "from": "cathode-line",
+      "rel": "contains",
+      "to": "cl-c1"
+    },
+    {
+      "id": "cl-c1-controlledBy-plc-cathode-line",
+      "from": "cl-c1",
+      "rel": "controlledBy",
+      "to": "plc-cathode-line"
+    },
+    {
+      "id": "cathode-line-contains-sl-c1",
+      "from": "cathode-line",
+      "rel": "contains",
+      "to": "sl-c1"
+    },
+    {
+      "id": "sl-c1-controlledBy-plc-cathode-line",
+      "from": "sl-c1",
+      "rel": "controlledBy",
+      "to": "plc-cathode-line"
+    },
+    {
+      "id": "cathode-line-contains-vd-c1",
+      "from": "cathode-line",
+      "rel": "contains",
+      "to": "vd-c1"
+    },
+    {
+      "id": "vd-c1-controlledBy-plc-cathode-line",
+      "from": "vd-c1",
+      "rel": "controlledBy",
+      "to": "plc-cathode-line"
+    },
+    {
+      "id": "anode-line-contains-mx-a1",
+      "from": "anode-line",
+      "rel": "contains",
+      "to": "mx-a1"
+    },
+    {
+      "id": "mx-a1-controlledBy-plc-anode-line",
+      "from": "mx-a1",
+      "rel": "controlledBy",
+      "to": "plc-anode-line"
+    },
+    {
+      "id": "anode-line-contains-ct-a1",
+      "from": "anode-line",
+      "rel": "contains",
+      "to": "ct-a1"
+    },
+    {
+      "id": "ct-a1-controlledBy-plc-anode-line",
+      "from": "ct-a1",
+      "rel": "controlledBy",
+      "to": "plc-anode-line"
+    },
+    {
+      "id": "anode-line-contains-cl-a1",
+      "from": "anode-line",
+      "rel": "contains",
+      "to": "cl-a1"
+    },
+    {
+      "id": "cl-a1-controlledBy-plc-anode-line",
+      "from": "cl-a1",
+      "rel": "controlledBy",
+      "to": "plc-anode-line"
+    },
+    {
+      "id": "anode-line-contains-sl-a1",
+      "from": "anode-line",
+      "rel": "contains",
+      "to": "sl-a1"
+    },
+    {
+      "id": "sl-a1-controlledBy-plc-anode-line",
+      "from": "sl-a1",
+      "rel": "controlledBy",
+      "to": "plc-anode-line"
+    },
+    {
+      "id": "anode-line-contains-vd-a1",
+      "from": "anode-line",
+      "rel": "contains",
+      "to": "vd-a1"
+    },
+    {
+      "id": "vd-a1-controlledBy-plc-anode-line",
+      "from": "vd-a1",
+      "rel": "controlledBy",
+      "to": "plc-anode-line"
+    },
+    {
+      "id": "assembly-line-contains-dr-01",
+      "from": "assembly-line",
+      "rel": "contains",
+      "to": "dr-01"
+    },
+    {
+      "id": "dr-01-controlledBy-plc-dry-room",
+      "from": "dr-01",
+      "rel": "controlledBy",
+      "to": "plc-dry-room"
+    },
+    {
+      "id": "assembly-line-contains-dh-01",
+      "from": "assembly-line",
+      "rel": "contains",
+      "to": "dh-01"
+    },
+    {
+      "id": "dh-01-controlledBy-plc-dry-room",
+      "from": "dh-01",
+      "rel": "controlledBy",
+      "to": "plc-dry-room"
+    },
+    {
+      "id": "assembly-line-contains-nt-c1",
+      "from": "assembly-line",
+      "rel": "contains",
+      "to": "nt-c1"
+    },
+    {
+      "id": "nt-c1-controlledBy-plc-assembly",
+      "from": "nt-c1",
+      "rel": "controlledBy",
+      "to": "plc-assembly"
+    },
+    {
+      "id": "assembly-line-contains-nt-a1",
+      "from": "assembly-line",
+      "rel": "contains",
+      "to": "nt-a1"
+    },
+    {
+      "id": "nt-a1-controlledBy-plc-assembly",
+      "from": "nt-a1",
+      "rel": "controlledBy",
+      "to": "plc-assembly"
+    },
+    {
+      "id": "assembly-line-contains-st-01",
+      "from": "assembly-line",
+      "rel": "contains",
+      "to": "st-01"
+    },
+    {
+      "id": "st-01-controlledBy-plc-assembly",
+      "from": "st-01",
+      "rel": "controlledBy",
+      "to": "plc-assembly"
+    },
+    {
+      "id": "assembly-line-contains-st-02",
+      "from": "assembly-line",
+      "rel": "contains",
+      "to": "st-02"
+    },
+    {
+      "id": "st-02-controlledBy-plc-assembly",
+      "from": "st-02",
+      "rel": "controlledBy",
+      "to": "plc-assembly"
+    },
+    {
+      "id": "assembly-line-contains-uw-01",
+      "from": "assembly-line",
+      "rel": "contains",
+      "to": "uw-01"
+    },
+    {
+      "id": "uw-01-controlledBy-plc-assembly",
+      "from": "uw-01",
+      "rel": "controlledBy",
+      "to": "plc-assembly"
+    },
+    {
+      "id": "assembly-line-contains-ef-01",
+      "from": "assembly-line",
+      "rel": "contains",
+      "to": "ef-01"
+    },
+    {
+      "id": "ef-01-controlledBy-plc-assembly",
+      "from": "ef-01",
+      "rel": "controlledBy",
+      "to": "plc-assembly"
+    },
+    {
+      "id": "formation-and-aging-contains-fm-01",
+      "from": "formation-and-aging",
+      "rel": "contains",
+      "to": "fm-01"
+    },
+    {
+      "id": "fm-01-controlledBy-plc-formation",
+      "from": "fm-01",
+      "rel": "controlledBy",
+      "to": "plc-formation"
+    },
+    {
+      "id": "formation-and-aging-contains-fm-02",
+      "from": "formation-and-aging",
+      "rel": "contains",
+      "to": "fm-02"
+    },
+    {
+      "id": "fm-02-controlledBy-plc-formation",
+      "from": "fm-02",
+      "rel": "controlledBy",
+      "to": "plc-formation"
+    },
+    {
+      "id": "formation-and-aging-contains-fm-03",
+      "from": "formation-and-aging",
+      "rel": "contains",
+      "to": "fm-03"
+    },
+    {
+      "id": "fm-03-controlledBy-plc-formation",
+      "from": "fm-03",
+      "rel": "controlledBy",
+      "to": "plc-formation"
+    },
+    {
+      "id": "formation-and-aging-contains-fm-04",
+      "from": "formation-and-aging",
+      "rel": "contains",
+      "to": "fm-04"
+    },
+    {
+      "id": "fm-04-controlledBy-plc-formation",
+      "from": "fm-04",
+      "rel": "controlledBy",
+      "to": "plc-formation"
+    },
+    {
+      "id": "formation-and-aging-contains-ag-01",
+      "from": "formation-and-aging",
+      "rel": "contains",
+      "to": "ag-01"
+    },
+    {
+      "id": "ag-01-controlledBy-plc-formation",
+      "from": "ag-01",
+      "rel": "controlledBy",
+      "to": "plc-formation"
+    },
+    {
+      "id": "formation-and-aging-contains-eol-01",
+      "from": "formation-and-aging",
+      "rel": "contains",
+      "to": "eol-01"
+    },
+    {
+      "id": "eol-01-controlledBy-plc-formation",
+      "from": "eol-01",
+      "rel": "controlledBy",
+      "to": "plc-formation"
+    },
+    {
+      "id": "utilities-contains-nr-01",
+      "from": "utilities",
+      "rel": "contains",
+      "to": "nr-01"
+    },
+    {
+      "id": "nr-01-controlledBy-plc-utilities",
+      "from": "nr-01",
+      "rel": "controlledBy",
+      "to": "plc-utilities"
+    },
+    {
+      "id": "utilities-contains-ch-01",
+      "from": "utilities",
+      "rel": "contains",
+      "to": "ch-01"
+    },
+    {
+      "id": "ch-01-controlledBy-plc-utilities",
+      "from": "ch-01",
+      "rel": "controlledBy",
+      "to": "plc-utilities"
+    },
+    {
+      "id": "utilities-contains-cp-01",
+      "from": "utilities",
+      "rel": "contains",
+      "to": "cp-01"
+    },
+    {
+      "id": "cp-01-controlledBy-plc-utilities",
+      "from": "cp-01",
+      "rel": "controlledBy",
+      "to": "plc-utilities"
+    },
+    {
+      "id": "quality-lab-contains-kf-01",
+      "from": "quality-lab",
+      "rel": "contains",
+      "to": "kf-01"
+    },
+    {
+      "id": "quality-lab-contains-pt-01",
+      "from": "quality-lab",
+      "rel": "contains",
+      "to": "pt-01"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-mxc1-viscosity",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-mxc1-viscosity"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-mxc1-solid-content",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-mxc1-solid-content"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-ctc1-web-speed",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-ctc1-web-speed"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-ctc1-coating-weight",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-ctc1-coating-weight"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-ctc1-coating-weight-cv",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-ctc1-coating-weight-cv"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-ctc1-slot-die-pressure",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-ctc1-slot-die-pressure"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-ctc1-streaks",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-ctc1-streaks"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-ctc1-dryer-temp-z1",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-ctc1-dryer-temp-z1"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-ctc1-dryer-temp-z3",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-ctc1-dryer-temp-z3"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-ctc1-dryer-temp-z5",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-ctc1-dryer-temp-z5"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-ctc1-dryer-fan-current",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-ctc1-dryer-fan-current"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-ctc1-residual-solvent",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-ctc1-residual-solvent"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-clc1-roll-force",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-clc1-roll-force"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-clc1-thickness",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-clc1-thickness"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-clc1-thickness-sd",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-clc1-thickness-sd"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-clc1-roll-temp",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-clc1-roll-temp"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-clc1-bearing-vibration",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-clc1-bearing-vibration"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-slc1-burr-height",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-slc1-burr-height"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-slc1-blade-km",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-slc1-blade-km"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-vdc1-oven-temp",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-vdc1-oven-temp"
+    },
+    {
+      "id": "plc-cathode-line-emits-sig-vdc1-vacuum",
+      "from": "plc-cathode-line",
+      "rel": "emits",
+      "to": "sig-vdc1-vacuum"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-mxa1-viscosity",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-mxa1-viscosity"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-mxa1-solid-content",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-mxa1-solid-content"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cta1-web-speed",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cta1-web-speed"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cta1-coating-weight",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cta1-coating-weight"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cta1-coating-weight-cv",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cta1-coating-weight-cv"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cta1-slot-die-pressure",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cta1-slot-die-pressure"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cta1-streaks",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cta1-streaks"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cta1-dryer-temp-z1",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cta1-dryer-temp-z1"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cta1-dryer-temp-z3",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cta1-dryer-temp-z3"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cta1-dryer-temp-z5",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cta1-dryer-temp-z5"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cta1-dryer-fan-current",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cta1-dryer-fan-current"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cta1-residual-solvent",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cta1-residual-solvent"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cla1-roll-force",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cla1-roll-force"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cla1-thickness",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cla1-thickness"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cla1-thickness-sd",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cla1-thickness-sd"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cla1-roll-temp",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cla1-roll-temp"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-cla1-bearing-vibration",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-cla1-bearing-vibration"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-sla1-burr-height",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-sla1-burr-height"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-sla1-blade-km",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-sla1-blade-km"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-vda1-oven-temp",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-vda1-oven-temp"
+    },
+    {
+      "id": "plc-anode-line-emits-sig-vda1-vacuum",
+      "from": "plc-anode-line",
+      "rel": "emits",
+      "to": "sig-vda1-vacuum"
+    },
+    {
+      "id": "plc-dry-room-emits-sig-dr01-dew-point",
+      "from": "plc-dry-room",
+      "rel": "emits",
+      "to": "sig-dr01-dew-point"
+    },
+    {
+      "id": "plc-dry-room-emits-sig-dr01-temperature",
+      "from": "plc-dry-room",
+      "rel": "emits",
+      "to": "sig-dr01-temperature"
+    },
+    {
+      "id": "plc-dry-room-emits-sig-dh01-regen-temp",
+      "from": "plc-dry-room",
+      "rel": "emits",
+      "to": "sig-dh01-regen-temp"
+    },
+    {
+      "id": "plc-dry-room-emits-sig-dh01-wheel-dp",
+      "from": "plc-dry-room",
+      "rel": "emits",
+      "to": "sig-dh01-wheel-dp"
+    },
+    {
+      "id": "plc-assembly-emits-sig-ntc1-laser-power",
+      "from": "plc-assembly",
+      "rel": "emits",
+      "to": "sig-ntc1-laser-power"
+    },
+    {
+      "id": "plc-assembly-emits-sig-nta1-laser-power",
+      "from": "plc-assembly",
+      "rel": "emits",
+      "to": "sig-nta1-laser-power"
+    },
+    {
+      "id": "plc-assembly-emits-sig-st01-cycle-time",
+      "from": "plc-assembly",
+      "rel": "emits",
+      "to": "sig-st01-cycle-time"
+    },
+    {
+      "id": "plc-assembly-emits-sig-st01-overhang-dev",
+      "from": "plc-assembly",
+      "rel": "emits",
+      "to": "sig-st01-overhang-dev"
+    },
+    {
+      "id": "plc-assembly-emits-sig-st01-separator-tension",
+      "from": "plc-assembly",
+      "rel": "emits",
+      "to": "sig-st01-separator-tension"
+    },
+    {
+      "id": "plc-assembly-emits-sig-st02-cycle-time",
+      "from": "plc-assembly",
+      "rel": "emits",
+      "to": "sig-st02-cycle-time"
+    },
+    {
+      "id": "plc-assembly-emits-sig-st02-overhang-dev",
+      "from": "plc-assembly",
+      "rel": "emits",
+      "to": "sig-st02-overhang-dev"
+    },
+    {
+      "id": "plc-assembly-emits-sig-st02-separator-tension",
+      "from": "plc-assembly",
+      "rel": "emits",
+      "to": "sig-st02-separator-tension"
+    },
+    {
+      "id": "plc-assembly-emits-sig-uw01-weld-energy",
+      "from": "plc-assembly",
+      "rel": "emits",
+      "to": "sig-uw01-weld-energy"
+    },
+    {
+      "id": "plc-assembly-emits-sig-uw01-weld-time",
+      "from": "plc-assembly",
+      "rel": "emits",
+      "to": "sig-uw01-weld-time"
+    },
+    {
+      "id": "plc-assembly-emits-sig-ef01-fill-weight",
+      "from": "plc-assembly",
+      "rel": "emits",
+      "to": "sig-ef01-fill-weight"
+    },
+    {
+      "id": "plc-assembly-emits-sig-ef01-fill-vacuum",
+      "from": "plc-assembly",
+      "rel": "emits",
+      "to": "sig-ef01-fill-vacuum"
+    },
+    {
+      "id": "plc-formation-emits-sig-fm01-rack-temp",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-fm01-rack-temp"
+    },
+    {
+      "id": "plc-formation-emits-sig-fm01-contact-resistance",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-fm01-contact-resistance"
+    },
+    {
+      "id": "plc-formation-emits-sig-fm02-rack-temp",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-fm02-rack-temp"
+    },
+    {
+      "id": "plc-formation-emits-sig-fm02-contact-resistance",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-fm02-contact-resistance"
+    },
+    {
+      "id": "plc-formation-emits-sig-fm03-rack-temp",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-fm03-rack-temp"
+    },
+    {
+      "id": "plc-formation-emits-sig-fm03-contact-resistance",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-fm03-contact-resistance"
+    },
+    {
+      "id": "plc-formation-emits-sig-fm04-rack-temp",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-fm04-rack-temp"
+    },
+    {
+      "id": "plc-formation-emits-sig-fm04-contact-resistance",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-fm04-contact-resistance"
+    },
+    {
+      "id": "plc-formation-emits-sig-ag01-room-temp",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-ag01-room-temp"
+    },
+    {
+      "id": "plc-formation-emits-sig-eol01-capacity",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-eol01-capacity"
+    },
+    {
+      "id": "plc-formation-emits-sig-eol01-dcir",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-eol01-dcir"
+    },
+    {
+      "id": "plc-formation-emits-sig-eol01-k-value",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-eol01-k-value"
+    },
+    {
+      "id": "plc-formation-emits-sig-lab-peel-cathode",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-lab-peel-cathode"
+    },
+    {
+      "id": "plc-formation-emits-sig-lab-moisture-electrode",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-lab-moisture-electrode"
+    },
+    {
+      "id": "plc-formation-emits-sig-lab-weld-peel",
+      "from": "plc-formation",
+      "rel": "emits",
+      "to": "sig-lab-weld-peel"
+    },
+    {
+      "id": "plc-utilities-emits-sig-nr01-outlet-nmp",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-nr01-outlet-nmp"
+    },
+    {
+      "id": "plc-utilities-emits-sig-ch01-supply-temp",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-ch01-supply-temp"
+    },
+    {
+      "id": "plc-utilities-emits-sig-cp01-header-pressure",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-cp01-header-pressure"
+    },
+    {
+      "id": "mx-c1-feeds-ct-c1",
+      "from": "mx-c1",
+      "rel": "feeds",
+      "to": "ct-c1"
+    },
+    {
+      "id": "ct-c1-feeds-cl-c1",
+      "from": "ct-c1",
+      "rel": "feeds",
+      "to": "cl-c1"
+    },
+    {
+      "id": "cl-c1-feeds-sl-c1",
+      "from": "cl-c1",
+      "rel": "feeds",
+      "to": "sl-c1"
+    },
+    {
+      "id": "sl-c1-feeds-vd-c1",
+      "from": "sl-c1",
+      "rel": "feeds",
+      "to": "vd-c1"
+    },
+    {
+      "id": "vd-c1-feeds-nt-c1",
+      "from": "vd-c1",
+      "rel": "feeds",
+      "to": "nt-c1"
+    },
+    {
+      "id": "nt-c1-feeds-st-01",
+      "from": "nt-c1",
+      "rel": "feeds",
+      "to": "st-01"
+    },
+    {
+      "id": "nt-c1-feeds-st-02",
+      "from": "nt-c1",
+      "rel": "feeds",
+      "to": "st-02"
+    },
+    {
+      "id": "mx-a1-feeds-ct-a1",
+      "from": "mx-a1",
+      "rel": "feeds",
+      "to": "ct-a1"
+    },
+    {
+      "id": "ct-a1-feeds-cl-a1",
+      "from": "ct-a1",
+      "rel": "feeds",
+      "to": "cl-a1"
+    },
+    {
+      "id": "cl-a1-feeds-sl-a1",
+      "from": "cl-a1",
+      "rel": "feeds",
+      "to": "sl-a1"
+    },
+    {
+      "id": "sl-a1-feeds-vd-a1",
+      "from": "sl-a1",
+      "rel": "feeds",
+      "to": "vd-a1"
+    },
+    {
+      "id": "vd-a1-feeds-nt-a1",
+      "from": "vd-a1",
+      "rel": "feeds",
+      "to": "nt-a1"
+    },
+    {
+      "id": "nt-a1-feeds-st-01",
+      "from": "nt-a1",
+      "rel": "feeds",
+      "to": "st-01"
+    },
+    {
+      "id": "nt-a1-feeds-st-02",
+      "from": "nt-a1",
+      "rel": "feeds",
+      "to": "st-02"
+    },
+    {
+      "id": "st-01-feeds-uw-01",
+      "from": "st-01",
+      "rel": "feeds",
+      "to": "uw-01"
+    },
+    {
+      "id": "st-02-feeds-uw-01",
+      "from": "st-02",
+      "rel": "feeds",
+      "to": "uw-01"
+    },
+    {
+      "id": "uw-01-feeds-ef-01",
+      "from": "uw-01",
+      "rel": "feeds",
+      "to": "ef-01"
+    },
+    {
+      "id": "ef-01-feeds-fm-01",
+      "from": "ef-01",
+      "rel": "feeds",
+      "to": "fm-01"
+    },
+    {
+      "id": "fm-01-feeds-ag-01",
+      "from": "fm-01",
+      "rel": "feeds",
+      "to": "ag-01"
+    },
+    {
+      "id": "ef-01-feeds-fm-02",
+      "from": "ef-01",
+      "rel": "feeds",
+      "to": "fm-02"
+    },
+    {
+      "id": "fm-02-feeds-ag-01",
+      "from": "fm-02",
+      "rel": "feeds",
+      "to": "ag-01"
+    },
+    {
+      "id": "ef-01-feeds-fm-03",
+      "from": "ef-01",
+      "rel": "feeds",
+      "to": "fm-03"
+    },
+    {
+      "id": "fm-03-feeds-ag-01",
+      "from": "fm-03",
+      "rel": "feeds",
+      "to": "ag-01"
+    },
+    {
+      "id": "ef-01-feeds-fm-04",
+      "from": "ef-01",
+      "rel": "feeds",
+      "to": "fm-04"
+    },
+    {
+      "id": "fm-04-feeds-ag-01",
+      "from": "fm-04",
+      "rel": "feeds",
+      "to": "ag-01"
+    },
+    {
+      "id": "ag-01-feeds-eol-01",
+      "from": "ag-01",
+      "rel": "feeds",
+      "to": "eol-01"
+    },
+    {
+      "id": "dh-01-feeds-dr-01",
+      "from": "dh-01",
+      "rel": "feeds",
+      "to": "dr-01"
+    },
+    {
+      "id": "ct-c1-runs-proc-coating",
+      "from": "ct-c1",
+      "rel": "runs",
+      "to": "proc-coating"
+    },
+    {
+      "id": "ct-a1-runs-proc-coating",
+      "from": "ct-a1",
+      "rel": "runs",
+      "to": "proc-coating"
+    },
+    {
+      "id": "cl-c1-runs-proc-calendering",
+      "from": "cl-c1",
+      "rel": "runs",
+      "to": "proc-calendering"
+    },
+    {
+      "id": "cl-a1-runs-proc-calendering",
+      "from": "cl-a1",
+      "rel": "runs",
+      "to": "proc-calendering"
+    },
+    {
+      "id": "st-01-runs-proc-assembly",
+      "from": "st-01",
+      "rel": "runs",
+      "to": "proc-assembly"
+    },
+    {
+      "id": "st-02-runs-proc-assembly",
+      "from": "st-02",
+      "rel": "runs",
+      "to": "proc-assembly"
+    },
+    {
+      "id": "fm-01-runs-proc-formation",
+      "from": "fm-01",
+      "rel": "runs",
+      "to": "proc-formation"
+    },
+    {
+      "id": "proc-coating-consumes-mat-nmc811",
+      "from": "proc-coating",
+      "rel": "consumes",
+      "to": "mat-nmc811"
+    },
+    {
+      "id": "proc-coating-consumes-mat-graphite",
+      "from": "proc-coating",
+      "rel": "consumes",
+      "to": "mat-graphite"
+    },
+    {
+      "id": "proc-coating-consumes-mat-al-foil",
+      "from": "proc-coating",
+      "rel": "consumes",
+      "to": "mat-al-foil"
+    },
+    {
+      "id": "proc-coating-consumes-mat-cu-foil",
+      "from": "proc-coating",
+      "rel": "consumes",
+      "to": "mat-cu-foil"
+    },
+    {
+      "id": "proc-assembly-consumes-mat-separator",
+      "from": "proc-assembly",
+      "rel": "consumes",
+      "to": "mat-separator"
+    },
+    {
+      "id": "proc-assembly-consumes-mat-electrolyte",
+      "from": "proc-assembly",
+      "rel": "consumes",
+      "to": "mat-electrolyte"
+    },
+    {
+      "id": "doc-sop-el-01-describes-ct-c1",
+      "from": "doc-sop-el-01",
+      "rel": "describes",
+      "to": "ct-c1"
+    },
+    {
+      "id": "doc-sop-el-01-describes-ct-a1",
+      "from": "doc-sop-el-01",
+      "rel": "describes",
+      "to": "ct-a1"
+    },
+    {
+      "id": "doc-sop-el-02-describes-ct-c1",
+      "from": "doc-sop-el-02",
+      "rel": "describes",
+      "to": "ct-c1"
+    },
+    {
+      "id": "doc-sop-el-02-describes-ct-a1",
+      "from": "doc-sop-el-02",
+      "rel": "describes",
+      "to": "ct-a1"
+    },
+    {
+      "id": "doc-sop-el-03-describes-cl-c1",
+      "from": "doc-sop-el-03",
+      "rel": "describes",
+      "to": "cl-c1"
+    },
+    {
+      "id": "doc-sop-el-03-describes-cl-a1",
+      "from": "doc-sop-el-03",
+      "rel": "describes",
+      "to": "cl-a1"
+    },
+    {
+      "id": "doc-sop-el-04-describes-sl-c1",
+      "from": "doc-sop-el-04",
+      "rel": "describes",
+      "to": "sl-c1"
+    },
+    {
+      "id": "doc-sop-el-04-describes-sl-a1",
+      "from": "doc-sop-el-04",
+      "rel": "describes",
+      "to": "sl-a1"
+    },
+    {
+      "id": "doc-sop-dr-01-describes-dr-01",
+      "from": "doc-sop-dr-01",
+      "rel": "describes",
+      "to": "dr-01"
+    },
+    {
+      "id": "doc-sop-dr-01-describes-dh-01",
+      "from": "doc-sop-dr-01",
+      "rel": "describes",
+      "to": "dh-01"
+    },
+    {
+      "id": "doc-sop-as-01-describes-st-01",
+      "from": "doc-sop-as-01",
+      "rel": "describes",
+      "to": "st-01"
+    },
+    {
+      "id": "doc-sop-as-01-describes-st-02",
+      "from": "doc-sop-as-01",
+      "rel": "describes",
+      "to": "st-02"
+    },
+    {
+      "id": "doc-sop-as-02-describes-uw-01",
+      "from": "doc-sop-as-02",
+      "rel": "describes",
+      "to": "uw-01"
+    },
+    {
+      "id": "doc-sop-as-03-describes-ef-01",
+      "from": "doc-sop-as-03",
+      "rel": "describes",
+      "to": "ef-01"
+    },
+    {
+      "id": "doc-sop-fa-01-describes-fm-01",
+      "from": "doc-sop-fa-01",
+      "rel": "describes",
+      "to": "fm-01"
+    },
+    {
+      "id": "doc-sop-fa-01-describes-fm-02",
+      "from": "doc-sop-fa-01",
+      "rel": "describes",
+      "to": "fm-02"
+    },
+    {
+      "id": "doc-sop-fa-01-describes-fm-03",
+      "from": "doc-sop-fa-01",
+      "rel": "describes",
+      "to": "fm-03"
+    },
+    {
+      "id": "doc-sop-fa-01-describes-fm-04",
+      "from": "doc-sop-fa-01",
+      "rel": "describes",
+      "to": "fm-04"
+    },
+    {
+      "id": "doc-sop-fa-01-describes-ag-01",
+      "from": "doc-sop-fa-01",
+      "rel": "describes",
+      "to": "ag-01"
+    },
+    {
+      "id": "doc-sop-qa-01-describes-eol-01",
+      "from": "doc-sop-qa-01",
+      "rel": "describes",
+      "to": "eol-01"
+    },
+    {
+      "id": "doc-plant-overview-describes-varnhem",
+      "from": "doc-plant-overview",
+      "rel": "describes",
+      "to": "varnhem"
+    },
+    {
+      "id": "doc-ll-2026-01-describes-dr-01",
+      "from": "doc-ll-2026-01",
+      "rel": "describes",
+      "to": "dr-01"
+    },
+    {
+      "id": "doc-ll-2026-02-describes-uw-01",
+      "from": "doc-ll-2026-02",
+      "rel": "describes",
+      "to": "uw-01"
+    },
+    {
+      "id": "doc-ll-2026-03-describes-fm-01",
+      "from": "doc-ll-2026-03",
+      "rel": "describes",
+      "to": "fm-01"
+    },
+    {
+      "id": "doc-ll-2026-04-describes-fm-02",
+      "from": "doc-ll-2026-04",
+      "rel": "describes",
+      "to": "fm-02"
+    },
+    {
+      "id": "doc-ll-2026-05-describes-ct-a1",
+      "from": "doc-ll-2026-05",
+      "rel": "describes",
+      "to": "ct-a1"
+    },
+    {
+      "id": "doc-ll-2026-06-describes-ct-a1",
+      "from": "doc-ll-2026-06",
+      "rel": "describes",
+      "to": "ct-a1"
+    },
+    {
+      "id": "doc-ll-2026-07-describes-fm-01",
+      "from": "doc-ll-2026-07",
+      "rel": "describes",
+      "to": "fm-01"
+    },
+    {
+      "id": "doc-ll-2026-08-describes-ct-a1",
+      "from": "doc-ll-2026-08",
+      "rel": "describes",
+      "to": "ct-a1"
+    },
+    {
+      "id": "doc-ll-2026-09-describes-cl-a1",
+      "from": "doc-ll-2026-09",
+      "rel": "describes",
+      "to": "cl-a1"
+    },
+    {
+      "id": "doc-ll-2026-10-describes-ct-a1",
+      "from": "doc-ll-2026-10",
+      "rel": "describes",
+      "to": "ct-a1"
+    },
+    {
+      "id": "doc-mr-2025-10-describes-varnhem",
+      "from": "doc-mr-2025-10",
+      "rel": "describes",
+      "to": "varnhem"
+    },
+    {
+      "id": "doc-mr-2025-11-describes-varnhem",
+      "from": "doc-mr-2025-11",
+      "rel": "describes",
+      "to": "varnhem"
+    },
+    {
+      "id": "doc-mr-2025-12-describes-varnhem",
+      "from": "doc-mr-2025-12",
+      "rel": "describes",
+      "to": "varnhem"
+    },
+    {
+      "id": "doc-mr-2026-01-describes-varnhem",
+      "from": "doc-mr-2026-01",
+      "rel": "describes",
+      "to": "varnhem"
+    },
+    {
+      "id": "doc-mr-2026-02-describes-varnhem",
+      "from": "doc-mr-2026-02",
+      "rel": "describes",
+      "to": "varnhem"
+    },
+    {
+      "id": "doc-mr-2026-03-describes-varnhem",
+      "from": "doc-mr-2026-03",
+      "rel": "describes",
+      "to": "varnhem"
+    },
+    {
+      "id": "doc-mr-2026-04-describes-varnhem",
+      "from": "doc-mr-2026-04",
+      "rel": "describes",
+      "to": "varnhem"
+    },
+    {
+      "id": "doc-mr-2026-05-describes-varnhem",
+      "from": "doc-mr-2026-05",
+      "rel": "describes",
+      "to": "varnhem"
+    },
+    {
+      "id": "doc-mr-2026-06-describes-varnhem",
+      "from": "doc-mr-2026-06",
+      "rel": "describes",
+      "to": "varnhem"
+    },
+    {
+      "id": "doc-mr-2026-07-describes-varnhem",
+      "from": "doc-mr-2026-07",
+      "rel": "describes",
+      "to": "varnhem"
+    },
+    {
+      "id": "doc-mr-2026-08-describes-varnhem",
+      "from": "doc-mr-2026-08",
+      "rel": "describes",
+      "to": "varnhem"
+    },
+    {
+      "id": "doc-mr-2026-09-describes-varnhem",
+      "from": "doc-mr-2026-09",
+      "rel": "describes",
+      "to": "varnhem"
+    }
+  ]
+}

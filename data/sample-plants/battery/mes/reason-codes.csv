@@ -1,0 +1,33 @@
+code,description,category,kind,planned
+DT-DIE,"Slot die: lip build-up, die cleaned",Coating,downtime,no
+DT-DRY,Dryer fault: fan or heater,Coating,downtime,no
+DT-WEB,Web break,Web handling,downtime,no
+DT-CAL,Calender fault: roll bearing,Calendering,downtime,no
+DT-BLD,Slitter blade damaged,Slitting,downtime,no
+DT-DRM,Dry room out of specification,Dry room,downtime,no
+DT-STK,Stacker fault: separator tension or alignment,Stacking,downtime,no
+DT-WLD,Tab welder fault: horn,Welding,downtime,no
+DT-FIL,Electrolyte filler fault: dosing pump,Filling,downtime,no
+DT-FRM,Formation rack fault: channel contacts,Formation,downtime,no
+DT-VIS,Vision system fault,Automation,downtime,no
+DT-ROB,Handling robot fault,Automation,downtime,no
+DT-ELE,Electrical or control fault,Electrical,downtime,no
+DT-MAT,"Material missing: foil, separator, electrolyte or electrodes",Logistics,downtime,no
+DT-OPR,No operator,Organisation,downtime,no
+DT-QH,Quality hold,Quality,downtime,no
+DT-OTH,Other,Other,downtime,no
+PL-PM,Planned maintenance,Planned,downtime,yes
+PL-CLN,Planned die cleaning,Planned,downtime,yes
+PL-BLD,Planned blade change,Planned,downtime,yes
+PL-HRN,Planned horn change,Planned,downtime,yes
+PL-SHD,Plant shutdown,Planned,downtime,yes
+COIL-STREAK,Coil scrapped: streaks or coating weight out of tolerance,Coating,scrap,no
+COIL-ADH,Coil scrapped: poor adhesion (peel test),Coating,scrap,no
+COIL-BURR,Rolls scrapped: burrs over the limit,Slitting,scrap,no
+STK-OVH,Stack rejected: electrode overhang out of tolerance,Stacking,scrap,no
+WLD-FAIL,Weld rejected: low energy or pull test,Welding,scrap,no
+FIL-LOW,Cell rejected: electrolyte under-filled,Filling,scrap,no
+FRM-FAIL,Cell failed formation,Formation,scrap,no
+EOL-CAP,Cell failed end-of-line: capacity,Test,scrap,no
+EOL-DCIR,Cell failed end-of-line: resistance,Test,scrap,no
+EOL-K,Cell failed end-of-line: self-discharge (K-value),Test,scrap,no

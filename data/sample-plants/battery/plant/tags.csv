@@ -1,0 +1,112 @@
+tag,unit,kind,sample_rate_hz,description,asset,measure,range_min,range_max,stuck_after_s,wear_limit,wear_direction,event_kind
+mxc1.viscosity,mPa·s,unit,,"Cathode slurry viscosity, each batch",MX-C1,viscosity,1000,20000,,,,
+mxc1.solid_content,%,unit,,"Cathode slurry solid content, each batch",MX-C1,content,40,80,,,,
+ctc1.web_speed,m/min,run,0.016666666666666666,CT-C1 web speed,CT-C1,speed,0,40,1800,,,
+ctc1.coating_weight,mg/cm²,run,0.016666666666666666,"CT-C1 coating weight (beta gauge), machine direction",CT-C1,weight,17.6,26.4,1800,,,
+ctc1.coating_weight_cv,%,run,0.016666666666666666,CT-C1 coating weight variation across the web (coefficient of variation),CT-C1,variation,0,10,1800,2.5,up,
+ctc1.slot_die_pressure,bar,run,0.016666666666666666,CT-C1 slot die slurry pressure,CT-C1,pressure,0,10,1800,,,
+ctc1.streaks,/coil,unit,,"CT-C1 streaks found by the inline camera, each coil",CT-C1,count,0,50,,,,
+ctc1.dryer_temp_z1,°C,grid,0.0033333333333333335,CT-C1 dryer zone 1 air temperature,CT-C1,temperature,20,180,3600,,,
+ctc1.dryer_temp_z3,°C,grid,0.0033333333333333335,CT-C1 dryer zone 3 air temperature,CT-C1,temperature,20,180,3600,,,
+ctc1.dryer_temp_z5,°C,grid,0.0033333333333333335,CT-C1 dryer zone 5 air temperature,CT-C1,temperature,20,180,3600,,,
+ctc1.dryer_fan_current,A,grid,0.0033333333333333335,CT-C1 dryer zone 3 fan motor current,CT-C1,current,0,40,3600,,,
+ctc1.residual_solvent,ppm,grid,0.0033333333333333335,CT-C1 residual NMP after the dryer (NIR),CT-C1,content,0,2000,3600,,,
+clc1.roll_force,kN,run,0.016666666666666666,CL-C1 roll force,CL-C1,force,0,3000,1800,,,
+clc1.thickness,µm,run,0.016666666666666666,CL-C1 electrode thickness after calendering (laser),CL-C1,thickness,50,250,1800,,,
+clc1.thickness_sd,µm,run,0.016666666666666666,CL-C1 thickness variation (standard deviation over a minute),CL-C1,variation,0,10,1800,,,
+clc1.roll_temp,°C,grid,0.0033333333333333335,CL-C1 roll surface temperature,CL-C1,temperature,20,120,3600,,,
+clc1.bearing_vibration,mm/s,grid,0.0033333333333333335,"CL-C1 work roll bearing vibration (velocity, RMS)",CL-C1,vibration,0,20,3600,7.1,up,
+slc1.burr_height,µm,unit,,"SL-C1 burr height on the slit edge, each daughter roll",SL-C1,burr,0,40,,12.0,up,
+slc1.blade_km,km,grid,0.0033333333333333335,SL-C1 metres cut since the last blade change,SL-C1,counter,0,400,86400,,,
+vdc1.oven_temp,°C,grid,0.0033333333333333335,VD-C1 oven temperature,VD-C1,temperature,20,150,3600,,,
+vdc1.vacuum,mbar,grid,0.0033333333333333335,VD-C1 oven pressure,VD-C1,vacuum,0,1013,3600,,,
+mxa1.viscosity,mPa·s,unit,,"Anode slurry viscosity, each batch",MX-A1,viscosity,1000,20000,,,,
+mxa1.solid_content,%,unit,,"Anode slurry solid content, each batch",MX-A1,content,40,80,,,,
+cta1.web_speed,m/min,run,0.016666666666666666,CT-A1 web speed,CT-A1,speed,0,40,1800,,,
+cta1.coating_weight,mg/cm²,run,0.016666666666666666,"CT-A1 coating weight (beta gauge), machine direction",CT-A1,weight,10.08,15.12,1800,,,
+cta1.coating_weight_cv,%,run,0.016666666666666666,CT-A1 coating weight variation across the web (coefficient of variation),CT-A1,variation,0,10,1800,2.5,up,
+cta1.slot_die_pressure,bar,run,0.016666666666666666,CT-A1 slot die slurry pressure,CT-A1,pressure,0,10,1800,,,
+cta1.streaks,/coil,unit,,"CT-A1 streaks found by the inline camera, each coil",CT-A1,count,0,50,,,,
+cta1.dryer_temp_z1,°C,grid,0.0033333333333333335,CT-A1 dryer zone 1 air temperature,CT-A1,temperature,20,180,3600,,,
+cta1.dryer_temp_z3,°C,grid,0.0033333333333333335,CT-A1 dryer zone 3 air temperature,CT-A1,temperature,20,180,3600,,,
+cta1.dryer_temp_z5,°C,grid,0.0033333333333333335,CT-A1 dryer zone 5 air temperature,CT-A1,temperature,20,180,3600,,,
+cta1.dryer_fan_current,A,grid,0.0033333333333333335,CT-A1 dryer zone 3 fan motor current,CT-A1,current,0,40,3600,,,
+cta1.residual_solvent,ppm,grid,0.0033333333333333335,CT-A1 residual water after the dryer (NIR),CT-A1,content,0,2000,3600,,,
+cla1.roll_force,kN,run,0.016666666666666666,CL-A1 roll force,CL-A1,force,0,3000,1800,,,
+cla1.thickness,µm,run,0.016666666666666666,CL-A1 electrode thickness after calendering (laser),CL-A1,thickness,50,250,1800,,,
+cla1.thickness_sd,µm,run,0.016666666666666666,CL-A1 thickness variation (standard deviation over a minute),CL-A1,variation,0,10,1800,,,
+cla1.roll_temp,°C,grid,0.0033333333333333335,CL-A1 roll surface temperature,CL-A1,temperature,20,120,3600,,,
+cla1.bearing_vibration,mm/s,grid,0.0033333333333333335,"CL-A1 work roll bearing vibration (velocity, RMS)",CL-A1,vibration,0,20,3600,7.1,up,
+sla1.burr_height,µm,unit,,"SL-A1 burr height on the slit edge, each daughter roll",SL-A1,burr,0,40,,12.0,up,
+sla1.blade_km,km,grid,0.0033333333333333335,SL-A1 metres cut since the last blade change,SL-A1,counter,0,400,86400,,,
+vda1.oven_temp,°C,grid,0.0033333333333333335,VD-A1 oven temperature,VD-A1,temperature,20,150,3600,,,
+vda1.vacuum,mbar,grid,0.0033333333333333335,VD-A1 oven pressure,VD-A1,vacuum,0,1013,3600,,,
+dr01.dew_point,°C,grid,0.0033333333333333335,Dry room DR-01 dew point,DR-01,dew point,-70,0,3600,,,
+dr01.temperature,°C,grid,0.0033333333333333335,Dry room DR-01 air temperature,DR-01,temperature,15,30,3600,,,
+dh01.regen_temp,°C,grid,0.0033333333333333335,Dehumidifier DH-01 regeneration air temperature,DH-01,temperature,20,200,3600,,,
+dh01.wheel_dp,Pa,grid,0.0033333333333333335,Dehumidifier DH-01 pressure drop over the desiccant wheel,DH-01,pressure,0,600,3600,380.0,up,
+ntc1.laser_power,W,grid,0.0033333333333333335,Cathode notcher NT-C1 laser power,NT-C1,power,0,2000,3600,,,
+nta1.laser_power,W,grid,0.0033333333333333335,Anode notcher NT-A1 laser power,NT-A1,power,0,2000,3600,,,
+st01.cycle_time,s,unit,,"ST-01 stacking time, each cell",ST-01,cycle,30,400,,,,
+st01.overhang_dev,mm,unit,,"ST-01 largest anode overhang deviation from nominal, each cell (vision)",ST-01,alignment,0,3,,,,
+st01.separator_tension,N,unit,,"ST-01 separator web tension, each cell",ST-01,tension,0,20,,,,
+st02.cycle_time,s,unit,,"ST-02 stacking time, each cell",ST-02,cycle,30,400,,,,
+st02.overhang_dev,mm,unit,,"ST-02 largest anode overhang deviation from nominal, each cell (vision)",ST-02,alignment,0,3,,,,
+st02.separator_tension,N,unit,,"ST-02 separator web tension, each cell",ST-02,tension,0,20,,,,
+uw01.weld_energy,J,unit,,"Tab welder UW-01 weld energy, each cell",UW-01,energy,0,1500,,900.0,up,
+uw01.weld_time,ms,unit,,"Tab welder UW-01 weld time, each cell",UW-01,time,0,1000,,,,
+ef01.fill_weight,g,unit,,"Electrolyte filler EF-01 fill weight, each cell",EF-01,weight,200,280,,,,
+ef01.fill_vacuum,mbar,unit,,"Electrolyte filler EF-01 cell vacuum before filling, each cell",EF-01,vacuum,0,1013,,,,
+fm01.rack_temp,°C,grid,0.0033333333333333335,"FM-01 cell temperature, rack average",FM-01,temperature,15,60,3600,,,
+fm01.contact_resistance,mΩ,grid,0.0033333333333333335,"FM-01 channel contact resistance, rack average",FM-01,resistance,0,20,3600,6.0,up,
+fm02.rack_temp,°C,grid,0.0033333333333333335,"FM-02 cell temperature, rack average",FM-02,temperature,15,60,3600,,,
+fm02.contact_resistance,mΩ,grid,0.0033333333333333335,"FM-02 channel contact resistance, rack average",FM-02,resistance,0,20,3600,6.0,up,
+fm03.rack_temp,°C,grid,0.0033333333333333335,"FM-03 cell temperature, rack average",FM-03,temperature,15,60,3600,,,
+fm03.contact_resistance,mΩ,grid,0.0033333333333333335,"FM-03 channel contact resistance, rack average",FM-03,resistance,0,20,3600,6.0,up,
+fm04.rack_temp,°C,grid,0.0033333333333333335,"FM-04 cell temperature, rack average",FM-04,temperature,15,60,3600,,,
+fm04.contact_resistance,mΩ,grid,0.0033333333333333335,"FM-04 channel contact resistance, rack average",FM-04,resistance,0,20,3600,6.0,up,
+ag01.room_temp,°C,grid,0.0033333333333333335,Aging room AG-01 temperature,AG-01,temperature,15,35,3600,,,
+eol01.capacity,Ah,unit,,"End-of-line capacity, each cell",EOL-01,capacity,50,65,,,,
+eol01.dcir,mΩ,unit,,"End-of-line DC internal resistance, each cell",EOL-01,resistance,0.3,2.0,,,,
+eol01.k_value,mV/day,unit,,"Self-discharge over aging (K-value), each cell",EOL-01,self-discharge,0,5,,,,
+lab.peel_cathode,N/m,lab,,"Cathode peel strength, a sample each coil (PT-01)",PT-01,adhesion,0,40,,,,
+lab.moisture_electrode,ppm,lab,,"Electrode moisture after vacuum drying, a sample each roll (KF-01)",KF-01,content,0,1000,,,,
+lab.weld_peel,N,lab,,"Tab weld pull test, a sample each 500 welds (PT-01)",PT-01,strength,0,300,,,,
+nr01.outlet_nmp,ppm,grid,0.0033333333333333335,NMP recovery NR-01 outlet NMP,NR-01,content,0,200,3600,,,
+ch01.supply_temp,°C,grid,0.0033333333333333335,Chilled water supply temperature,CH-01,temperature,2,20,3600,,,
+cp01.header_pressure,bar,grid,0.0033333333333333335,Compressed air header pressure,CP-01,pressure,4,9,3600,,,
+mes.mxc1.downtime,,event,,MX-C1 stops from the MES: the reason code,MX-C1,,,,,,,downtime
+mes.ctc1.downtime,,event,,CT-C1 stops from the MES: the reason code,CT-C1,,,,,,,downtime
+mes.clc1.downtime,,event,,CL-C1 stops from the MES: the reason code,CL-C1,,,,,,,downtime
+mes.slc1.downtime,,event,,SL-C1 stops from the MES: the reason code,SL-C1,,,,,,,downtime
+mes.vdc1.downtime,,event,,VD-C1 stops from the MES: the reason code,VD-C1,,,,,,,downtime
+mes.mxa1.downtime,,event,,MX-A1 stops from the MES: the reason code,MX-A1,,,,,,,downtime
+mes.cta1.downtime,,event,,CT-A1 stops from the MES: the reason code,CT-A1,,,,,,,downtime
+mes.cla1.downtime,,event,,CL-A1 stops from the MES: the reason code,CL-A1,,,,,,,downtime
+mes.sla1.downtime,,event,,SL-A1 stops from the MES: the reason code,SL-A1,,,,,,,downtime
+mes.vda1.downtime,,event,,VD-A1 stops from the MES: the reason code,VD-A1,,,,,,,downtime
+mes.dr01.downtime,,event,,DR-01 stops from the MES: the reason code,DR-01,,,,,,,downtime
+mes.ntc1.downtime,,event,,NT-C1 stops from the MES: the reason code,NT-C1,,,,,,,downtime
+mes.nta1.downtime,,event,,NT-A1 stops from the MES: the reason code,NT-A1,,,,,,,downtime
+mes.st01.downtime,,event,,ST-01 stops from the MES: the reason code,ST-01,,,,,,,downtime
+mes.st02.downtime,,event,,ST-02 stops from the MES: the reason code,ST-02,,,,,,,downtime
+mes.uw01.downtime,,event,,UW-01 stops from the MES: the reason code,UW-01,,,,,,,downtime
+mes.ef01.downtime,,event,,EF-01 stops from the MES: the reason code,EF-01,,,,,,,downtime
+mes.fm01.downtime,,event,,FM-01 stops from the MES: the reason code,FM-01,,,,,,,downtime
+mes.fm02.downtime,,event,,FM-02 stops from the MES: the reason code,FM-02,,,,,,,downtime
+mes.fm03.downtime,,event,,FM-03 stops from the MES: the reason code,FM-03,,,,,,,downtime
+mes.fm04.downtime,,event,,FM-04 stops from the MES: the reason code,FM-04,,,,,,,downtime
+mes.eol01.downtime,,event,,EOL-01 stops from the MES: the reason code,EOL-01,,,,,,,downtime
+mes.ctc1.scrap,,event,,CT-C1 scrap from the MES: the defect code,CT-C1,,,,,,,scrap
+mes.cta1.scrap,,event,,CT-A1 scrap from the MES: the defect code,CT-A1,,,,,,,scrap
+mes.slc1.scrap,,event,,SL-C1 scrap from the MES: the defect code,SL-C1,,,,,,,scrap
+mes.sla1.scrap,,event,,SL-A1 scrap from the MES: the defect code,SL-A1,,,,,,,scrap
+mes.st01.scrap,,event,,ST-01 scrap from the MES: the defect code,ST-01,,,,,,,scrap
+mes.st02.scrap,,event,,ST-02 scrap from the MES: the defect code,ST-02,,,,,,,scrap
+mes.uw01.scrap,,event,,UW-01 scrap from the MES: the defect code,UW-01,,,,,,,scrap
+mes.ef01.scrap,,event,,EF-01 scrap from the MES: the defect code,EF-01,,,,,,,scrap
+mes.fm01.scrap,,event,,FM-01 scrap from the MES: the defect code,FM-01,,,,,,,scrap
+mes.fm02.scrap,,event,,FM-02 scrap from the MES: the defect code,FM-02,,,,,,,scrap
+mes.fm03.scrap,,event,,FM-03 scrap from the MES: the defect code,FM-03,,,,,,,scrap
+mes.fm04.scrap,,event,,FM-04 scrap from the MES: the defect code,FM-04,,,,,,,scrap
+mes.eol01.scrap,,event,,EOL-01 scrap from the MES: the defect code,EOL-01,,,,,,,scrap

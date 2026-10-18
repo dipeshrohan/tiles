@@ -1,0 +1,36 @@
+item,of,value,unit
+downtime,MX-C1,400.0,EUR/h
+downtime,CT-C1,1800.0,EUR/h
+downtime,CL-C1,900.0,EUR/h
+downtime,SL-C1,600.0,EUR/h
+downtime,VD-C1,200.0,EUR/h
+downtime,MX-A1,400.0,EUR/h
+downtime,CT-A1,1800.0,EUR/h
+downtime,CL-A1,900.0,EUR/h
+downtime,SL-A1,600.0,EUR/h
+downtime,VD-A1,200.0,EUR/h
+downtime,DR-01,2800.0,EUR/h
+downtime,NT-C1,500.0,EUR/h
+downtime,NT-A1,500.0,EUR/h
+downtime,ST-01,700.0,EUR/h
+downtime,ST-02,700.0,EUR/h
+downtime,UW-01,1400.0,EUR/h
+downtime,EF-01,1400.0,EUR/h
+downtime,FM-01,150.0,EUR/h
+downtime,FM-02,150.0,EUR/h
+downtime,FM-03,150.0,EUR/h
+downtime,FM-04,150.0,EUR/h
+downtime,EOL-01,300.0,EUR/h
+scrap,KX60,24.0,EUR/cell
+scrap,cathode coil,9.0,EUR/m
+scrap,anode coil,3.0,EUR/m
+labour,maintenance technician,72.0,EUR/h
+part,slot die cleaning kit,180.0,EUR
+part,dryer fan bearing set,1200.0,EUR
+part,calender roll bearing,5400.0,EUR
+part,slitter blade set,2600.0,EUR
+part,desiccant wheel regeneration service,3500.0,EUR
+part,stacker dancer and servo,2100.0,EUR
+part,ultrasonic horn,3800.0,EUR
+part,dosing pump rebuild kit,950.0,EUR
+part,formation channel contact set,420.0,EUR

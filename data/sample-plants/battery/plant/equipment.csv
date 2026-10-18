@@ -1,0 +1,30 @@
+asset,label,kind,vendor,model,year,area,plc
+MX-C1,Cathode mixer MX-C1,mixer,Bühler,ECM 1000,2022,Cathode line,PLC Cathode line
+CT-C1,Cathode coater CT-C1,coater,Hirano Tecseed,M-400L,2022,Cathode line,PLC Cathode line
+CL-C1,Cathode calender CL-C1,calender,Saueressig,GKL 700,2022,Cathode line,PLC Cathode line
+SL-C1,Cathode slitter SL-C1,slitter,Kampf,Conslitter,2022,Cathode line,PLC Cathode line
+VD-C1,Cathode vacuum oven VD-C1,vacuum-oven,Memmert,VO 1000,2022,Cathode line,PLC Cathode line
+MX-A1,Anode mixer MX-A1,mixer,Bühler,ECM 1000,2022,Anode line,PLC Anode line
+CT-A1,Anode coater CT-A1,coater,Hirano Tecseed,M-400L,2022,Anode line,PLC Anode line
+CL-A1,Anode calender CL-A1,calender,Saueressig,GKL 700,2022,Anode line,PLC Anode line
+SL-A1,Anode slitter SL-A1,slitter,Kampf,Conslitter,2022,Anode line,PLC Anode line
+VD-A1,Anode vacuum oven VD-A1,vacuum-oven,Memmert,VO 1000,2022,Anode line,PLC Anode line
+DR-01,Dry room DR-01,dry-room,Munters,DryCool,2022,Assembly line,PLC Dry room
+DH-01,Dehumidifier DH-01,dehumidifier,Munters,MX2 3000,2022,Assembly line,PLC Dry room
+NT-C1,Cathode notcher NT-C1,notcher,Trumpf,TruMicro 7000,2022,Assembly line,PLC Assembly
+NT-A1,Anode notcher NT-A1,notcher,Trumpf,TruMicro 7000,2022,Assembly line,PLC Assembly
+ST-01,Stacker ST-01,stacker,Manz,BLS 500,2022,Assembly line,PLC Assembly
+ST-02,Stacker ST-02,stacker,Manz,BLS 500,2023,Assembly line,PLC Assembly
+UW-01,Tab welder UW-01,ultrasonic-welder,Herrmann Ultraschall,HiQ VARIO,2022,Assembly line,PLC Assembly
+EF-01,Electrolyte filler EF-01,electrolyte-filler,Bühler,EFS 200,2022,Assembly line,PLC Assembly
+FM-01,Formation rack FM-01,formation-rack,Chroma,17208M,2022,Formation and aging,PLC Formation
+FM-02,Formation rack FM-02,formation-rack,Chroma,17208M,2022,Formation and aging,PLC Formation
+FM-03,Formation rack FM-03,formation-rack,Chroma,17208M,2022,Formation and aging,PLC Formation
+FM-04,Formation rack FM-04,formation-rack,Chroma,17208M,2022,Formation and aging,PLC Formation
+AG-01,Aging room AG-01,aging-room,Weiss,WK3,2022,Formation and aging,PLC Formation
+EOL-01,End-of-line tester EOL-01,eol-tester,Hioki,BT4560 line,2022,Formation and aging,PLC Formation
+NR-01,NMP recovery NR-01,solvent-recovery,Dürr,Oxi.X RE,2022,Utilities,PLC Utilities
+CH-01,Chiller CH-01,chiller,Carrier,30XW,2022,Utilities,PLC Utilities
+CP-01,Air compressor CP-01,compressor,Atlas Copco,ZR 160,2022,Utilities,PLC Utilities
+KF-01,Karl Fischer titrator KF-01,lab-instrument,Metrohm,917 Coulometer,2022,Quality lab,
+PT-01,Peel tester PT-01,lab-instrument,Zwick,zwickiLine,2022,Quality lab,

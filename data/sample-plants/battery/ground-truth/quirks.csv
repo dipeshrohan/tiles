@@ -1,0 +1,9 @@
+quirk,where,from,to,what
+sensor drift,dr01.dew_point,2026-02-02T08:00:00+01:00,2026-02-24T10:00:00+01:00,The dew point sensor read 3 °C too dry until its calibration
+wrong unit,cta1.coating_weight,2026-03-09T08:00:00+01:00,2026-03-16T08:00:00+01:00,Logged in g/m² (ten times the mg/cm² values) after a gauge software update
+historian outage,"fm01.*, fm02.*, fm03.*, fm04.*",2026-04-06T00:00:00+02:00,2026-04-07T12:00:00+02:00,No formation rack readings: the collector was down
+clock offset,eol01.*,2026-03-29T03:00:00+02:00,2026-04-05T12:00:00+02:00,The tester's clock stayed on winter time: its readings are an hour early
+code renamed,mes/stops.csv,2025-10-01T00:00:00+02:00,2026-01-15T00:00:00+01:00,"Die cleaning is SLOT before the MES update, DT-DIE after"
+duplicate rows,mes/stops.csv,2025-10-01T00:00:00+02:00,2026-10-01T00:00:00+02:00,About 0.4% of stops are logged twice
+no end time,mes/stops.csv,2025-10-01T00:00:00+02:00,2026-10-01T00:00:00+02:00,About 0.3% of unplanned stops have no end time
+model gap,plant/ontology.json,2025-10-01T00:00:00+02:00,2026-10-01T00:00:00+02:00,A spare vacuum oven (VD-C2) with no relationships
