@@ -4,9 +4,9 @@ Every release of Tiles, newest first, in the format of [Keep a Changelog](https:
 
 The top section is the next version, marked **Unreleased** until it is released. Each pull request adds its user-visible change there; the release replaces **Unreleased** with the date.
 
-## [0.1.0] - Unreleased
+## [1.0.0] - 2026-10-18
 
-The first version: everything up to the pilot. Not yet tagged.
+The first release: the pilot, and the second plan up to setpoint recommendations (months 7 to 11).
 
 ### Added
 
@@ -134,4 +134,4 @@ The first version: everything up to the pilot. Not yet tagged.
   - **setting up a site:** organisation admins create sites (`POST /sites`), and a wizard takes each from new to its first dashboard (outline the plant, connect an edge agent, map tags), with its progress worked out from the site's data (`GET /sites/{id}/onboarding`) (T6.06);
   - **release process:** one version across the browser app, the API, the edge agent and the Helm chart; this changelog; release notes and assets made from a version tag; an upgrade test that migrates the previous version's database, with its data, to the new one and back (T6.04).
 
-[0.1.0]: https://github.com/dipeshrohan/tiles/releases/tag/v0.1.0
+[1.0.0]: https://github.com/dipeshrohan/tiles/releases/tag/v1.0.0

@@ -70,8 +70,8 @@ If the cluster can reach `ghcr.io` and Docker Hub, skip this step.
 Otherwise, copy the release's images into your registry, with the database's and Redis's images unless you bring your own. `--all` keeps every architecture, whatever the copying machine runs. Take the database's and Redis's tags from the chart's `values.yaml` for that release.
 
 ```sh
-skopeo copy --all docker://ghcr.io/dipeshrohan/tiles-api:0.1.0 docker://registry.plant.example.com/tiles/tiles-api:0.1.0
-skopeo copy --all docker://ghcr.io/dipeshrohan/tiles-web:0.1.0 docker://registry.plant.example.com/tiles/tiles-web:0.1.0
+skopeo copy --all docker://ghcr.io/dipeshrohan/tiles-api:1.0.0 docker://registry.plant.example.com/tiles/tiles-api:1.0.0
+skopeo copy --all docker://ghcr.io/dipeshrohan/tiles-web:1.0.0 docker://registry.plant.example.com/tiles/tiles-web:1.0.0
 skopeo copy --all docker://docker.io/timescale/timescaledb:2.30.2-pg17 docker://registry.plant.example.com/tiles/timescaledb:2.30.2-pg17
 skopeo copy --all docker://docker.io/library/redis:7.4-alpine docker://registry.plant.example.com/tiles/redis:7.4-alpine
 ```
@@ -87,7 +87,7 @@ images = {
 }
 ```
 
-Releases are listed on GitHub with their notes. Install a release (`0.1.0`), never `main`: production refuses a moving tag.
+Releases are listed on GitHub with their notes. Install a release (`1.0.0`), never `main`: production refuses a moving tag.
 
 ## 3. Settings
 
@@ -100,7 +100,7 @@ Edit `terraform.tfvars`, which starts as:
 
 ```hcl
 kube_context = "plant-cluster"
-image_tag    = "0.1.0"
+image_tag    = "1.0.0"
 url          = "https://tiles.plant.example.com"
 api_url      = "https://tiles-api.plant.example.com"
 oidc = {

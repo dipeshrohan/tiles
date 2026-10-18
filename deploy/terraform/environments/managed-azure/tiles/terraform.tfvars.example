@@ -3,7 +3,7 @@
 subscription_id = "00000000-0000-0000-0000-000000000000"
 name            = "tiles-eu1"
 
-image_tag = "0.1.0"
+image_tag = "1.0.0"
 url       = "https://tiles.example.com"
 api_url   = "https://api.tiles.example.com"
 oidc = {
