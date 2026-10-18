@@ -54,6 +54,7 @@ from tiles_api.sample_plant.common import Episode, Maintenance, Mode, RandomStop
 GRID = Station.GRID
 DAY = 86400.0
 HOUR = 3600.0
+SHUTDOWN_BUFFER = 3 * 86400.0
 NO_END = float("inf")
 
 # The process model: the ground truth behind the QC results and the vials' fate.
@@ -728,7 +729,9 @@ class Plant:
                 else:
                     seed_start = plan_end[reactor] - 14.5 * DAY
                     inoc = max(t + 1.2 * DAY, seed_start + 15.5 * DAY)
-                if inoc + 14.5 * DAY > shut_a and inoc < shut_b:  # no culture over the shutdown
+                # No culture over the shutdown: the last is planned to end SHUTDOWN_BUFFER before it, as
+                # its seed train and turnaround can be held up.
+                if inoc + 14.5 * DAY + SHUTDOWN_BUFFER > shut_a and inoc < shut_b:
                     idx = int(reactor[-1]) - 1
                     seed_start = shut_b + (1.0 + 3.6 * idx) * DAY
                     inoc = seed_start + 15.5 * DAY
@@ -1086,8 +1089,8 @@ class Plant:
             b.cycles.append(cyc)
             pool += b.harvest_mass_g / n * sy / 100
             self._minutes("cs01-run", start, start + 3.5 * HOUR, partial(self._protein_a, dp, r))
+            self.write("cs01-unit", "cs01.column_dp", start + 100 * 60, round(dp, 2))  # in time order
             self.write("cs01-unit", "cs01.step_yield", start + 3.5 * HOUR - 60, round(sy, 1))
-            self.write("cs01-unit", "cs01.column_dp", start + 100 * 60, round(dp, 2))
             if rc % 25 == 0:
                 self.year.lab.append(
                     (start + 2 * DAY, "lab.pa_dbc", round(48 - 14 * (rc / RESIN_LIFE) ** 1.5 + r.gauss(0, 0.8), 1))

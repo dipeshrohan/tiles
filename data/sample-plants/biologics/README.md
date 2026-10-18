@@ -162,8 +162,8 @@ uv run tiles-sample-plant generate biologics --all
 This writes `generated/` (about 36 MB, not in Git) in about two minutes:
 
 - `historian/<month>/<stream>.csv.gz`: the historian export, one row per reading (timestamp in UTC,
-  tag, value, quality): about 8.8 million readings.
-- `tables/vials-<month>.csv.gz`: every vial filled that month (about 420,000 in the year) with its
+  tag, value, quality): about 8.5 million readings.
+- `tables/vials-<month>.csv.gz`: every vial filled that month (about 375,000 in the year) with its
   genealogy, needle, fill weight, shelf, the cycle's leak rate and pressure, its product
   temperature, its batch's harvest viability, resin cycle, CEX asymmetry and aggregates, and its
   inspection.

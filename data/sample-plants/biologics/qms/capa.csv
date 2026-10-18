@@ -1,8 +1,13 @@
 capa,deviation,opened,action,owner,due,closed,effectiveness_check,status
-CAPA-25-001,DEV-25-0023,2025-11-20T03:58:56+00:00,Train installers on the virus filter's housing; add a pre-use integrity test,Aoife Byrne,2026-01-19T03:58:56+00:00,2026-01-05T01:31:11+00:00,2026-04-05T02:31:11+01:00,closed
-CAPA-26-002,DEV-26-0047,2026-01-16T22:43:13+00:00,"Titrate the acid by pH, not by weight; check each titrant lot's strength",Aoife Byrne,2026-03-17T22:43:13+00:00,2026-03-27T02:29:57+00:00,2026-06-25T03:29:57+01:00,closed
+CAPA-25-001,DEV-25-0024,2025-11-21T16:58:56+00:00,Train installers on the virus filter's housing; add a pre-use integrity test,Aoife Byrne,2026-01-20T16:58:56+00:00,2026-01-12T14:20:44+00:00,2026-04-12T15:20:44+01:00,closed
+CAPA-25-002,DEV-25-0034,2025-12-16T10:01:12+00:00,"Titrate the acid by pH, not by weight; check each titrant lot's strength",Aoife Byrne,2026-02-14T10:01:12+00:00,2026-01-24T16:11:37+00:00,2026-04-24T17:11:37+01:00,closed
 CAPA-26-003,DEV-26-0053,2026-01-24T22:05:00+00:00,Clean the still's heat exchanger every quarter; alarm the loop at 1.0 µS/cm,Declan Murphy,2026-03-25T22:05:00+00:00,2026-03-13T14:25:34+00:00,2026-06-11T15:25:34+01:00,closed
-CAPA-26-004,DEV-26-0061,2026-02-11T09:35:00+00:00,"Change the AHU final filters at 450 Pa, not only every six months",Declan Murphy,2026-04-12T10:35:00+01:00,2026-04-16T12:16:28+01:00,2026-07-15T12:16:28+01:00,closed
-CAPA-26-005,DEV-26-0092,2026-05-12T15:40:00+01:00,"Change the AHU final filters at 450 Pa, not only every six months",Declan Murphy,2026-07-11T15:40:00+01:00,2026-07-20T11:05:48+01:00,,closed
-CAPA-26-006,DEV-26-0097,2026-05-22T01:05:00+01:00,Clean the still's heat exchanger every quarter; alarm the loop at 1.0 µS/cm,Declan Murphy,2026-07-21T01:05:00+01:00,2026-06-28T11:13:23+01:00,2026-09-26T11:13:23+01:00,closed
-CAPA-26-007,DEV-26-0155,2026-09-28T19:12:00+01:00,"Replace agitator seals when their barrier fluid loss passes 3 mL/h, and trend it per batch",Ciarán Doyle,2026-11-27T18:12:00+00:00,,,open
+CAPA-26-004,DEV-26-0063,2026-02-11T09:35:00+00:00,"Change the AHU final filters at 450 Pa, not only every six months",Declan Murphy,2026-04-12T10:35:00+01:00,2026-03-24T21:35:13+00:00,2026-06-22T22:35:13+01:00,closed
+CAPA-26-005,DEV-26-0086,2026-04-02T04:22:13+01:00,Repack the CEX column when its asymmetry passes 1.6; trend HMW per lot,Aoife Byrne,2026-06-01T04:22:13+01:00,2026-06-15T05:15:59+01:00,2026-09-13T05:15:59+01:00,closed
+CAPA-26-006,DEV-26-0097,2026-05-12T15:40:00+01:00,"Change the AHU final filters at 450 Pa, not only every six months",Declan Murphy,2026-07-11T15:40:00+01:00,2026-06-19T01:48:23+01:00,2026-09-17T01:48:23+01:00,closed
+CAPA-26-007,DEV-26-0102,2026-05-22T01:05:00+01:00,Clean the still's heat exchanger every quarter; alarm the loop at 1.0 µS/cm,Declan Murphy,2026-07-21T01:05:00+01:00,2026-06-27T08:57:09+01:00,2026-09-25T08:57:09+01:00,closed
+CAPA-26-008,DEV-26-0115,2026-06-13T02:29:37+01:00,"Replace agitator seals when their barrier fluid loss passes 3 mL/h, and trend it per batch",Ciarán Doyle,2026-08-12T02:29:37+01:00,2026-07-20T18:25:32+01:00,,closed
+CAPA-26-009,DEV-26-0123,2026-06-30T01:44:33+01:00,Repack the CEX column when its asymmetry passes 1.6; trend HMW per lot,Aoife Byrne,2026-08-29T01:44:33+01:00,2026-09-03T18:39:09+01:00,,closed
+CAPA-26-010,DEV-26-0131,2026-07-12T13:35:31+01:00,"Titrate the acid by pH, not by weight; check each titrant lot's strength",Aoife Byrne,2026-09-10T13:35:31+01:00,2026-08-28T16:13:53+01:00,,closed
+CAPA-26-011,DEV-26-0136,2026-07-24T19:48:57+01:00,Repack the CEX column when its asymmetry passes 1.6; trend HMW per lot,Aoife Byrne,2026-09-22T19:48:57+01:00,2026-09-21T19:56:46+01:00,,closed
+CAPA-26-012,DEV-26-0165,2026-09-28T20:00:00+01:00,"Replace agitator seals when their barrier fluid loss passes 3 mL/h, and trend it per batch",Ciarán Doyle,2026-11-27T19:00:00+00:00,,,open
