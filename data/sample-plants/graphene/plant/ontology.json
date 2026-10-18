@@ -1175,6 +1175,7 @@
       "type": "Signal",
       "label": "Raman D/G peak ratio, a sample each run (RM-01): defects in the graphene",
       "props": {
+        "unit": "1",
         "tag": "lab.d_g_ratio",
         "measure": "ratio"
       }
@@ -1184,6 +1185,7 @@
       "type": "Signal",
       "label": "Raman 2D/G peak ratio, a sample each run (RM-01): above 2 is monolayer",
       "props": {
+        "unit": "1",
         "tag": "lab.2d_g_ratio",
         "measure": "ratio"
       }
@@ -1347,7 +1349,7 @@
     {
       "id": "doc-ll-2025-01",
       "type": "Document",
-      "label": "Lessons learned: scrubber packing on SC-01, 29 October 2025",
+      "label": "Lessons learned: scrubber packing on SC-01, 28 October 2025",
       "props": {
         "number": "LL-2025-01"
       }
@@ -1371,7 +1373,7 @@
     {
       "id": "doc-ll-2026-01",
       "type": "Document",
-      "label": "Lessons learned: zone 2 heating element on CVD-04, 04 March 2026",
+      "label": "Lessons learned: zone 2 heating element on CVD-04, 03 March 2026",
       "props": {
         "number": "LL-2026-01"
       }
@@ -1403,7 +1405,7 @@
     {
       "id": "doc-ll-2026-05",
       "type": "Document",
-      "label": "Lessons learned: dry vacuum pump on CVD-02, 07 July 2026",
+      "label": "Lessons learned: zone 2 heating element on CVD-03, 10 July 2026",
       "props": {
         "number": "LL-2026-05"
       }
@@ -1411,7 +1413,7 @@
     {
       "id": "doc-ll-2026-06",
       "type": "Document",
-      "label": "Lessons learned: zone 2 heating element on CVD-03, 10 July 2026",
+      "label": "Lessons learned: quartz tube seals on CVD-02, 29 July 2026",
       "props": {
         "number": "LL-2026-06"
       }
@@ -1419,7 +1421,7 @@
     {
       "id": "doc-ll-2026-07",
       "type": "Document",
-      "label": "Lessons learned: methane mass flow controller on CVD-02, 14 August 2026",
+      "label": "Lessons learned: quartz tube seals on CVD-04, 21 September 2026",
       "props": {
         "number": "LL-2026-07"
       }
@@ -2675,22 +2677,22 @@
       "to": "cvd-02"
     },
     {
-      "id": "doc-ll-2026-05-describes-cvd-02",
+      "id": "doc-ll-2026-05-describes-cvd-03",
       "from": "doc-ll-2026-05",
-      "rel": "describes",
-      "to": "cvd-02"
-    },
-    {
-      "id": "doc-ll-2026-06-describes-cvd-03",
-      "from": "doc-ll-2026-06",
       "rel": "describes",
       "to": "cvd-03"
     },
     {
-      "id": "doc-ll-2026-07-describes-cvd-02",
-      "from": "doc-ll-2026-07",
+      "id": "doc-ll-2026-06-describes-cvd-02",
+      "from": "doc-ll-2026-06",
       "rel": "describes",
       "to": "cvd-02"
+    },
+    {
+      "id": "doc-ll-2026-07-describes-cvd-04",
+      "from": "doc-ll-2026-07",
+      "rel": "describes",
+      "to": "cvd-04"
     },
     {
       "id": "doc-mr-2025-10-describes-ashcombe",

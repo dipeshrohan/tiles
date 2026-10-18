@@ -62,6 +62,8 @@ from tiles_api.sample_plant.graphene.plant import (
 GRID = Station.GRID
 DAY = 86400.0
 HOUR = 3600.0
+SCRUBBER_TRIP = 14.0  # mbar over the packing: the scrubber trips (SOP-EHS-01)
+LOW_T, LOW_RUNS = 97.2, 2  # %: this many runs of a reactor below it, its methane MFC is recalibrated (SOP-CVD-03)
 
 # The film's quality model (the ground truth behind the inspection, for the process model).
 QUALITY = {
@@ -202,7 +204,11 @@ CVD_STOPS = (
     ),
     RandomStop("DT-GAS", 400, 30, ("Hydrogen supply pressure low", "Gas cabinet alarm: cylinder change"), ""),
     RandomStop(
-        "DT-ELE", 500, 60, ("Thermocouple fault", "PLC communication fault", "Interlock tripped"), "Electrics and controls"
+        "DT-ELE",
+        500,
+        60,
+        ("Thermocouple fault", "PLC communication fault", "Interlock tripped"),
+        "Electrics and controls",
     ),
     RandomStop("DT-OTH", 150, 15, ("Cleaning", "Waiting for a crane", "Restarted"), "", corrective=False),
 )
@@ -352,6 +358,7 @@ class Plant:
         self.state: dict[str, float] = {}  # smoothed values per station and tag
         self.bath = {a: 8.0 if a == "TL-01" else 30.0 for a in TRANSFERS}  # copper in each etch bath, g/L
         self.pending: set[str] = set()  # a bath change planned and not yet done
+        self.low_runs: dict[str, int] = {}  # each reactor's runs in a row below LOW_T
         self.particles: list[float] = []  # the cleanroom's, on the grid
         self.ambient: list[float] = []
         self.exhaust: list[tuple[float, float, str, str]] = []  # the scrubber's stops of the CVD hall
@@ -421,18 +428,12 @@ class Plant:
         t = self.t0
         down_until = 0.0
         while t < self.t1:
-            w = self.w.seconds(t)
-            ep = next(
-                (
-                    e
-                    for e in sc.episodes
-                    if e.failed_at is None and e.resolved_at is None and e.onset <= t and e.severity(w, t) >= 1.0
-                ),
-                None,
-            )
-            if ep:
+            s = sc.sev("packing", t)
+            dp = 6.0 + 9.0 * s**1.4 + r.gauss(0, 0.15)
+            ep = next((e for e in sc.episodes if e.failed_at is None and e.resolved_at is None and e.onset <= t), None)
+            if ep and dp > SCRUBBER_TRIP and t >= down_until:  # its pressure drop trips the CVD hall (SOP-EHS-01)
                 dur = max(1800.0, sc.r_stop.lognormvariate(math.log(m.stop_hours[0] * HOUR), m.stop_hours[1]))
-                ep.failed_at, ep.peak, ep.outcome = t, 1.0, "Failed: the scrubber tripped and stopped the CVD hall"
+                ep.failed_at, ep.peak, ep.outcome = t, s, "Failed: the scrubber tripped and stopped the CVD hall"
                 ep.resolved_at = down_until = t + dur
                 text = sc.r_stop.choice(m.comments)
                 sc.stops.append(Stop("SC-01", t, t + dur, m.code, False, text, ep.id))
@@ -442,18 +443,16 @@ class Plant:
                 a, b, code, text = sc.planned[sc.pi]
                 sc.pi += 1
                 sc._planned_job(a, b, code, text)
-            s = sc.sev("packing", t)
             hot = self.w.working(t)
             down = t < down_until
-            dp = (6.0 + 9.0 * s**1.4 if not down else 2.0) + r.gauss(0, 0.15)
+            if down:
+                dp = 2.0 + r.gauss(0, 0.15)
             flow = (2200 - 650 * s**1.5 if hot and not down else 400.0) + r.gauss(0, 15)
             self.write("sc01", "sc01.differential_pressure", t, round(dp, 2))
             self.write("sc01", "sc01.exhaust_flow", t, round(flow, 0))
             self.write("sc01", "sc01.scrub_ph", t, round(9.2 - 0.6 * s + r.gauss(0, 0.04), 2))
             t += GRID
-        for ep in sc.episodes:
-            if ep.resolved_at is None and ep.failed_at is None:
-                ep.outcome = "Still building up at the end of the year"
+        sc.close_episodes()
 
     def _impose(self, a: float, b: float, code: str, text: str) -> None:
         """A stop of the CVD hall, in its working time."""
@@ -580,7 +579,9 @@ class Plant:
         heater, mfc = cvd.sev("heater", g0), cvd.sev("mfc", g0)
         run.base_pressure = 0.002 * (1 + 4.0 * leak**2) + 0.001 * pump**2 + abs(r.gauss(0, 0.0002))
         run.oxygen = 0.8 + 24.0 * leak**1.5
-        drift = TC_DRIFT[1] if cvd.asset == TC_DRIFT[0] and TC_DRIFT[2].timestamp() <= g0 < TC_DRIFT[3].timestamp() else 0
+        drift = (
+            TC_DRIFT[1] if cvd.asset == TC_DRIFT[0] and TC_DRIFT[2].timestamp() <= g0 < TC_DRIFT[3].timestamp() else 0
+        )
         run.zone2 = GROWTH_C - 24.0 * max(0.0, (heater - 0.45) / 0.55) ** 1.4 - drift + r.gauss(0, 0.5)
         run.ch4_actual = 30.0 * (1 + 0.45 * mfc**1.3)
         run.bilayer = 0.03 + 0.32 * mfc**1.4 + abs(r.gauss(0, 0.005))
@@ -597,6 +598,7 @@ class Plant:
             cvd.xi += 1
             cvd.stops.append(Stop(cvd.asset, a, b, code, False, f"{text}: run {run.id} aborted"))
             run.scrap, run.scrap_at, cut = "CVD-ABT", a, min(g1, a)
+            cvd.t = max(cvd.t, b)  # it can't start again before the scrubber is back
         elif r.random() < 0.012:
             run.scrap, run.scrap_at = "CVD-WRK", g1
         self._growth_minutes(k, run, cut, r)
@@ -678,7 +680,7 @@ class Plant:
         if r.random() < 0.004 + 0.25 * lam**2.5:
             run.scrap, run.scrap_at = "TL-TEAR", end
         else:
-            run.lab_at = end + 2 * HOUR
+            run.lab_at = end + 2 * HOUR + (600 if tl.asset == "TL-02" else 0)  # a sample a line, in turn
             run.rs_4pp = round(run.rs_film * (1 + r.gauss(0, 0.03)), 0)
             self.year.lab.append((run.lab_at, "lab.d_g_ratio", round(run.d_g, 3)))
             self.year.lab.append((run.lab_at + 60, "lab.2d_g_ratio", round(run.two_d_g, 2)))
@@ -693,7 +695,9 @@ class Plant:
             self.write(f"{key}-run", f"{key}.line_speed", t, round(TRANSFER_SPEED + r.gauss(0, 0.005), 3))
             self.write(f"{key}-run", f"{key}.nip_pressure", t, round(4.0 + r.gauss(0, 0.03 + 0.2 * run.laminator), 2))
             self.write(f"{key}-run", f"{key}.etch_rate", t, round(rate + r.gauss(0, 0.02), 3))
-            self.write(f"{key}-run", f"{key}.rinse_conductivity", t, round(12 + 40 * run.residual + abs(r.gauss(0, 1)), 1))
+            self.write(
+                f"{key}-run", f"{key}.rinse_conductivity", t, round(12 + 40 * run.residual + abs(r.gauss(0, 1)), 1)
+            )
             t += 60
 
     def inspect(self, ins: Station, sp: Station, run: Run, r: random.Random) -> list[FilmRoll] | None:
@@ -736,6 +740,22 @@ class Plant:
         run.packed = packed
         return rolls
 
+    def _check_transmittance(self, cvd: Station, run: Run) -> None:
+        """Two runs of a reactor in a row below 97.2 %: its methane controller is checked and, if it
+        has drifted, recalibrated, as soon as the second is inspected (SOP-CVD-03)."""
+        low = self.low_runs.get(cvd.asset, 0) + 1 if run.transmittance < LOW_T else 0
+        self.low_runs[cvd.asset] = low
+        ep = next(
+            (e for e in cvd.episodes if e.mode == "mfc" and e.resolved_at is None and e.onset <= run.job[0]), None
+        )
+        if low >= LOW_RUNS and ep:
+            m = cvd.modes["mfc"]
+            at = max(cvd.t, run.inspected[1])
+            peak = cvd.sev("mfc", at)
+            cvd.t = cvd.breakdown(at, m.stop_hours[0] * HOUR, m.code, m.comments[0], ep, m.component)
+            ep.peak, ep.outcome = peak, "Found by the transmittance check: MFC recalibrated"
+            self.low_runs[cvd.asset] = 0
+
     def run(self) -> Year:
         self.utilities()
         self.scrubber()
@@ -770,6 +790,7 @@ class Plant:
             if rolls is None:
                 break
             self.year.rolls += rolls
+            self._check_transmittance(cvd, run)
         for st in (ep, *cvds, *tls, ins, sp):
             st.finish()
         for t, tag, v in sorted(self.year.lab):

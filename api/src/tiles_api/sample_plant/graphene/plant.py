@@ -123,20 +123,21 @@ FOIL = (
         600.0,
     ),
 )
-CVD = tuple(
-    Machine(
-        a,
-        f"Roll-to-roll CVD reactor {a}",
-        "cvd-reactor",
-        "Aixtron",
-        "BM Pro R2R",
-        2021 if i < 2 else 2023,
-        "CVD hall",
-        f"PLC {a}",
-        1500.0,
-    )
-    for i, a in enumerate(REACTORS)
-) + (
+CVD = (
+    *(
+        Machine(
+            a,
+            f"Roll-to-roll CVD reactor {a}",
+            "cvd-reactor",
+            "Aixtron",
+            "BM Pro R2R",
+            2021 if i < 2 else 2023,
+            "CVD hall",
+            f"PLC {a}",
+            1500.0,
+        )
+        for i, a in enumerate(REACTORS)
+    ),
     Machine(
         "SC-01",
         "Exhaust scrubber SC-01",
@@ -160,20 +161,21 @@ CVD = tuple(
         0.0,
     ),
 )
-TRANSFER = tuple(
-    Machine(
-        a,
-        f"Transfer line {a}",
-        "transfer-line",
-        "Coatema",
-        "TL 320",
-        2021 if a == "TL-01" else 2023,
-        "Transfer cleanroom",
-        f"PLC {a}",
-        900.0,
-    )
-    for a in TRANSFERS
-) + (
+TRANSFER = (
+    *(
+        Machine(
+            a,
+            f"Transfer line {a}",
+            "transfer-line",
+            "Coatema",
+            "TL 320",
+            2021 if a == "TL-01" else 2023,
+            "Transfer cleanroom",
+            f"PLC {a}",
+            900.0,
+        )
+        for a in TRANSFERS
+    ),
     Machine(
         "CR-01",
         "Transfer cleanroom CR-01 (ISO 6)",
@@ -360,7 +362,9 @@ def transfer_tags(a: str) -> tuple[Tag, ...]:
     return (
         Tag(f"{k}.line_speed", "m/min", "run", f"{a} web speed", a, "speed", 0, 3, 1800),
         Tag(f"{k}.nip_pressure", "bar", "run", f"{a} laminator nip pressure", a, "pressure", 0, 10, 1800),
-        Tag(f"{k}.etch_rate", "µm/min", "run", f"{a} copper etch rate (inline thickness gauge)", a, "rate", 0, 10, 1800),
+        Tag(
+            f"{k}.etch_rate", "µm/min", "run", f"{a} copper etch rate (inline thickness gauge)", a, "rate", 0, 10, 1800
+        ),
         Tag(
             f"{k}.rinse_conductivity",
             "µS/cm",
@@ -478,7 +482,7 @@ def other_tags() -> tuple[Tag, ...]:
         ),
         Tag(
             "lab.d_g_ratio",
-            "",
+            "1",
             "lab",
             "Raman D/G peak ratio, a sample each run (RM-01): defects in the graphene",
             "RM-01",
@@ -488,7 +492,7 @@ def other_tags() -> tuple[Tag, ...]:
         ),
         Tag(
             "lab.2d_g_ratio",
-            "",
+            "1",
             "lab",
             "Raman 2D/G peak ratio, a sample each run (RM-01): above 2 is monolayer",
             "RM-01",
@@ -621,10 +625,7 @@ def ontology() -> tuple[list[dict[str, object]], list[dict[str, str]]]:
     ent = node("sorrel", "Enterprise", ENTERPRISE)
     site = node("ashcombe", "Site", SITE, location=LOCATION, timezone="Europe/London")
     edge(ent, "contains", site)
-    wc = {
-        n: node(slug(n), "Workcenter", n)
-        for n in ("Growth", "Transfer and finishing", "Quality lab", "Utilities")
-    }
+    wc = {n: node(slug(n), "Workcenter", n) for n in ("Growth", "Transfer and finishing", "Quality lab", "Utilities")}
     for w in wc.values():
         edge(site, "contains", w)
     places = {
@@ -697,5 +698,7 @@ def ontology() -> tuple[list[dict[str, object]], list[dict[str, str]]]:
     for mat in ("pet", "etchant"):
         edge(processes["transfer"], "consumes", mats[mat])
     # A known gap of the model: a fifth reactor being commissioned, connected to nothing.
-    node("cvd-05", "Machine", "CVD reactor CVD-05 (commissioning)", vendor="Aixtron", kind="cvd-reactor", asset="CVD-05")
+    node(
+        "cvd-05", "Machine", "CVD reactor CVD-05 (commissioning)", vendor="Aixtron", kind="cvd-reactor", asset="CVD-05"
+    )
     return nodes, edges

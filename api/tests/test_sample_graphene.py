@@ -55,12 +55,15 @@ def test_the_committed_files_are_what_the_generator_makes(built: Built) -> None:
 def test_the_year_runs_like_a_cvd_film_plant(built: Built) -> None:
     _, year, _, _ = built
     weeks = year.working.cum[-1] / (120 * 3600)
-    assert 44 < weeks < 47  # five days a week, less bank holidays and the two shutdowns
+    assert 46 < weeks < 49  # five days a week, less bank holidays and the two shutdowns
     assert 6.5 < len(year.runs) / weeks / len(REACTORS) < 8.6  # a reactor's runs a week, at 14 hours each
     grades = Counter(x.grade for x in year.rolls)
     assert grades["A"] / len(year.rolls) > 0.85 and grades["NG"] / len(year.rolls) < 0.06
     failed = {e.mode for st in year.stations.values() for e in st.episodes if e.failed_at}
-    assert failed >= {"leak", "heater", "pump", "mfc", "rectifier", "laminator", "etch-pump", "packing"}
+    assert failed >= {"leak", "heater", "pump", "rectifier", "laminator", "etch-pump", "packing"}
+    # A drifting methane controller is mostly found by the transmittance check (SOP-CVD-03).
+    mfc = Counter(e.outcome for st in year.stations.values() for e in st.episodes if e.mode == "mfc")
+    assert mfc["Found by the transmittance check: MFC recalibrated"] >= 2, mfc
     for asset in (*REACTORS, *TRANSFERS, "EP-01"):
         stops = sorted((s.start, s.end) for s in year.stations[asset].stops)
         assert all(b[0] >= a[1] - 1e-6 for a, b in itertools.pairwise(stops)), asset  # no overlap
@@ -103,7 +106,11 @@ def test_causes_upstream_show_in_the_film(built: Built) -> None:
     smooth = [x.rs for x in year.rolls if x.run.foil.ra < 70 and x.run.oxygen < 2]
     assert rough and statistics.mean(rough) > statistics.mean(smooth) * 1.03
     # CVD-02's thermocouple read high: the furnace grew cooler than the historian shows.
-    drift = [r for r in year.runs if r.reactor == "CVD-02" and sim.TC_DRIFT[2].timestamp() <= r.growth[0] < sim.TC_DRIFT[3].timestamp()]
+    drift = [
+        r
+        for r in year.runs
+        if r.reactor == "CVD-02" and sim.TC_DRIFT[2].timestamp() <= r.growth[0] < sim.TC_DRIFT[3].timestamp()
+    ]
     assert drift and all(abs(generate.logged_zone2(r) - r.zone2 - 8.0) < 1e-9 for r in drift)
 
 

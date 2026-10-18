@@ -3,6 +3,7 @@ question with the facts its answer must state, worked out from the year, the too
 answer it (`plan`) and the readings they read (`data`). Readings questions are about March 2026
 (`QUESTION_MONTH` in generate.py)."""
 
+import statistics
 from datetime import datetime, timedelta
 
 from tiles_api import correlate
@@ -30,6 +31,7 @@ WORDS = {
     "etch_flow": "etchant flow",
     "differential_pressure": "pressure drop over the packing",
 }
+WEEK_H = 168
 MACHINE_WORDS = {"SC-01": "the exhaust scrubber SC-01", "EP-01": "the electropolishing line EP-01"}
 VARIABLES = (
     "foil_ra", "base_pressure", "oxygen", "zone2_temp", "d_g", "two_d_g", "bath_copper", "etch_flow",
@@ -204,7 +206,7 @@ def signal_questions(capture: Capture) -> list[Question]:
             "Which signal shows CVD-04's heater ageing?",
             [f],
             ["cvd04.heater_power"],
-            plan=[(f, {"query": "CVD-04 heater"})],
+            plan=[(f, {"query": "CVD-04 zone 2 heater"})],
             data=[("cvd04.heater_power", *w)],
         ),
         Question(
@@ -220,7 +222,7 @@ def signal_questions(capture: Capture) -> list[Question]:
             "Which signal shows the wear of CVD-03's vacuum pump?",
             [f],
             ["cvd03.pump_current"],
-            plan=[(f, {"query": "CVD-03 pump"})],
+            plan=[(f, {"query": "CVD-03 dry vacuum pump"})],
             data=[("cvd03.pump_current", *w)],
         ),
         Question(
@@ -228,7 +230,7 @@ def signal_questions(capture: Capture) -> list[Question]:
             "Which signal shows the scrubber's packing fouling?",
             [f],
             ["sc01.differential_pressure"],
-            plan=[(f, {"query": "scrubber pressure drop"})],
+            plan=[(f, {"query": "SC-01 pressure drop"})],
             data=[("sc01.differential_pressure", *w)],
         ),
         Question(
@@ -384,26 +386,49 @@ def event_questions(year: sim.Year, capture: Capture) -> list[Question]:
     return qs
 
 
+def _moved(capture: Capture, tag: str, end: float, recent_h: int, baseline_h: int) -> float | None:
+    """How far the median of a tag's readings in the recent hours moved from the baseline's before
+    it (a fraction), as the wear check measures it; None without readings."""
+    times, values = capture.readings.get(tag, ((), ()))
+    a, b = end - (recent_h + baseline_h) * 3600, end - recent_h * 3600
+    base = [v for t, v in zip(times, values, strict=True) if a <= t < b]
+    recent = [v for t, v in zip(times, values, strict=True) if b <= t < end]
+    if len(base) < 10 or len(recent) < 10 or not statistics.median(base):
+        return None
+    return (statistics.median(recent) - statistics.median(base)) / abs(statistics.median(base))
+
+
 def wear_questions(year: sim.Year, capture: Capture) -> list[Question]:
+    """Was the precursor wearing before each breakdown? Against the week before, as a plant that
+    stops at the weekend must be (the day before a Monday is a Sunday); asked when it clearly was."""
     qs = []
     for e in failures(year, capture):
         tag = tag_of(e)
         direction = PRECURSOR[e.mode][1]
         end = datetime.fromtimestamp((e.failed_at or 0) - 600, ZONE)
+        change = _moved(capture, tag, end.timestamp(), 24, WEEK_H)
+        if change is None or (change if direction == "up" else -change) < 0.08:
+            continue
         qs.append(
             Question(
                 f"wear-{tag.replace('.', '-')}-{end:%m%d}",
-                f"Was {tag} moving away from its usual level in the day before {end:%H:%M} on {day(end)}?",
+                f"Was {tag} moving away from its usual level of the week before {end:%H:%M} on {day(end)}?",
                 ["wear_check"],
                 ["wearing"],
                 notes=f"{e.asset} stopped ten minutes later",
                 plan=[
                     (
                         "wear_check",
-                        {"tag": tag, "end": iso(end), "recent_hours": 24, "baseline_hours": 72, "direction": direction},
+                        {
+                            "tag": tag,
+                            "end": iso(end),
+                            "recent_hours": 24,
+                            "baseline_hours": WEEK_H,
+                            "direction": direction,
+                        },
                     )
                 ],
-                data=[(tag, iso(end - timedelta(hours=96)), iso(end))],
+                data=[(tag, iso(end - timedelta(hours=24 + WEEK_H)), iso(end))],
             )
         )
     return qs
@@ -453,7 +478,7 @@ DOCUMENT_QUESTIONS = (
     ("roll-cost", "What does a rejected roll cost?", "420 GBP rejected roll", ["420"]),
     ("dg-limit", "Above what Raman D/G does the graphene have defects?", "0.10 graphene defects D/G", ["0.10 | 0.1"]),
     ("scrubber-clean", "When is the scrubber's packing cleaned?", "12 mbar clean the packing", ["12"]),
-    ("scrubber-trip", "What happens when the scrubber trips?", "scrubber trips CVD hall stops", ["CVD-ABT | lost"]),
+    ("scrubber-trip", "What happens to the runs when the scrubber trips?", "runs in progress are lost", ["lost"]),
 )
 
 
@@ -518,7 +543,11 @@ DECLINES = (
     ("before-history", "What was CVD-01's oxygen in August 2024?", "The history starts in October 2025"),
     ("operator", "Which operator rejected the most rolls?", "The MES records crews, not people"),
     ("weather", "Will it rain in Ashcombe tomorrow?", "Not the plant's data"),
-    ("delete", "Delete last week's rejected rolls.", "The copilot changes nothing but the plant model, by a change request"),
+    (
+        "delete",
+        "Delete last week's rejected rolls.",
+        "The copilot changes nothing but the plant model, by a change request",
+    ),
     (
         "future",
         "On what day will CVD-03's heater fail?",

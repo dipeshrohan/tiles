@@ -58,7 +58,18 @@ ROLL_COLUMNS = (
     "etch_flow", "laminator_spread", "particles", "sheet_resistance", "uniformity", "transmittance", "defects",
     "grade", "scrap",
 )  # fmt: skip
-TEXT = ("roll_id", "inspected", "cvd_run", "reactor", "foil_roll", "foil_lot", "supplier", "transfer_line", "grade", "scrap")
+TEXT = (
+    "roll_id",
+    "inspected",
+    "cvd_run",
+    "reactor",
+    "foil_roll",
+    "foil_lot",
+    "supplier",
+    "transfer_line",
+    "grade",
+    "scrap",
+)
 
 
 def local(t: float) -> str:
@@ -333,8 +344,7 @@ QUIRKS = (
         "cvd02.zone2_temp",
         sim.TC_DRIFT[2],
         sim.TC_DRIFT[3],
-        "The zone 2 thermocouple read 8 °C high until its recalibration: the furnace grew 8 °C cooler than"
-        " logged",
+        "The zone 2 thermocouple read 8 °C high until its recalibration: the furnace grew 8 °C cooler than logged",
     ),
     ("wrong unit", FAHRENHEIT[0], FAHRENHEIT[1], FAHRENHEIT[2], "Logged in °F after an HMI update"),
     ("historian outage", "sc01.*", OUTAGE[1], OUTAGE[2], "No scrubber readings: its collector was down"),
@@ -346,10 +356,22 @@ QUIRKS = (
         f"Logged as {RENAMED[1]} until the PLC update renamed the tag",
     ),
     ("stuck value", STUCK[0], STUCK[1], STUCK[2], "The particle counter froze at one reading until it was reset"),
-    ("code renamed", "mes/stops.csv", START, OLD_CODES["DT-EXH"][1], "The scrubber's stops are SCRB before the MES update, DT-EXH after"),
+    (
+        "code renamed",
+        "mes/stops.csv",
+        START,
+        OLD_CODES["DT-EXH"][1],
+        "The scrubber's stops are SCRB before the MES update, DT-EXH after",
+    ),
     ("duplicate rows", "mes/stops.csv", START, END, "About 0.4% of stops are logged twice"),
     ("no end time", "mes/stops.csv", START, END, "About 0.3% of unplanned stops have no end time"),
-    ("model gap", "plant/ontology.json", START, END, "A fifth reactor (CVD-05), being commissioned, with no relationships"),
+    (
+        "model gap",
+        "plant/ontology.json",
+        START,
+        END,
+        "A fifth reactor (CVD-05), being commissioned, with no relationships",
+    ),
 )
 
 
@@ -519,7 +541,10 @@ def write_committed(out: Path, year: sim.Year, stats: Stats) -> dict[str, int]:
     n["lab/raman.csv"] = write_csv(
         out / "lab" / "raman.csv",
         ("sample_id", "time", "run", "d_g_ratio", "two_d_g_ratio"),
-        ((f"RAM-{i + 1:05d}", local(r.lab_at), r.id, round(r.d_g, 3), round(r.two_d_g, 2)) for i, r in enumerate(sampled)),
+        (
+            (f"RAM-{i + 1:05d}", local(r.lab_at), r.id, round(r.d_g, 3), round(r.two_d_g, 2))
+            for i, r in enumerate(sampled)
+        ),
     )
     n["lab/four-point-probe.csv"] = write_csv(
         out / "lab" / "four-point-probe.csv",
@@ -558,7 +583,10 @@ def write_committed(out: Path, year: sim.Year, stats: Stats) -> dict[str, int]:
     )
     n["ground-truth/runs.csv"] = write_csv(
         out / "ground-truth" / "runs.csv",
-        ("run", "zone2_temp_actual_c", "ch4_flow_actual_sccm", "domain_um", "bilayer", "residual_copper", "laminator_wear"),
+        (
+            "run", "zone2_temp_actual_c", "ch4_flow_actual_sccm", "domain_um", "bilayer", "residual_copper",
+            "laminator_wear",
+        ),
         (
             (r.id, round(r.zone2, 1), round(r.ch4_actual, 2), round(r.domain, 2), round(r.bilayer, 3),
              round(r.residual, 3), round(r.laminator, 3))

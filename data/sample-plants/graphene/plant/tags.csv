@@ -81,8 +81,8 @@ cr01.particles,/m³,grid,0.0033333333333333335,Cleanroom CR-01 particles of 0.5 
 cr01.temperature,°C,grid,0.0033333333333333335,Cleanroom CR-01 air temperature,CR-01,temperature,15,30,3600,,,
 ch01.supply_temp,°C,grid,0.0033333333333333335,Furnace cooling water supply,CH-01,temperature,5,30,3600,,,
 di01.conductivity,µS/cm,grid,0.0033333333333333335,DI water conductivity at the loop's return,DI-01,conductivity,0,10,3600,,,
-lab.d_g_ratio,,lab,,"Raman D/G peak ratio, a sample each run (RM-01): defects in the graphene",RM-01,ratio,0,2,,,,
-lab.2d_g_ratio,,lab,,"Raman 2D/G peak ratio, a sample each run (RM-01): above 2 is monolayer",RM-01,ratio,0,5,,,,
+lab.d_g_ratio,1,lab,,"Raman D/G peak ratio, a sample each run (RM-01): defects in the graphene",RM-01,ratio,0,2,,,,
+lab.2d_g_ratio,1,lab,,"Raman 2D/G peak ratio, a sample each run (RM-01): above 2 is monolayer",RM-01,ratio,0,5,,,,
 lab.sheet_resistance_4pp,Ω/sq,lab,,"Four-point probe sheet resistance, a sample each run (FP-01)",FP-01,resistance,0,2000,,,,
 lab.foil_roughness,nm,lab,,"Copper foil roughness Ra after electropolishing, a sample each foil lot (AF-01)",AF-01,roughness,0,500,,,,
 mes.ep01.downtime,,event,,EP-01 stops from the MES: the reason code,EP-01,,,,,,,downtime
