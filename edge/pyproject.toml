@@ -1,6 +1,6 @@
 [project]
 name = "tiles-edge"
-version = "1.0.0"
+version = "1.1.0"
 description = "Tiles edge agent: runs on the plant network and sends data out to Tiles"
 readme = "README.md"
 requires-python = ">=3.12"

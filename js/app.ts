@@ -1316,7 +1316,7 @@ async function openHelp(): Promise<void> {
         label: t('common.help'),
         title: first.title,
         contentHtml: `<div class="prose">${first.html}${guideHtml(rest, { ids: false })}</div>`,
-        footHtml: `<button class="btn sm ghost" type="button" data-whats-new>${esc(t('app.help.whatsNewIn', { version: VERSION }))}</button>${
+        footHtml: `<button class="btn sm ghost" type="button" data-whats-new>${esc(t('app.help.whatsNewIn', { version: data.whatsNew?.version ?? VERSION }))}</button>${
           api
             ? `<button class="btn sm ghost" type="button" data-feedback-open>${esc(t('app.help.sendFeedback'))}</button>`
             : ''
