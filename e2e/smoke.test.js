@@ -5290,6 +5290,80 @@ test('a machine’s timeline puts its warnings, events, stops and changes over i
   assert.deepEqual(a.errors, []);
 });
 
+test('a setpoint recommendation is asked for within its limits, approved by someone else and applied (T11.02)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.commitAs(
+    'maria',
+    [
+      { kind: 'addNode', node: { id: 'line-a', type: 'Line', label: 'Line A', props: {} } },
+      { kind: 'addNode', node: { id: 'dc1', type: 'Machine', label: 'Die-caster 1', props: { asset: 'DC-01' } } },
+      { kind: 'addEdge', edge: { id: 'e1', from: 'line-a', rel: 'contains', to: 'dc1' } },
+    ],
+    'Line A',
+  );
+  const a = await openAs(t, apiUrl, null, 'plant');
+  await a.page.evaluate(() => (location.hash = '#/plant/dc1'));
+  await a.page.waitForSelector('[data-recs] [data-rec-limits]');
+  assert.match(await a.page.innerText('[data-recs]'), /No recommendations for this machine yet/);
+  // Without a limit nothing can be recommended: the limits are open to set one.
+  assert.match(await a.page.innerText('[data-recs]'), /Set a limit for at least one parameter/);
+  await a.page.fill('#rec-limits [name="min:die_temp_set"]', '242');
+  await a.page.fill('#rec-limits [name="max:die_temp_set"]', '222');
+  await a.page.click('[data-limit-save="die_temp_set"]');
+  await a.page.waitForSelector('#rec-limits [name="max:die_temp_set"][aria-invalid=true]');
+  assert.equal(fake.recommendationLimits().length, 0); // refused on the form: the maximum below the minimum
+  await a.page.fill('#rec-limits [name="min:die_temp_set"]', '222');
+  await a.page.fill('#rec-limits [name="max:die_temp_set"]', '242');
+  await a.page.click('[data-limit-save="die_temp_set"]');
+  await a.page.waitForSelector('[data-rec-new]');
+  assert.deepEqual(
+    fake.recommendationLimits().map((l) => [l.model, l.param, l.min, l.max]),
+    [['die-porosity', 'die_temp_set', 222, 242]],
+  );
+
+  // Asked for: the machine's state as typed, lowering the scrap chance.
+  await a.page.click('[data-rec-new] summary');
+  await a.page.fill('#rec-form [name="value:die_temp"]', '214');
+  await a.page.click('#rec-form button[type=submit]');
+  await a.page.waitForSelector('[data-recs] tr[data-rec="1"]');
+  const [rec] = fake.recommendations();
+  assert.deepEqual(
+    [rec.request.model, rec.request.objective, rec.request.settable, rec.request.state, rec.request.asset],
+    ['die-porosity', 'scrap_chance', ['die_temp_set'], { die_temp: 214 }, 'DC-01'],
+  );
+  const row = await a.page.innerText('[data-recs] tr[data-rec="1"]');
+  assert.match(row, /#1\s+Proposed/);
+  assert.match(row, /die_temp_set from 232 °C to 222 °C \(limit 222 °C to 242 °C\)/);
+  assert.match(row, /Expected scrap_chance: 2\.0% now, 0\.4% with it/);
+  // Its proposer may withdraw it, not approve it.
+  assert.equal(await a.page.locator('[data-rec-approve]').count(), 0);
+  assert.match(await a.page.innerText('[data-rec-reject]'), /Withdraw/);
+
+  // Another engineer's: approved, then marked as applied once the line has set it.
+  rec.proposed_by = 'maria';
+  rec.proposed_by_email = 'maria@example.com';
+  await a.page.click('[data-plant-refresh]');
+  await a.page.click('[data-rec-approve="1"]');
+  await a.page.waitForSelector('[data-rec-applied="1"]');
+  assert.match(await a.page.innerText('[data-recs] tr[data-rec="1"]'), /Approved/);
+  await a.page.click('[data-rec-applied="1"]');
+  await a.page.waitForFunction(() =>
+    /Applied by demo/.test(document.querySelector('[data-recs] tr[data-rec="1"]')?.textContent ?? ''),
+  );
+  assert.equal(rec.status, 'applied');
+  assert.deepEqual(a.errors, []);
+
+  // A viewer sees the recommendations and limits, not the actions or the form.
+  fake.setRole('demo@example.com', 'viewer');
+  const v = await openAs(t, apiUrl, null, 'plant');
+  await v.page.evaluate(() => (location.hash = '#/plant/dc1'));
+  await v.page.waitForSelector('[data-recs] tr[data-rec="1"]');
+  assert.equal(await v.page.locator('#rec-form, [data-rec-approve], [data-limit-save]').count(), 0);
+  assert.deepEqual(v.errors, []);
+});
+
 test('a detector template is applied to every die-caster on a line, each with its report (T7.02)', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

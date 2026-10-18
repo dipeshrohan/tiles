@@ -407,7 +407,7 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
 
 - [x] `T11.01` [#349](https://github.com/dipeshrohan/tiles/issues/349) **Process model for recommendations** · ML · 5d · T8.01
   *Done when:* the model predicts the quality driver within its stated error on held-out history.
-- [ ] `T11.02` [#350](https://github.com/dipeshrohan/tiles/issues/350) **Setpoint recommendations** · BE+FE · 5d · T11.01
+- [x] `T11.02` [#350](https://github.com/dipeshrohan/tiles/issues/350) **Setpoint recommendations** · BE+FE · 5d · T11.01
   *Done when:* an engineer can approve a recommendation, and none is ever outside its limits.
 - [ ] `T11.03` [#351](https://github.com/dipeshrohan/tiles/issues/351) **Recommendation outcomes** · BE · 3d · T11.02
   *Done when:* each applied recommendation shows its expected and actual outcome.

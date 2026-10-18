@@ -31,6 +31,8 @@ import {
 import { openWarning } from './warnings.ts';
 import { bindTemplates, templatesCard } from './detector-templates.ts';
 import { lifeCard, lifeWanted, loadLife } from './remaining-life.ts';
+import { bindRecs, recsCard } from './recommendations.ts';
+import { assetOf } from '../lib/recommendations.ts';
 import { bindTimeline, loadTimeline, timelineCard } from './timeline.ts';
 import { keyAttr } from '../lib/shortcuts.ts';
 import { t, tHtml } from '../lib/i18n.ts';
@@ -238,7 +240,9 @@ function machinePage(ctx: Context, graph: Graph, node: OntologyNode, items: Floo
     const v = n.props[key];
     return v === undefined ? '' : ` <span class="small soft">${esc(v)}</span>`;
   };
-  return `${warningsCard(warnings, now, true)}${lifeCard(ctx, node.id, true)}
+  const ids = new Set(signals.map((n) => n.id));
+  const linked = linkedSignals(ctx).filter((s) => s.node_id !== null && ids.has(s.node_id));
+  return `${warningsCard(warnings, now, true)}${lifeCard(ctx, node.id, true)}${recsCard(ctx, assetOf(node), linked)}
     <div class="plant-sheet">
       ${facts ? `<div class="card"><div class="card-head"><h2>${esc(t('plant.about'))}</h2></div>${facts}</div>` : ''}
       ${signalsCard(ctx, signals, now)}
@@ -433,6 +437,8 @@ const view: View = {
     // The machine timeline (T10.01): on a machine.
     const machine = root.querySelector('[data-timeline]') ? shownPlace(ctx) : null;
     if (machine) bindTimeline(root, ctx, machine);
+    // Setpoint recommendations (T11.02): on a machine.
+    bindRecs(root, ctx);
     onAll(root, '[data-plant-refresh]', 'click', () => {
       refreshFloor(ctx);
       if (place) void loadCoverage(ctx, place, true);

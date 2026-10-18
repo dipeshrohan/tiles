@@ -366,6 +366,28 @@ export function createFakeApi({
   const timelineQueries = [];
   // Detector templates (T7.02): those made, what applying one answers (a test sets it), the places asked.
   const detectorTemplates = [];
+  // Setpoint recommendations (T11.02): the limits per model parameter and the recommendations.
+  const recLimits = [];
+  const recs = [];
+  const POROSITY = {
+    key: 'die-porosity',
+    version: '1.0.0',
+    name: 'Die-cast porosity',
+    kind: 'design',
+    domain: 'die casting',
+    source: 'builtin',
+    description: 'A shot’s porosity from its state',
+    inputs: [],
+    outputs: [
+      { name: 'porosity', unit: '%', description: 'Porosity expected', per: 'window' },
+      { name: 'scrap_chance', unit: '', description: 'Chance the part is scrap', per: 'window' },
+    ],
+    params: [
+      { name: 'vacuum', unit: 'mbar', default: 48, min: 0, max: 500, description: 'Vacuum level' },
+      { name: 'die_temp', unit: '°C', default: 232, min: 100, max: 350, description: 'Die temperature' },
+      { name: 'die_temp_set', unit: '°C', default: 232, min: 150, max: 300, description: 'Die temperature set point' },
+    ],
+  };
   let templateApply = null;
   const templateApplies = [];
   // Planned stops (T7.03): stops entered and the MES's planned codes.
@@ -680,6 +702,8 @@ export function createFakeApi({
         !url.pathname.startsWith(`/sites/${site.id}/work-orders`) &&
         !url.pathname.startsWith(`/sites/${site.id}/planned-`) &&
         !url.pathname.startsWith(`/sites/${site.id}/detector-templates`) &&
+        url.pathname !== `/sites/${site.id}/models` &&
+        !url.pathname.startsWith(`/sites/${site.id}/recommendation`) &&
         !/^\/sites\/[^/]+\/detectors\/[^/]+\/backtest$/.test(url.pathname) &&
         !url.pathname.startsWith(`/sites/${site.id}/datasets`) &&
         !url.pathname.startsWith(`/sites/${site.id}/insights`) &&
@@ -1775,6 +1799,126 @@ export function createFakeApi({
           end: q.to,
         });
       }
+      if (url.pathname === `/sites/${site.id}/models` && req.method === 'GET') {
+        return send(200, [POROSITY]);
+      }
+      if (url.pathname === `/sites/${site.id}/recommendation-limits` && req.method === 'GET') {
+        const model = url.searchParams.get('model');
+        return send(
+          200,
+          recLimits.filter((l) => !model || l.model === model),
+        );
+      }
+      const limitPath = /^\/sites\/[^/]+\/recommendation-limits\/([^/]+)\/([^/]+)$/.exec(url.pathname);
+      if (limitPath) {
+        if (role === 'viewer') return send(403, { detail: 'Needs the engineer role' });
+        const [, model, param] = limitPath;
+        const at = recLimits.findIndex((l) => l.model === model && l.param === param);
+        if (req.method === 'DELETE') {
+          if (at < 0)
+            return send(404, { detail: `${param} has no limit`, code: 'recommendation.no_limit', params: { param } });
+          recLimits.splice(at, 1);
+          res.writeHead(204);
+          return res.end();
+        }
+        const b = await body(req);
+        const unit = POROSITY.params.find((x) => x.name === param)?.unit ?? '';
+        const limit = { model, param, unit, min: b.min, max: b.max, set_by: user, set_at: new Date().toISOString() };
+        if (at < 0) recLimits.push(limit);
+        else recLimits[at] = limit;
+        recLimits.sort((a, c) => a.param.localeCompare(c.param, 'en'));
+        return send(200, limit);
+      }
+      if (url.pathname.startsWith(`/sites/${site.id}/recommendations`)) {
+        const shown = (r) => ({ ...r, mine: r.proposed_by_email === user });
+        if (url.pathname === `/sites/${site.id}/recommendations` && req.method === 'GET') {
+          const asset = url.searchParams.get('asset');
+          return send(
+            200,
+            recs
+              .filter((r) => !asset || r.asset === asset)
+              .map(shown)
+              .reverse(),
+          );
+        }
+        if (role === 'viewer') return send(403, { detail: 'Needs the engineer role' });
+        if (url.pathname === `/sites/${site.id}/recommendations` && req.method === 'POST') {
+          const b = await body(req);
+          const limits = {};
+          for (const p of b.settable) {
+            const l = recLimits.find((x) => x.model === b.model && x.param === p);
+            if (!l)
+              return send(422, { detail: `${p} has no limit`, code: 'recommendation.no_limit', params: { param: p } });
+            limits[p] = { min: l.min, max: l.max };
+          }
+          const state = Object.fromEntries(POROSITY.params.map((x) => [x.name, x.default]));
+          Object.assign(state, b.state ?? {});
+          // The fake's sweep: each setting to its limit's minimum.
+          const proposal = Object.fromEntries(Object.entries(limits).map(([p, l]) => [p, l.min]));
+          const rec = {
+            number: recs.length + 1,
+            model: b.model,
+            version: '1.0.0',
+            objective: b.objective,
+            asset: b.asset ?? null,
+            state,
+            sources: {},
+            proposal,
+            limits,
+            expected: { now: { [b.objective]: 0.02 }, proposed: { [b.objective]: 0.004 } },
+            status: 'proposed',
+            proposed_by: user.split('@')[0],
+            proposed_by_email: user,
+            proposed_at: new Date().toISOString(),
+            decided_by: null,
+            decided_at: null,
+            decision_note: '',
+            applied_by: null,
+            applied_at: null,
+            applied_note: '',
+            request: b,
+          };
+          recs.push(rec);
+          return send(201, shown(rec));
+        }
+        const step = /^\/sites\/[^/]+\/recommendations\/(\d+)\/(approve|reject|applied)$/.exec(url.pathname);
+        const rec = step && recs.find((r) => r.number === Number(step[1]));
+        if (!rec) return send(404, { detail: 'No such recommendation', code: 'recommendation.not_found', params: {} });
+        const b = await body(req);
+        const wrong = (want) => {
+          if (rec.status === want) return false;
+          send(409, {
+            detail: `Recommendation ${rec.number} is ${rec.status}`,
+            code: 'recommendation.wrong_status',
+            params: { number: rec.number, status: rec.status },
+          });
+          return true;
+        };
+        if (step[2] === 'applied') {
+          if (wrong('approved')) return;
+          Object.assign(rec, {
+            status: 'applied',
+            applied_by: user.split('@')[0],
+            applied_at: new Date().toISOString(),
+            applied_note: b.note ?? '',
+          });
+          return send(200, shown(rec));
+        }
+        if (wrong('proposed')) return;
+        if (step[2] === 'approve' && rec.proposed_by_email === user)
+          return send(403, {
+            detail: 'Someone other than its proposer approves a recommendation',
+            code: 'recommendation.own',
+            params: {},
+          });
+        Object.assign(rec, {
+          status: step[2] === 'approve' ? 'approved' : 'rejected',
+          decided_by: user.split('@')[0],
+          decided_at: new Date().toISOString(),
+          decision_note: b.note ?? '',
+        });
+        return send(200, shown(rec));
+      }
       if (url.pathname === `/sites/${site.id}/detector-templates` && req.method === 'GET') {
         return send(200, detectorTemplates);
       }
@@ -2762,6 +2906,9 @@ export function createFakeApi({
       templateApply = out;
     },
     detectorTemplates: () => [...detectorTemplates],
+    // The recommendations and limits as stored (T11.02); `proposedBy` makes one another person's.
+    recommendations: () => recs,
+    recommendationLimits: () => [...recLimits],
     templateApplies: () => [...templateApplies],
     // The planned stops and codes the page left (T7.03).
     planned: () => ({ stops: [...plannedStops], codes: [...plannedCodes] }),
