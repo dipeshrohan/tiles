@@ -21,6 +21,9 @@ PRECURSOR = {
     "contacts": ("contact_resistance", "up", 2),
     "desiccant": ("wheel_dp", "up", 0),
 }
+# A signal that moves only a little before its failure (a fill weight 1 to 2 % low) is asked with a
+# smaller threshold than the wear check's 5 %.
+WEAR_THRESHOLD = {"pump": 0.01}
 WORDS = {
     "coating_weight_cv": "coating weight variation across the web",
     "dryer_fan_current": "dryer fan current",
@@ -187,7 +190,7 @@ def signal_questions(year: sim.Year, capture: Capture) -> list[Question]:
             "Which signal shows the anode calender's bearings wearing?",
             [f],
             ["cla1.bearing_vibration"],
-            plan=[(f, {"query": "CL-A1 bearing"})],
+            plan=[(f, {"query": "CL-A1 work roll bearing"})],
             data=[("cla1.bearing_vibration", *w)],
         ),
         Question(
@@ -367,7 +370,14 @@ def wear_questions(year: sim.Year, capture: Capture) -> list[Question]:
                 plan=[
                     (
                         "wear_check",
-                        {"tag": tag, "end": iso(end), "recent_hours": 24, "baseline_hours": 72, "direction": direction},
+                        {
+                            "tag": tag,
+                            "end": iso(end),
+                            "recent_hours": 24,
+                            "baseline_hours": 72,
+                            "direction": direction,
+                            "threshold": WEAR_THRESHOLD.get(e.mode, 0.05),
+                        },
                     )
                 ],
                 data=[(tag, iso(end - timedelta(hours=96)), iso(end))],
@@ -379,8 +389,6 @@ def wear_questions(year: sim.Year, capture: Capture) -> list[Question]:
 def root_cause_questions(year: sim.Year, capture: Capture) -> list[Question]:
     qs = []
     for e in failures(year, capture):
-        if e.mode == "desiccant":  # the dry room's stop is the dehumidifier's doing: asked of DR-01 below
-            continue
         s = stop_of(year, e)
         if s is None:
             continue

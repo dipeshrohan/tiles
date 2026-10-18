@@ -363,8 +363,10 @@ class Station:
     """A machine that runs jobs one at a time, each as soon as it may start (`run`): before a job
     it takes its planned stops and the stops imposed on it from outside (a dry room out of
     specification stops its assembly), then the failure of a degradation that has reached it, then
-    the random stops due in its running time. Its continuous readings are written through `grid`
-    every 5 minutes, with what it was doing then (run, idle, stop or off)."""
+    the random stops due in its running time. A job isn't started if it would run into a planned
+    stop or past the end of its working time; a planned stop that something else overtook is taken
+    late, for its full length. Its continuous readings are written through `grid` every 5 minutes,
+    with what it was doing then (run, idle, stop or off); `on_repair` hears of each repair and find."""
 
     GRID = 300
 
@@ -382,6 +384,7 @@ class Station:
         start: float,
         end: float,
         on_planned: Any = None,
+        on_repair: Any = None,
         episodes: list[Episode] | None = None,
     ) -> None:
         self.asset = asset
@@ -394,6 +397,7 @@ class Station:
         self.external = sorted(external or [])
         self.grid = grid
         self.on_planned = on_planned
+        self.on_repair = on_repair
         self.start, self.end = start, end
         self.t = start  # when it is free
         self.run_s = 0.0
@@ -473,12 +477,14 @@ class Station:
             self._stop(t, end, code, False, text if t == first else f"{text} (continued)", ep.id if ep else None)
             left -= end - t
             t = end
+        if ep:
+            ep.resolved_at = t
         if corrective:
             self.maintenance.append(
                 Maintenance(self.asset, first, t, "CM", component, code, text, ep.id if ep else None)
             )
-        if ep:
-            ep.resolved_at = t
+            if self.on_repair:
+                self.on_repair(self, self.maintenance[-1])
         return t
 
     def _planned_job(self, start: float, end: float, code: str, text: str) -> None:
@@ -495,14 +501,14 @@ class Station:
         for ep in found:
             m = self.modes[ep.mode]
             self.maintenance.append(Maintenance(self.asset, start, end, "INSP", m.component, m.code, m.find, ep.id))
+            if self.on_repair:
+                self.on_repair(self, self.maintenance[-1])
         if self.on_planned:
             self.on_planned(self, code, start, end)
 
-    def run(self, ready: float, duration: float, fit: bool = False) -> tuple[float, float]:
+    def run(self, ready: float, duration: float) -> tuple[float, float]:
         """Runs a job that may start at `ready`, taking `duration`; its start and end (the year's
-        end, if no working time is left). With `fit`, a job that would run past the end of its
-        working time, or into a planned stop, waits for it (a furnace run isn't started on a Friday
-        night, nor hours before its maintenance)."""
+        end, if no working time is left)."""
         while True:
             t = max(ready, self.t)
             i = self.w.index(t)
@@ -512,20 +518,16 @@ class Station:
             a, b = self.w.intervals[i]
             if t < a:
                 t = a
-            if fit and t + duration > b and duration < b - a:
+            # A job that won't fit before the working time ends, or before a planned stop, waits.
+            if t + duration > b and duration < b - a:
                 ready = b
                 continue
-            if fit and self.pi < len(self.planned) and t < self.planned[self.pi][0] < t + duration:
+            if self.pi < len(self.planned) and t < self.planned[self.pi][0] < t + duration:
                 ready = self.planned[self.pi][0]
                 continue
             # Planned and imposed stops that began while it waited, or begin now.
             if self.pi < len(self.planned) and self.planned[self.pi][0] <= t:
-                start, end, code, text = self.planned[self.pi]
-                self.pi += 1
-                begin = max(self.t, start)
-                if end - begin >= 60:
-                    self._planned_job(begin, end, code, text)
-                    self.t = max(self.t, end)
+                self._take_planned()
                 continue
             if self.xi < len(self.external) and self.external[self.xi][0] <= t:
                 start, end, code, text = self.external[self.xi]
@@ -564,13 +566,27 @@ class Station:
     def finish(self) -> None:
         """Takes the planned stops left and writes the readings to the year's end."""
         while self.pi < len(self.planned):
-            start, end, code, text = self.planned[self.pi]
-            self.pi += 1
-            begin = max(self.t, start)
-            if end - begin >= 60 and self.w.working(begin):
-                self._planned_job(begin, end, code, text)
-                self.t = max(self.t, end)
+            if self.w.working(max(self.t, self.planned[self.pi][0])):
+                self._take_planned()
+            else:
+                self.pi += 1
         self.advance(self.end, "idle")
+        self.close_episodes()
+
+    def _take_planned(self) -> None:
+        """The next planned stop, for its full length: from its start, or once the station is free."""
+        start, end, code, text = self.planned[self.pi]
+        self.pi += 1
+        begin = max(self.t, start)
+        end = min(self.end, begin + (end - start))
+        if end - begin >= 60:
+            self._planned_job(begin, end, code, text)
+            self.t = max(self.t, end)
+
+    def close_episodes(self) -> None:
+        """The year's end: an episode still building up has the severity it reached."""
+        w = self.w.seconds(self.end)
         for ep in self.episodes:
             if ep.resolved_at is None and ep.failed_at is None:
                 ep.outcome = "Still building up at the end of the year"
+                ep.peak = min(1.0, ep.severity(w, self.end - 1))

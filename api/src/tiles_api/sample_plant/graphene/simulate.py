@@ -505,7 +505,7 @@ class Plant:
                     ra *= r.uniform(1.4, 1.7)
                 lots.append(FoilLot(f"CU-{len(lots) + 1:04d}", supplier, max(self.t0, ready - 3 * DAY), ra))
             lot = lots[-1]
-            start, end = ep.run(ready, FOIL_M / POLISH_SPEED * 60, fit=True)
+            start, end = ep.run(ready, FOIL_M / POLISH_SPEED * 60)
             if end >= self.t1:
                 return None
             n += 1
@@ -569,7 +569,7 @@ class Plant:
         return out
 
     def grow(self, cvd: Station, foil: Foil, r: random.Random, n: int) -> Run | None:
-        start, end = cvd.run(foil.polished[1] + HOUR, RUN_H * HOUR, fit=True)
+        start, end = cvd.run(foil.polished[1] + HOUR, RUN_H * HOUR)
         if end >= self.t1:
             return None
         run = Run(f"R-{n:05d}", cvd.asset, foil, (start, end))
@@ -653,7 +653,7 @@ class Plant:
 
     def transfer(self, tl: Station, run: Run, r: random.Random) -> bool:
         """Laminates and etches a run's film; False if the year ended first."""
-        start, end = tl.run(run.job[1] + 2 * HOUR, FOIL_M / TRANSFER_SPEED * 60, fit=True)
+        start, end = tl.run(run.job[1] + 2 * HOUR, FOIL_M / TRANSFER_SPEED * 60)
         if end >= self.t1:
             return False
         run.line, run.transfer = tl.asset, (start, end)
@@ -697,7 +697,7 @@ class Plant:
             t += 60
 
     def inspect(self, ins: Station, sp: Station, run: Run, r: random.Random) -> list[FilmRoll] | None:
-        start, end = ins.run(run.transfer[1] + HOUR, FOIL_M / INSPECT_SPEED * 60, fit=True)
+        start, end = ins.run(run.transfer[1] + HOUR, FOIL_M / INSPECT_SPEED * 60)
         if end >= self.t1:
             return None
         run.inspected = (start, end)
@@ -730,7 +730,7 @@ class Plant:
             self.write("in01-run", "in01.transmittance", t, round(tr, 2))
             self.write("in01-run", "in01.defects", t, round(defects, 1))
             t += 60
-        _, packed = sp.run(end + HOUR, FOIL_M / 20 * 60, fit=True)
+        _, packed = sp.run(end + HOUR, FOIL_M / 20 * 60)
         if packed >= self.t1:
             return None
         run.packed = packed

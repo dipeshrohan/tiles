@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from test_agents import ENG, api, site  # noqa: F401 - api and site are fixtures
 from test_copilot_tools import Run, refused, tool  # noqa: F401 - tool is a fixture
 
-from tiles_api import root_cause
+from tiles_api import api_timeline, root_cause
 from tiles_api.evaluation import plant
 
 HOUR = timedelta(hours=1)
@@ -118,3 +118,17 @@ def test_leads_are_moves_of_a_few_spreads_or_off_a_flat_line() -> None:
     assert not root_cause._is_lead({**lead, "change_pct": 0.5})  # a tiny change, however steady before
     assert root_cause._is_lead({**lead, "robust_z": None, "off_flat_line": True})
     assert root_cause._is_lead({**lead, "robust_z": None, "off_flat_line": True, "change_pct": None})  # from 0
+
+
+def test_every_linked_signal_is_looked_at_not_the_timelines_first_few(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    tool: Run,  # noqa: F811
+    monkeypatch: Any,
+) -> None:
+    # The timeline page charts the first few signals by tag; a machine on a PLC with many has more.
+    loaded(api, site)
+    monkeypatch.setattr(api_timeline, "MAX_SIGNALS", 0)
+    out = tool("root_cause", machine="DC-01")
+    assert [s["tag"] for s in out["signals"]] == ["dc01.hydraulic_pressure"]
+    assert [lead["what"] for lead in out["leads"]] == ["dc01.hydraulic_pressure moved from about 150 to 131 bar"]

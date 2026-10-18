@@ -64,6 +64,21 @@ def test_the_year_runs_like_a_cell_plant(built: Built) -> None:
         st = year.stations[asset]
         stops = sorted((s.start, s.end) for s in st.stops)
         assert all(b[0] >= a[1] - 1e-6 for a, b in itertools.pairwise(stops)), asset  # no overlap
+    # Planned stops are taken for their full length, however late (a job doesn't run into one).
+    for st in year.stations.values():
+        for s in st.stops:
+            if s.code == "PL-CLN":
+                assert abs(s.end - s.start - 1.5 * 3600) < 1, (st.asset, s.start)
+    # A rack's stop pauses the formations on its channels; scrapped coils go no further than the coater.
+    for asset in ("FM-01", "FM-02", "FM-03", "FM-04"):
+        stops = [(s.start, s.end) for s in year.stations[asset].stops]
+        assert stops and year.stations[asset].run_s > 0
+        for c in (c for c in year.cells if c.rack == asset):
+            paused = sum(
+                min(b, c.formed[1]) - max(a, c.formed[0]) for a, b in stops if a < c.formed[1] and b > c.formed[0]
+            )
+            assert abs(c.formed[1] - c.formed[0] - paused - 18 * 3600) < 1, c.id
+    assert not any(r.coil.scrapped for r in year.rolls)
     # No coil is coated, and no cell stacked, while its machine is stopped.
     for asset, times in (
         ("CT-C1", [c.coated[0] for c in year.coils if c.side == "C"]),
@@ -87,7 +102,9 @@ def test_causes_upstream_show_at_the_end_of_the_line(built: Built) -> None:
     assert len(burred) > 200 and k_fails(burred) > 5 * k_fails(clean)
     humid = [c.cathode.moisture for c in year.cells if c.dew_point > -35]
     dry = [c.cathode.moisture for c in year.cells if c.dew_point < -42]
-    assert humid and statistics.mean(humid) > statistics.mean(dry) + 50
+    # Wet rolls are dried again (SOP-DR-01), which takes some of it out.
+    assert humid and statistics.mean(humid) > statistics.mean(dry) + 30
+    assert any(c.redried for c in year.coils)
 
 
 def _day(stats: common.Stats, tag: str, t: float) -> list[float] | None:

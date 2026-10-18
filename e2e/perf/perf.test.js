@@ -157,6 +157,9 @@ test('the ontology with 2,069 nodes: zoom, fold and search within budget', async
       await page.waitForSelector('.statusbar:has-text("(277 shown)")');
     }),
     'folding',
+    // The redraw runs in a task after the key's event, which then paints in well under the 16 ms
+    // an event must take to be reported; the long-task budget is what measures the redraw.
+    { interactions: false },
   );
   withinBudget(
     await measure(page, async () => {

@@ -6,7 +6,7 @@ a month (the manifest's `tables` names them for the loader).
 import bisect
 import random
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -627,8 +627,9 @@ def baseline(year: sim.Year) -> str:
         st = year.stations.get(m.asset)
         if not st or not m.downtime_cost_eur_h:
             continue
-        stops = [s for s in st.stops if not s.planned and not s.comment.endswith("(continued)")]
-        hours = sum(s.end - s.start for s in st.stops if not s.planned) / 3600
+        own = [s for s in st.stops if not s.planned and (s.code != "DT-DRM" or m.asset == "DR-01")]
+        stops = [s for s in own if not s.comment.endswith("(continued)")]
+        hours = sum(s.end - s.start for s in own) / 3600
         rows.append(
             f"| {m.asset} | {len(stops):,} | {len(stops) / months:.1f} | {hours:,.0f}"
             f" | {hours * m.downtime_cost_eur_h:,.0f} |"
@@ -643,7 +644,8 @@ def baseline(year: sim.Year) -> str:
         "# Baseline metrics\n\n"
         "Made by `tiles-sample-plant generate battery` from the simulated year: each machine's unplanned\n"
         "stops (a stop continued into the next shift counts once; its hours in full) and their cost at\n"
-        "controlling's figures (plant/costs.csv), and the cells' yield.\n\n"
+        "controlling's figures (plant/costs.csv), and the cells' yield. The dry room's stops stop the assembly\n"
+        "line too (DT-DRM on each of its machines in the MES); they are counted once, on DR-01.\n\n"
         "## Stops\n\n| Machine | Unplanned stops | A month | Hours | Cost of the hours (EUR) |\n"
         "| --- | --- | --- | --- | --- |\n"
         + "\n".join(rows)
@@ -682,4 +684,4 @@ def generate(out: Path, big: bool = False) -> dict[str, Any]:
     return build(out, big)[3]
 
 
-__all__ = ["build", "generate", "timedelta"]
+__all__ = ["build", "generate"]

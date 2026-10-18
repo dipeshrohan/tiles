@@ -139,7 +139,7 @@ def analyse(ctx: SiteContext, machine_name: str, at: datetime | None, hours: int
         )
     when: datetime = stop["at"] if stop else at  # type: ignore[assignment]  # one of them is set
     start = when - timedelta(hours=hours)
-    tl = api_timeline.read(ctx, machine, start, when, points=200)
+    tl = api_timeline.read(ctx, machine, start, when, points=200, every=True)
     # The lead-up: the last quarter of the look-back, at least an hour, at most its half.
     lead_from = when - min(max(timedelta(hours=1), timedelta(hours=hours) / 4), timedelta(hours=hours) / 2)
 

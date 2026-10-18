@@ -75,7 +75,8 @@ until the desiccant wheel is regenerated. The wheel's pressure drop (`dh01.wheel
 220 Pa; 380 Pa is its limit: regenerate it.
 
 Electrode moisture after vacuum drying is normally about 150 ppm (Karl Fischer, a sample each roll);
-above 250 ppm hold the rolls. Moisture raises resistance and self-discharge and lowers capacity.
+above 250 ppm hold the coil's rolls and dry them again. Moisture raises resistance and self-discharge
+and lowers capacity.
 """,
         ("dr-01", "dh-01"),
     ),
