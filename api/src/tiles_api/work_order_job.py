@@ -50,7 +50,7 @@ def _description(c: dict[str, Any]) -> str:
         when += "."
     window = c.get("window")
     stop = (
-        f" Next planned stop: {window['starts_at']:%Y-%m-%d %H:%M} UTC"
+        f" Next planned stop: {window['starts_at'].astimezone(UTC):%Y-%m-%d %H:%M} UTC"
         + (f" ({window['reason']})." if window["reason"] else ".")
         if window
         else " No planned stop comes before it."
@@ -72,15 +72,18 @@ def run(conn: Conn, site_id: uuid.UUID, now: datetime | None = None) -> list[int
     # As the API's remaining life sees it, read with the role of an engineer (it only reads).
     tiles = User(uuid.UUID(int=0), DRAFTER, "", "engineer")
     ctx = SiteContext(conn, site_id, site["org_id"], tiles)
-    life = api_remaining_life.remaining_life(ctx, None)
+    components, _ = api_remaining_life.assess(ctx, None, None)  # every component, not the page's first 50
     made = []
-    for c in life["components"]:
+    for c in components:
         hours = c["hours_to_limit"]
-        if hours is None or timedelta(hours=hours) > lead:
+        if hours is None:
+            continue
+        # From now, not from its latest reading: a tag whose readings stopped is due all the sooner.
+        limit_at = c["end"] + timedelta(hours=hours)
+        if limit_at - now > lead:
             continue
         if api_work_orders.open_for_component(conn, site_id, c["signal_id"]) is not None:
             continue
-        limit_at = c["end"] + timedelta(hours=hours)
         window = c.get("window")
         number = api_work_orders.insert(
             conn,
@@ -91,7 +94,7 @@ def run(conn: Conn, site_id: uuid.UUID, now: datetime | None = None) -> list[int
             asset=api_work_orders.machine_asset(conn, site_id, c["signal_id"]),
             title=f"Replace {c['component']} on {c['machine_label']} before its wear limit"[:200],
             description=_description(c)[:4000],
-            priority="high" if timedelta(hours=hours) <= URGENT else "medium",
+            priority="high" if limit_at - now <= URGENT else "medium",
             due_at=window["starts_at"] if window else limit_at,
             drafted_by_id=None,
             drafted_by=DRAFTER,
@@ -105,7 +108,7 @@ def run(conn: Conn, site_id: uuid.UUID, now: datetime | None = None) -> list[int
             action="work_order.draft",
             entity_type="work_order",
             entity_id=str(number),
-            after={"number": number, "source": "remaining_life", "signal_id": str(c["signal_id"])},
+            after=api_work_orders.audited(api_work_orders.get(ctx, number)),
         )
         made.append(number)
     return made

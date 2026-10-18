@@ -2,8 +2,10 @@
 someone else, exported as CSV for the CMMS, closed with their outcome; audited."""
 
 import csv
+import importlib
 import io
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import psycopg
@@ -13,9 +15,9 @@ from test_performance import plant, signal_id
 from test_remaining_life import plant as worn_plant
 from test_reviews import ENG2
 
-from tiles_api import work_order_job
+from tiles_api import api_remaining_life, work_order_job
 from tiles_api.settings import Settings
-from tiles_api.store import connect_job
+from tiles_api.store import UNSCOPED, connect_job
 
 BASE = "/sites/{}/work-orders"
 
@@ -214,3 +216,58 @@ def test_tiles_drafts_one_for_a_component_nearing_its_limit_and_a_person_approve
     api.put(policy, json={"lead_days": None}, headers=ADMIN)
     with connect_job(Settings(_env_file=None, database_url=database_url)) as conn:
         assert uuid.UUID(site) not in work_order_job.due(conn)
+
+
+def test_tiles_drafts_for_every_component_counting_from_now(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+    monkeypatch: Any,
+) -> None:
+    worn_plant(api, site)  # w1.tip: about 25 h from its latest reading
+    api.put(f"/sites/{site}/work-orders/policy", json={"lead_days": 1}, headers=ADMIN)
+    monkeypatch.setattr(api_remaining_life, "MAX_COMPONENTS", 0)  # the page's cap; the job looks at all
+    later = datetime.now(UTC) + timedelta(hours=3)  # its limit is then within a day of now
+    with connect_job(Settings(_env_file=None, database_url=database_url)) as conn:
+        assert work_order_job.run(conn, uuid.UUID(site)) == []
+        assert work_order_job.run(conn, uuid.UUID(site), now=later) == [1]
+        conn.commit()
+    # Its audit entry says what was drafted.
+    entry = next(e for e in api.get(f"/sites/{site}/audit", headers=ADMIN).json() if e["entity_id"] == "1")
+    assert entry["after"]["title"] == "Replace Welder 1 tip power on Welder 1 before its wear limit"
+    assert entry["after"]["asset"] == "Welder 1"
+
+
+def test_the_migration_keeps_a_components_newest_open_work_order(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    worn_plant(api, site)
+    tip = signal_id(api, site, "w1.tip")
+    migration = importlib.import_module("tiles_api.migrations.versions.0043_work_order_auto_draft")
+    with psycopg.connect(database_url, options=UNSCOPED) as conn:
+        conn.execute("DROP INDEX work_orders_one_open_per_component")
+        try:
+            for n in (1, 2, 3):
+                conn.execute(
+                    "INSERT INTO work_order_numbers (site_id, last) VALUES (%s, %s)"
+                    " ON CONFLICT (site_id) DO UPDATE SET last = excluded.last",
+                    [site, n],
+                )
+                conn.execute(
+                    "INSERT INTO work_orders (site_id, number, source, signal_id, title, priority, drafted_by)"
+                    " VALUES (%s, %s, 'remaining_life', %s, 'Replace the tip', 'medium', 'eng')",
+                    [site, n, tip],
+                )
+            conn.execute(migration.DEDUPE)
+            rows = conn.execute(
+                "SELECT number, status, outcome_note FROM work_orders WHERE site_id = %s ORDER BY number", [site]
+            ).fetchall()
+        finally:
+            conn.execute(
+                "CREATE UNIQUE INDEX work_orders_one_open_per_component ON work_orders (site_id, signal_id)"
+                " WHERE source = 'remaining_life' AND status IN ('draft', 'approved', 'exported')"
+            )
+    assert [(r[0], r[1]) for r in rows] == [(1, "cancelled"), (2, "cancelled"), (3, "draft")]
+    assert rows[0][2].endswith("work order 3 stays open.")

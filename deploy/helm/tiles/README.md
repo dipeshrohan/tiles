@@ -86,7 +86,7 @@ Each job is a CronJob that runs one command over every site, then exits. A run t
 | `runModels` | `tiles-run-models` | every 5 minutes |
 | `detect` | `tiles-detect` | every 5 minutes |
 | `notify` | `tiles-notify` | every minute |
-| `draftWorkOrders` | `tiles-draft-work-orders` | hourly, at 17 minutes past |
+| `draftWorkOrders` | `tiles-draft-work-orders` | every 15 minutes |
 | `runSweeps` | `tiles-run-sweeps` | every 2 minutes |
 
 To run a job now: `kubectl create job check-now --from=cronjob/tiles-check-quality`.

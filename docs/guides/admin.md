@@ -446,7 +446,7 @@ Each job is a command from the API package. It runs over every site, then exits.
 | `tiles-detect` | Feeds every enabled detector its new readings and raises or ends warnings (`--site`) | `detect` | every 5 minutes |
 | `tiles-notify` | Sends due notifications by email and to Teams | `notify` | every minute |
 | `tiles-run-sweeps` | Runs sweeps left queued, or left running by a worker with no heartbeat for 2 minutes | `runSweeps` | every 2 minutes |
-| `tiles-draft-work-orders` | Drafts a work order for each component predicted to reach its wear limit within the site's lead time (set on the Work orders page), if it has none open (`--site`) | `draftWorkOrders` | hourly |
+| `tiles-draft-work-orders` | Drafts a work order for each component predicted to reach its wear limit within the site's lead time (set on the Work orders page), if it has none open (`--site`) | `draftWorkOrders` | every 15 minutes |
 
 To run a job now with Helm: `kubectl create job check-now --from=cronjob/tiles-check-quality`. To turn one off, set `jobs.<name>.enabled=false`.
 

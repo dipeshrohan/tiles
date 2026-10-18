@@ -135,7 +135,7 @@ def _out(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
     return {**row, "mine": row["drafted_by_id"] == ctx.user.id}
 
 
-def _get(ctx: SiteContext, number: int, lock: bool = False) -> dict[str, Any]:
+def get(ctx: SiteContext, number: int, lock: bool = False) -> dict[str, Any]:
     if lock:
         ctx.conn.execute(
             "SELECT 1 FROM work_orders WHERE site_id = %s AND number = %s FOR UPDATE", [ctx.site_id, number]
@@ -203,7 +203,7 @@ def set_policy(ctx: Admin, body: WorkOrderPolicy) -> dict[str, Any]:
 @router.get("/sites/{site_id}/work-orders/{number}", response_model=WorkOrder)
 def get_work_order(ctx: Ctx, number: int) -> dict[str, Any]:
     """One work order."""
-    return _out(ctx, _get(ctx, number))
+    return _out(ctx, get(ctx, number))
 
 
 def fit_asset(asset: Any) -> str | None:
@@ -283,8 +283,8 @@ def draft(ctx: Editor, body: WorkOrderIn) -> dict[str, Any]:
         drafted_by_id=ctx.user.id,
         drafted_by=ctx.user.name,
     )
-    row = _get(ctx, number)
-    ctx.audit("work_order.draft", "work_order", str(number), after=_audited(row))
+    row = get(ctx, number)
+    ctx.audit("work_order.draft", "work_order", str(number), after=audited(row))
     return _out(ctx, row)
 
 
@@ -360,7 +360,7 @@ def insert(
     return number
 
 
-def _audited(row: dict[str, Any]) -> dict[str, Any]:
+def audited(row: dict[str, Any]) -> dict[str, Any]:
     keys = ("number", "status", "source", "asset", "title", "priority", "due_at", "warning_id", "signal_id")
     return {k: str(row[k]) if isinstance(row[k], (uuid.UUID, datetime)) else row[k] for k in keys}
 
@@ -368,7 +368,7 @@ def _audited(row: dict[str, Any]) -> dict[str, Any]:
 @router.post("/sites/{site_id}/work-orders/{number}/approve", response_model=WorkOrder)
 def approve(ctx: Editor, number: int, body: WorkOrderNote) -> dict[str, Any]:
     """Approves a draft for export (engineers and admins; not its drafter). Audited."""
-    row = _get(ctx, number, lock=True)
+    row = get(ctx, number, lock=True)
     _expect(row, "draft")
     if row["drafted_by_id"] == ctx.user.id:
         raise Problem(
@@ -382,13 +382,13 @@ def approve(ctx: Editor, number: int, body: WorkOrderNote) -> dict[str, Any]:
         [ctx.user.id, ctx.user.name, ctx.site_id, number],
     )
     ctx.audit("work_order.approve", "work_order", str(number), before={"status": "draft"}, after={"note": body.note})
-    return _out(ctx, _get(ctx, number))
+    return _out(ctx, get(ctx, number))
 
 
 @router.post("/sites/{site_id}/work-orders/{number}/cancel", response_model=WorkOrder)
 def cancel(ctx: Editor, number: int, body: WorkOrderNote) -> dict[str, Any]:
     """Cancels an open work order (engineers and admins), with why. Audited."""
-    row = _get(ctx, number, lock=True)
+    row = get(ctx, number, lock=True)
     _expect(row, *OPEN)
     ctx.conn.execute(
         "UPDATE work_orders SET status = 'cancelled', outcome_note = %s, closed_at = clock_timestamp()"
@@ -398,14 +398,14 @@ def cancel(ctx: Editor, number: int, body: WorkOrderNote) -> dict[str, Any]:
     ctx.audit(
         "work_order.cancel", "work_order", str(number), before={"status": row["status"]}, after={"note": body.note}
     )
-    return _out(ctx, _get(ctx, number))
+    return _out(ctx, get(ctx, number))
 
 
 @router.post("/sites/{site_id}/work-orders/{number}/outcome", response_model=WorkOrder)
 def record_outcome(ctx: Editor, number: int, body: WorkOrderOutcome) -> dict[str, Any]:
     """Closes an approved or exported work order with its outcome: done, or not needed once looked
     at (engineers and admins). Audited."""
-    row = _get(ctx, number, lock=True)
+    row = get(ctx, number, lock=True)
     _expect(row, "approved", "exported")
     ctx.conn.execute(
         "UPDATE work_orders SET status = 'done', outcome = %s, outcome_note = %s, closed_at = clock_timestamp()"
@@ -419,7 +419,7 @@ def record_outcome(ctx: Editor, number: int, body: WorkOrderOutcome) -> dict[str
         before={"status": row["status"]},
         after={"outcome": body.outcome, "note": body.note},
     )
-    return _out(ctx, _get(ctx, number))
+    return _out(ctx, get(ctx, number))
 
 
 def _cell(value: Any) -> str:
