@@ -1,0 +1,176 @@
+tag,unit,kind,sample_rate_hz,description,asset,measure,range_min,range_max,stuck_after_s,wear_limit,wear_direction,event_kind
+br01.temperature,°C,grid,0.0033333333333333335,BR-01 culture temperature,BR-01,temperature,15,130,7200,,,
+br01.ph,pH,grid,0.0033333333333333335,BR-01 culture pH,BR-01,ph,6.5,7.5,7200,,,
+br01.do,%,grid,0.0033333333333333335,BR-01 dissolved oxygen (% of air saturation),BR-01,dissolved oxygen,0,120,7200,,,
+br01.agitation,rpm,grid,0.0033333333333333335,BR-01 agitator speed,BR-01,speed,0,200,86400,,,
+br01.air_flow,slpm,grid,0.0033333333333333335,BR-01 air sparge flow,BR-01,flow,0,60,86400,,,
+br01.o2_flow,slpm,grid,0.0033333333333333335,BR-01 oxygen sparge flow,BR-01,flow,0,40,86400,,,
+br01.co2_flow,slpm,grid,0.0033333333333333335,BR-01 CO2 flow for pH control,BR-01,flow,0,10,86400,,,
+br01.pressure,mbar,grid,0.0033333333333333335,BR-01 head pressure (gauge),BR-01,pressure,0,1500,86400,,,
+br01.weight,kg,grid,0.0033333333333333335,BR-01 culture weight (load cells),BR-01,weight,0,2200,86400,,,
+br01.jacket_temp,°C,grid,0.0033333333333333335,BR-01 jacket water temperature,BR-01,temperature,0,135,7200,,,
+br01.seal_loss,mL/h,grid,0.0033333333333333335,BR-01 agitator mechanical seal barrier fluid loss,BR-01,leak rate,0,30,86400,6.0,up,
+br01.vcd,1e6 cells/mL,unit,,"BR-01 viable cell density, daily sample",BR-01,cell density,0,40,,,,
+br01.viability,%,unit,,"BR-01 cell viability, daily sample",BR-01,viability,0,100,,,,
+br01.glucose,g/L,unit,,"BR-01 glucose, daily sample",BR-01,concentration,0,12,,,,
+br01.lactate,g/L,unit,,"BR-01 lactate, daily sample",BR-01,concentration,0,8,,,,
+br01.titre,g/L,unit,,"BR-01 antibody titre, daily sample (from day 3)",BR-01,titre,0,8,,,,
+br01.pco2,mmHg,unit,,"BR-01 dissolved CO2, daily sample",BR-01,partial pressure,0,200,,,,
+br01.osmolality,mOsm/kg,unit,,"BR-01 osmolality, daily sample",BR-01,osmolality,250,500,,,,
+br02.temperature,°C,grid,0.0033333333333333335,BR-02 culture temperature,BR-02,temperature,15,130,7200,,,
+br02.ph,pH,grid,0.0033333333333333335,BR-02 culture pH,BR-02,ph,6.5,7.5,7200,,,
+br02.do,%,grid,0.0033333333333333335,BR-02 dissolved oxygen (% of air saturation),BR-02,dissolved oxygen,0,120,7200,,,
+br02.agitation,rpm,grid,0.0033333333333333335,BR-02 agitator speed,BR-02,speed,0,200,86400,,,
+br02.air_flow,slpm,grid,0.0033333333333333335,BR-02 air sparge flow,BR-02,flow,0,60,86400,,,
+br02.o2_flow,slpm,grid,0.0033333333333333335,BR-02 oxygen sparge flow,BR-02,flow,0,40,86400,,,
+br02.co2_flow,slpm,grid,0.0033333333333333335,BR-02 CO2 flow for pH control,BR-02,flow,0,10,86400,,,
+br02.pressure,mbar,grid,0.0033333333333333335,BR-02 head pressure (gauge),BR-02,pressure,0,1500,86400,,,
+br02.weight,kg,grid,0.0033333333333333335,BR-02 culture weight (load cells),BR-02,weight,0,2200,86400,,,
+br02.jacket_temp,°C,grid,0.0033333333333333335,BR-02 jacket water temperature,BR-02,temperature,0,135,7200,,,
+br02.seal_loss,mL/h,grid,0.0033333333333333335,BR-02 agitator mechanical seal barrier fluid loss,BR-02,leak rate,0,30,86400,6.0,up,
+br02.vcd,1e6 cells/mL,unit,,"BR-02 viable cell density, daily sample",BR-02,cell density,0,40,,,,
+br02.viability,%,unit,,"BR-02 cell viability, daily sample",BR-02,viability,0,100,,,,
+br02.glucose,g/L,unit,,"BR-02 glucose, daily sample",BR-02,concentration,0,12,,,,
+br02.lactate,g/L,unit,,"BR-02 lactate, daily sample",BR-02,concentration,0,8,,,,
+br02.titre,g/L,unit,,"BR-02 antibody titre, daily sample (from day 3)",BR-02,titre,0,8,,,,
+br02.pco2,mmHg,unit,,"BR-02 dissolved CO2, daily sample",BR-02,partial pressure,0,200,,,,
+br02.osmolality,mOsm/kg,unit,,"BR-02 osmolality, daily sample",BR-02,osmolality,250,500,,,,
+br03.temperature,°C,grid,0.0033333333333333335,BR-03 culture temperature,BR-03,temperature,15,130,7200,,,
+br03.ph,pH,grid,0.0033333333333333335,BR-03 culture pH,BR-03,ph,6.5,7.5,7200,,,
+br03.do,%,grid,0.0033333333333333335,BR-03 dissolved oxygen (% of air saturation),BR-03,dissolved oxygen,0,120,7200,,,
+br03.agitation,rpm,grid,0.0033333333333333335,BR-03 agitator speed,BR-03,speed,0,200,86400,,,
+br03.air_flow,slpm,grid,0.0033333333333333335,BR-03 air sparge flow,BR-03,flow,0,60,86400,,,
+br03.o2_flow,slpm,grid,0.0033333333333333335,BR-03 oxygen sparge flow,BR-03,flow,0,40,86400,,,
+br03.co2_flow,slpm,grid,0.0033333333333333335,BR-03 CO2 flow for pH control,BR-03,flow,0,10,86400,,,
+br03.pressure,mbar,grid,0.0033333333333333335,BR-03 head pressure (gauge),BR-03,pressure,0,1500,86400,,,
+br03.weight,kg,grid,0.0033333333333333335,BR-03 culture weight (load cells),BR-03,weight,0,2200,86400,,,
+br03.jacket_temp,°C,grid,0.0033333333333333335,BR-03 jacket water temperature,BR-03,temperature,0,135,7200,,,
+br03.seal_loss,mL/h,grid,0.0033333333333333335,BR-03 agitator mechanical seal barrier fluid loss,BR-03,leak rate,0,30,86400,6.0,up,
+br03.vcd,1e6 cells/mL,unit,,"BR-03 viable cell density, daily sample",BR-03,cell density,0,40,,,,
+br03.viability,%,unit,,"BR-03 cell viability, daily sample",BR-03,viability,0,100,,,,
+br03.glucose,g/L,unit,,"BR-03 glucose, daily sample",BR-03,concentration,0,12,,,,
+br03.lactate,g/L,unit,,"BR-03 lactate, daily sample",BR-03,concentration,0,8,,,,
+br03.titre,g/L,unit,,"BR-03 antibody titre, daily sample (from day 3)",BR-03,titre,0,8,,,,
+br03.pco2,mmHg,unit,,"BR-03 dissolved CO2, daily sample",BR-03,partial pressure,0,200,,,,
+br03.osmolality,mOsm/kg,unit,,"BR-03 osmolality, daily sample",BR-03,osmolality,250,500,,,,
+br04.temperature,°C,grid,0.0033333333333333335,BR-04 culture temperature,BR-04,temperature,15,130,7200,,,
+br04.ph,pH,grid,0.0033333333333333335,BR-04 culture pH,BR-04,ph,6.5,7.5,7200,,,
+br04.do,%,grid,0.0033333333333333335,BR-04 dissolved oxygen (% of air saturation),BR-04,dissolved oxygen,0,120,7200,,,
+br04.agitation,rpm,grid,0.0033333333333333335,BR-04 agitator speed,BR-04,speed,0,200,86400,,,
+br04.air_flow,slpm,grid,0.0033333333333333335,BR-04 air sparge flow,BR-04,flow,0,60,86400,,,
+br04.o2_flow,slpm,grid,0.0033333333333333335,BR-04 oxygen sparge flow,BR-04,flow,0,40,86400,,,
+br04.co2_flow,slpm,grid,0.0033333333333333335,BR-04 CO2 flow for pH control,BR-04,flow,0,10,86400,,,
+br04.pressure,mbar,grid,0.0033333333333333335,BR-04 head pressure (gauge),BR-04,pressure,0,1500,86400,,,
+br04.weight,kg,grid,0.0033333333333333335,BR-04 culture weight (load cells),BR-04,weight,0,2200,86400,,,
+br04.jacket_temp,°C,grid,0.0033333333333333335,BR-04 jacket water temperature,BR-04,temperature,0,135,7200,,,
+br04.seal_loss,mL/h,grid,0.0033333333333333335,BR-04 agitator mechanical seal barrier fluid loss,BR-04,leak rate,0,30,86400,6.0,up,
+br04.vcd,1e6 cells/mL,unit,,"BR-04 viable cell density, daily sample",BR-04,cell density,0,40,,,,
+br04.viability,%,unit,,"BR-04 cell viability, daily sample",BR-04,viability,0,100,,,,
+br04.glucose,g/L,unit,,"BR-04 glucose, daily sample",BR-04,concentration,0,12,,,,
+br04.lactate,g/L,unit,,"BR-04 lactate, daily sample",BR-04,concentration,0,8,,,,
+br04.titre,g/L,unit,,"BR-04 antibody titre, daily sample (from day 3)",BR-04,titre,0,8,,,,
+br04.pco2,mmHg,unit,,"BR-04 dissolved CO2, daily sample",BR-04,partial pressure,0,200,,,,
+br04.osmolality,mOsm/kg,unit,,"BR-04 osmolality, daily sample",BR-04,osmolality,250,500,,,,
+wb01.temperature,°C,grid,0.0033333333333333335,WB-01 culture temperature,WB-01,temperature,15,40,7200,,,
+wb01.rocking,rpm,grid,0.0033333333333333335,WB-01 rocking rate,WB-01,speed,0,40,86400,,,
+wb02.temperature,°C,grid,0.0033333333333333335,WB-02 culture temperature,WB-02,temperature,15,40,7200,,,
+wb02.rocking,rpm,grid,0.0033333333333333335,WB-02 rocking rate,WB-02,speed,0,40,86400,,,
+sb01.temperature,°C,grid,0.0033333333333333335,SB-01 culture temperature,SB-01,temperature,15,40,7200,,,
+sb01.ph,pH,grid,0.0033333333333333335,SB-01 culture pH,SB-01,ph,6.5,7.5,7200,,,
+sb01.do,%,grid,0.0033333333333333335,SB-01 dissolved oxygen,SB-01,dissolved oxygen,0,120,7200,,,
+sb01.final_vcd,1e6 cells/mL,unit,,SB-01 viable cell density at transfer,SB-01,cell density,0,15,,,,
+sb01.final_viability,%,unit,,SB-01 viability at transfer,SB-01,viability,0,100,,,,
+sb02.temperature,°C,grid,0.0033333333333333335,SB-02 culture temperature,SB-02,temperature,15,40,7200,,,
+sb02.ph,pH,grid,0.0033333333333333335,SB-02 culture pH,SB-02,ph,6.5,7.5,7200,,,
+sb02.do,%,grid,0.0033333333333333335,SB-02 dissolved oxygen,SB-02,dissolved oxygen,0,120,7200,,,
+sb02.final_vcd,1e6 cells/mL,unit,,SB-02 viable cell density at transfer,SB-02,cell density,0,15,,,,
+sb02.final_viability,%,unit,,SB-02 viability at transfer,SB-02,viability,0,100,,,,
+mp01.osmolality,mOsm/kg,unit,,"Media preparation MP-01 osmolality, each media lot",MP-01,osmolality,250,400,,,,
+mp01.ph,pH,unit,,"Media preparation MP-01 pH, each media lot",MP-01,ph,6.5,7.6,,,,
+cip01.final_rinse_conductivity,µS/cm,unit,,"CIP-01 final rinse conductivity, each cycle",CIP-01,conductivity,0,10,,,,
+cf01.speed,rpm,run,0.016666666666666666,Harvest centrifuge CF-01 bowl speed,CF-01,speed,0,10000,1800,,,
+cf01.vibration,mm/s,run,0.016666666666666666,"Harvest centrifuge CF-01 spindle vibration (velocity, RMS)",CF-01,vibration,0,20,1800,7.1,up,
+cf01.centrate_turbidity,NTU,unit,,"CF-01 centrate turbidity, each harvest",CF-01,turbidity,0,500,,,,
+df01.max_dp,bar,unit,,"Depth filtration DF-01 highest pressure drop, each harvest",DF-01,pressure,0,3,,,,
+ht01.temperature,°C,grid,0.0033333333333333335,Harvest hold tank HT-01 temperature,HT-01,temperature,0,30,7200,,,
+bp01.conductivity,mS/cm,unit,,"Buffer preparation BP-01 conductivity, each buffer lot",BP-01,conductivity,0,200,,,,
+cs01.pressure,bar,run,0.016666666666666666,CS-01 system pressure,CS-01,pressure,0,5,1800,,,
+cs01.uv280,AU,run,0.016666666666666666,CS-01 UV absorbance at 280 nm,CS-01,absorbance,0,3,1800,,,
+cs01.conductivity,mS/cm,run,0.016666666666666666,CS-01 conductivity,CS-01,conductivity,0,200,1800,,,
+cs01.flow,L/h,run,0.016666666666666666,CS-01 flow,CS-01,flow,0,1500,1800,,,
+cs01.step_yield,%,unit,,"Protein A step yield, each cycle",CS-01,yield,50,100,,,,
+cs01.column_dp,bar,unit,,"Protein A column pressure drop at loading flow, each cycle",CS-01,pressure,0,4,,,,
+cs01.resin_cycles,cycles,grid,0.0033333333333333335,Protein A resin cycles since it was packed,CS-01,counter,0,300,,150.0,up,
+vt01.hold_ph,pH,unit,,"Viral inactivation hold pH, each batch",VT-01,ph,3.0,4.5,,,,
+vt01.hold_minutes,min,unit,,"Viral inactivation hold time, each batch",VT-01,time,0,240,,,,
+cs02.pressure,bar,run,0.016666666666666666,CS-02 system pressure,CS-02,pressure,0,5,1800,,,
+cs02.uv280,AU,run,0.016666666666666666,CS-02 UV absorbance at 280 nm,CS-02,absorbance,0,3,1800,,,
+cs02.conductivity,mS/cm,run,0.016666666666666666,CS-02 conductivity,CS-02,conductivity,0,200,1800,,,
+cs02.cex_asymmetry,ratio,unit,,"CEX column peak asymmetry at the pre-use test, each batch",CS-02,asymmetry,0.5,3.0,,1.6,up,
+cs02.cex_dp,bar,unit,,"CEX column pressure drop at the pre-use test, each batch",CS-02,pressure,0,4,,,,
+vf01.throughput,L/m²,unit,,"Virus filter throughput, each batch",VF-01,throughput,0,600,,,,
+vf01.flux_decay,%,unit,,"Virus filter flux decay at the end, each batch",VF-01,decay,0,100,,,,
+uf01.tmp,bar,run,0.016666666666666666,UF/DF transmembrane pressure,UF-01,pressure,0,4,1800,,,
+uf01.permeate_flux,LMH,run,0.016666666666666666,UF/DF permeate flux,UF-01,flux,0,120,1800,,,
+uf01.nwp,LMH/bar,unit,,"UF/DF cassettes' normalised water permeability at the pre-use test, each batch",UF-01,permeability,0,150,,70.0,down,
+fz01.temperature,°C,grid,0.0033333333333333335,Bulk freezer FZ-01 temperature,FZ-01,temperature,-60,0,7200,,,
+fl01.fill_weight,g,unit,,"Vial filler FL-01 fill weight, each vial (checkweigher)",FL-01,weight,9.5,11.0,,,,
+ly01.shelf_temp,°C,run,0.016666666666666666,Lyophiliser LY-01 shelf temperature,LY-01,temperature,-60,50,3600,,,
+ly01.product_temp,°C,run,0.016666666666666666,Lyophiliser LY-01 product temperature (probe vials),LY-01,temperature,-60,50,3600,,,
+ly01.chamber_pressure,µbar,run,0.016666666666666666,Lyophiliser LY-01 chamber pressure (capacitance gauge),LY-01,pressure,0,1500,3600,,,
+ly01.condenser_temp,°C,run,0.016666666666666666,Lyophiliser LY-01 condenser temperature,LY-01,temperature,-90,30,3600,,,
+ly01.leak_rate,µbar·L/s,unit,,"Lyophiliser LY-01 leak rate at the pre-cycle test, each cycle",LY-01,leak rate,0,60,,20.0,up,
+fr01.room_dp,Pa,grid,0.0033333333333333335,Filling room FR-01 pressure difference to the corridor,FR-01,pressure,0,40,7200,,,
+fr01.particles_05,/m³,grid,0.0033333333333333335,Filling room FR-01 particles of 0.5 µm and over,FR-01,particles,0,3520000,,,,
+fr01.temperature,°C,grid,0.0033333333333333335,Filling room FR-01 temperature,FR-01,temperature,15,25,7200,,,
+wfi01.conductivity,µS/cm,grid,0.0033333333333333335,"WFI loop conductivity at 25 °C, return",WFI-01,conductivity,0,5,7200,1.3,up,
+wfi01.toc,ppb,grid,0.0033333333333333335,"WFI loop total organic carbon, return",WFI-01,content,0,1000,7200,,,
+wfi01.loop_temp,°C,grid,0.0033333333333333335,WFI loop temperature,WFI-01,temperature,60,95,7200,,,
+wfi01.return_velocity,m/s,grid,0.0033333333333333335,WFI loop return velocity,WFI-01,velocity,0,3,7200,,,
+csg01.pressure,bar,grid,0.0033333333333333335,Clean steam header pressure,CSG-01,pressure,0,5,7200,,,
+csg01.condensate_conductivity,µS/cm,grid,0.0033333333333333335,Clean steam condensate conductivity,CSG-01,conductivity,0,5,7200,,,
+ahu01.filter_dp,Pa,grid,0.0033333333333333335,AHU-01 final filter pressure drop,AHU-01,pressure,0,800,7200,450.0,up,
+ahu01.supply_temp,°C,grid,0.0033333333333333335,AHU-01 supply air temperature,AHU-01,temperature,10,30,7200,,,
+ahu01.supply_rh,%,grid,0.0033333333333333335,AHU-01 supply air relative humidity,AHU-01,humidity,0,100,7200,,,
+cr01.temperature,°C,grid,0.0033333333333333335,Cold room CR-01 temperature,CR-01,temperature,-5,15,7200,,,
+lab.bulk_hmw,%,lab,,"Drug substance aggregates (SEC-HPLC high molecular weight), each lot",HPLC-01,aggregates,0,10,,,,
+lab.bulk_hcp,ppm,lab,,"Drug substance host cell protein (ELISA), each lot",EL-01,impurity,0,500,,,,
+lab.bulk_endotoxin,EU/mg,lab,,"Drug substance endotoxin, each lot",LAL-01,endotoxin,0,1,,,,
+lab.bulk_concentration,g/L,lab,,"Drug substance concentration (A280), each lot",HPLC-01,concentration,50,150,,,,
+lab.dp_moisture,%,lab,,"Drug product residual moisture (Karl Fischer), each lot",KF-01,content,0,5,,,,
+lab.pa_dbc,g/L,lab,,"Protein A resin dynamic binding capacity, every 25 cycles",HPLC-01,capacity,0,80,,,,
+lab.em_grade_a,CFU,lab,,"Grade A settle plates at the filling needles, each fill",FR-01,microbial count,0,20,,,,
+mes.wb01.downtime,,event,,WB-01 stops from the MES: the reason code,WB-01,,,,,,,downtime
+mes.wb02.downtime,,event,,WB-02 stops from the MES: the reason code,WB-02,,,,,,,downtime
+mes.sb01.downtime,,event,,SB-01 stops from the MES: the reason code,SB-01,,,,,,,downtime
+mes.sb02.downtime,,event,,SB-02 stops from the MES: the reason code,SB-02,,,,,,,downtime
+mes.br01.downtime,,event,,BR-01 stops from the MES: the reason code,BR-01,,,,,,,downtime
+mes.br02.downtime,,event,,BR-02 stops from the MES: the reason code,BR-02,,,,,,,downtime
+mes.br03.downtime,,event,,BR-03 stops from the MES: the reason code,BR-03,,,,,,,downtime
+mes.br04.downtime,,event,,BR-04 stops from the MES: the reason code,BR-04,,,,,,,downtime
+mes.mp01.downtime,,event,,MP-01 stops from the MES: the reason code,MP-01,,,,,,,downtime
+mes.cip01.downtime,,event,,CIP-01 stops from the MES: the reason code,CIP-01,,,,,,,downtime
+mes.cf01.downtime,,event,,CF-01 stops from the MES: the reason code,CF-01,,,,,,,downtime
+mes.df01.downtime,,event,,DF-01 stops from the MES: the reason code,DF-01,,,,,,,downtime
+mes.bp01.downtime,,event,,BP-01 stops from the MES: the reason code,BP-01,,,,,,,downtime
+mes.cs01.downtime,,event,,CS-01 stops from the MES: the reason code,CS-01,,,,,,,downtime
+mes.vt01.downtime,,event,,VT-01 stops from the MES: the reason code,VT-01,,,,,,,downtime
+mes.cs02.downtime,,event,,CS-02 stops from the MES: the reason code,CS-02,,,,,,,downtime
+mes.vf01.downtime,,event,,VF-01 stops from the MES: the reason code,VF-01,,,,,,,downtime
+mes.uf01.downtime,,event,,UF-01 stops from the MES: the reason code,UF-01,,,,,,,downtime
+mes.bf01.downtime,,event,,BF-01 stops from the MES: the reason code,BF-01,,,,,,,downtime
+mes.cip02.downtime,,event,,CIP-02 stops from the MES: the reason code,CIP-02,,,,,,,downtime
+mes.fr01.downtime,,event,,FR-01 stops from the MES: the reason code,FR-01,,,,,,,downtime
+mes.fl01.downtime,,event,,FL-01 stops from the MES: the reason code,FL-01,,,,,,,downtime
+mes.ly01.downtime,,event,,LY-01 stops from the MES: the reason code,LY-01,,,,,,,downtime
+mes.cp01.downtime,,event,,CP-01 stops from the MES: the reason code,CP-01,,,,,,,downtime
+mes.avi01.downtime,,event,,AVI-01 stops from the MES: the reason code,AVI-01,,,,,,,downtime
+mes.wfi01.downtime,,event,,WFI-01 stops from the MES: the reason code,WFI-01,,,,,,,downtime
+mes.br01.scrap,,event,,BR-01 rejects and lost batches from the MES: the code,BR-01,,,,,,,scrap
+mes.br02.scrap,,event,,BR-02 rejects and lost batches from the MES: the code,BR-02,,,,,,,scrap
+mes.br03.scrap,,event,,BR-03 rejects and lost batches from the MES: the code,BR-03,,,,,,,scrap
+mes.br04.scrap,,event,,BR-04 rejects and lost batches from the MES: the code,BR-04,,,,,,,scrap
+mes.bf01.scrap,,event,,BF-01 rejects and lost batches from the MES: the code,BF-01,,,,,,,scrap
+mes.fl01.scrap,,event,,FL-01 rejects and lost batches from the MES: the code,FL-01,,,,,,,scrap
+mes.ly01.scrap,,event,,LY-01 rejects and lost batches from the MES: the code,LY-01,,,,,,,scrap
+mes.avi01.scrap,,event,,AVI-01 rejects and lost batches from the MES: the code,AVI-01,,,,,,,scrap

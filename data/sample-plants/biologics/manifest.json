@@ -1,0 +1,1956 @@
+{
+  "plant": "Brannock Biologics, Carrowmore biologics site (made up)",
+  "from": "2025-10-01T00:00:00+01:00",
+  "to": "2026-10-01T00:00:00+01:00",
+  "seed": "brannock-carrowmore-2026",
+  "committed": {
+    "baseline.md": 1,
+    "batch-records/batches.csv": 82,
+    "batch-records/bulk-lots.csv": 78,
+    "batch-records/fill-lots.csv": 75,
+    "batch-records/media-and-buffers.csv": 156,
+    "batch-records/protein-a-cycles.csv": 243,
+    "batch-records/unit-operations.csv": 624,
+    "calendar/planned-stops.csv": 246,
+    "calendar/shifts.csv": 703,
+    "cmms/work-orders.csv": 374,
+    "copilot/questions.csv": 121,
+    "documents": 39,
+    "ground-truth/episodes.csv": 26,
+    "ground-truth/process-model.json": 13,
+    "ground-truth/quirks.csv": 8,
+    "lab/environmental-monitoring.csv": 75,
+    "lab/release-tests.csv": 382,
+    "lab/resin-binding-capacity.csv": 9,
+    "mes/production.csv": 703,
+    "mes/reason-codes.csv": 31,
+    "mes/scrap.csv": 3869,
+    "mes/stops.csv": 432,
+    "plant/costs.csv": 38,
+    "plant/equipment.csv": 36,
+    "plant/ontology.json": 248,
+    "plant/people.csv": 16,
+    "plant/products.csv": 1,
+    "plant/tags.csv": 175,
+    "qms/capa.csv": 7,
+    "qms/deviations.csv": 155
+  },
+  "generated": {
+    "historian/2025-09/br01.csv.gz": {
+      "rows": 84,
+      "sha256": "75cd0fd4da17e8c70634900b6fa079b8847901cd2b6172165e6556d492c1e355"
+    },
+    "historian/2025-09/br02.csv.gz": {
+      "rows": 84,
+      "sha256": "c78d51479bdcbecd8771255af95277075f68420041d3e5c3536f526757a6f087"
+    },
+    "historian/2025-09/br03.csv.gz": {
+      "rows": 84,
+      "sha256": "ec66e2a6088296cde78846bfcedf4f5d25b05796551ee899c46666f35402bd48"
+    },
+    "historian/2025-09/br04.csv.gz": {
+      "rows": 84,
+      "sha256": "3cbd90f4c8e53e002a4907e7d6867d41e2bab590b280c0fec9853dfe53fe0485"
+    },
+    "historian/2025-09/cold.csv.gz": {
+      "rows": 24,
+      "sha256": "3bb559f8f77ba761b5181331f6ae30dbefc5b532f30c9ac3a5a9703b1432675e"
+    },
+    "historian/2025-09/cs01.csv.gz": {
+      "rows": 12,
+      "sha256": "de303f63d15d18d23e0cae77592f69ab1d4258e7b735a93ec0e211bf28fb1d28"
+    },
+    "historian/2025-09/fr01-particles.csv.gz": {
+      "rows": 12,
+      "sha256": "4245f1fc25829a9ac77a1c0b3d91794cf39534310ca43f8fab387f31f427203b"
+    },
+    "historian/2025-09/sb01.csv.gz": {
+      "rows": 12,
+      "sha256": "daef1fbaf20d5ec4df1ed78a70edd70052fc1ad3b19c576ad302d935de45c0cc"
+    },
+    "historian/2025-09/sb02.csv.gz": {
+      "rows": 12,
+      "sha256": "81be689f7823e989c5c6ee03d8a669619daefa7ae441dfaf86644ea1deac3c87"
+    },
+    "historian/2025-09/site.csv.gz": {
+      "rows": 144,
+      "sha256": "daaaa9a84c9caaae1f189e14b55dc28f232b05fade4e2728dd4ce7a3c865c04f"
+    },
+    "historian/2025-09/wb01.csv.gz": {
+      "rows": 24,
+      "sha256": "e09e67ea3b8450efd9a0b4f3ba879570528dc7a9f278e5bd503f1bac15fd6699"
+    },
+    "historian/2025-09/wb02.csv.gz": {
+      "rows": 24,
+      "sha256": "91f638d7f49a52f6691a53ede6b31e9ede940c7c0adea8cdd85b4d640af78126"
+    },
+    "historian/2025-10/bp01-unit.csv.gz": {
+      "rows": 5,
+      "sha256": "f36d771042bd493f44e98a771b52019468e207794c948a498ca73b86f22b3664"
+    },
+    "historian/2025-10/br01-unit.csv.gz": {
+      "rows": 190,
+      "sha256": "26b416ad1edd77fd727fad25d2bdc97059e8223124aba6f9abdc86b22f026db9"
+    },
+    "historian/2025-10/br01.csv.gz": {
+      "rows": 95776,
+      "sha256": "da71f593105180fa0915668c6ac670bf8e1b93159c26083945e98a4987fa6eb5"
+    },
+    "historian/2025-10/br02-unit.csv.gz": {
+      "rows": 176,
+      "sha256": "e66dd793f439879ef04ee940ff587eb1abcd88fbb9f5a8f55690cc0241e07541"
+    },
+    "historian/2025-10/br02.csv.gz": {
+      "rows": 92652,
+      "sha256": "26ef58a0524c9e8924567e45c1fed52b20e3ea647ee8c9fc08a2919ae5367877"
+    },
+    "historian/2025-10/br03-unit.csv.gz": {
+      "rows": 148,
+      "sha256": "93b65fd86a07eca8411992144037ab3724285f0858d5a985b67a4daca34d6c8a"
+    },
+    "historian/2025-10/br03.csv.gz": {
+      "rows": 88484,
+      "sha256": "d35258c44c88a58b1fafc1978aa94b91ff5550b2e148a1c407692fe3391d33d2"
+    },
+    "historian/2025-10/br04-unit.csv.gz": {
+      "rows": 120,
+      "sha256": "3c7b90cf5671f9451ea74f4217926873b216b5df55cebc8dd857ca0de75cefc0"
+    },
+    "historian/2025-10/br04.csv.gz": {
+      "rows": 84356,
+      "sha256": "8545198c0b8aad0dc9ceae60f0845b4aa36db8264718a507dc6396e18aa202ff"
+    },
+    "historian/2025-10/cf01-run.csv.gz": {
+      "rows": 3600,
+      "sha256": "e59f258e21e9f46b2b4bf725ea7e7870953f6c389a7042f857e1ab9e93548b09"
+    },
+    "historian/2025-10/cf01-unit.csv.gz": {
+      "rows": 5,
+      "sha256": "60c85a35ef2d61781b16952f69e96fb3356934da53063856d66cb4f51ea4e010"
+    },
+    "historian/2025-10/cip01-unit.csv.gz": {
+      "rows": 5,
+      "sha256": "17da6f54b5577b7a1a4dff5a0feaee0abdca03b8f61ecdbf5389a328c82ac6d6"
+    },
+    "historian/2025-10/cold.csv.gz": {
+      "rows": 17856,
+      "sha256": "37fcff3425d0c93da976ffcc82e536e676397e731dc2ab10682850552a23da82"
+    },
+    "historian/2025-10/cs01-run.csv.gz": {
+      "rows": 12600,
+      "sha256": "e3477ae6e2928440ef3aaf4a64af58de6b612a01538b947f923cb9ce45172aaa"
+    },
+    "historian/2025-10/cs01-unit.csv.gz": {
+      "rows": 30,
+      "sha256": "ff78620a806e57d44944da023ec913f78c603550ddd27f0a1e6bfad3666ffec7"
+    },
+    "historian/2025-10/cs01.csv.gz": {
+      "rows": 8928,
+      "sha256": "b1d48da41ac5a31b6ff00786b9402425b8c6f8658ceb2f3b31095840ee772b30"
+    },
+    "historian/2025-10/cs02-run.csv.gz": {
+      "rows": 9108,
+      "sha256": "d426d90847a053eb1b0ebf8c893063550f0129076fcbaf266f2a199454e86df1"
+    },
+    "historian/2025-10/cs02-unit.csv.gz": {
+      "rows": 12,
+      "sha256": "651c465a8d1d2287d807b3bde9e93875666131a871bfebc2a3f3f21739546a3b"
+    },
+    "historian/2025-10/df01-unit.csv.gz": {
+      "rows": 5,
+      "sha256": "38067de149b117efa1255d894bbc18e31e01d39eee0c9c44fdee32b693d404cf"
+    },
+    "historian/2025-10/fl01-unit.csv.gz": {
+      "rows": 17051,
+      "sha256": "af9aede6cf5dee03d16f5fb5b2777553df70730d95058ca851b1ff39e785ca03"
+    },
+    "historian/2025-10/fr01-particles.csv.gz": {
+      "rows": 8928,
+      "sha256": "7ea5545431a7cfd3d11d963085da2129d9034b232a6c7ff0f7102b09d0a7f546"
+    },
+    "historian/2025-10/lab.csv.gz": {
+      "rows": 11,
+      "sha256": "5ece767066e56902fe6a9a85084e6d41d3e1cef39475d506823a3fbd6f2baeee"
+    },
+    "historian/2025-10/ly01-run.csv.gz": {
+      "rows": 32184,
+      "sha256": "1d25991bc85eb9fa7f5f1ca2d5e37404e9e78534288d6e1b35d180bff55f3ef8"
+    },
+    "historian/2025-10/ly01-unit.csv.gz": {
+      "rows": 3,
+      "sha256": "383190fb0a7d47846294c1e1d95d96ab2695d5eb3a3501558ecaac395ec17d1f"
+    },
+    "historian/2025-10/mp01-unit.csv.gz": {
+      "rows": 10,
+      "sha256": "fe4eecedd6bc23957bc44de3e3d0586933fdb9c0041abf3c89e5cdc5d8297692"
+    },
+    "historian/2025-10/sb01-unit.csv.gz": {
+      "rows": 6,
+      "sha256": "02864e97cfdff8bdc9a8912073b67e4ab51961f85196a557810bf4c0984e7102"
+    },
+    "historian/2025-10/sb01.csv.gz": {
+      "rows": 14976,
+      "sha256": "a09a322d624667cf072310904902db66520dafa55ff3d56c80f7d1230b85a059"
+    },
+    "historian/2025-10/sb02-unit.csv.gz": {
+      "rows": 4,
+      "sha256": "48479f7f3d4cd34da8804b3cb0fb67e45e088c3ed3339c0a168020060899fea5"
+    },
+    "historian/2025-10/sb02.csv.gz": {
+      "rows": 12960,
+      "sha256": "67d764f8f06520eeb3e0e7098f49bd1ae1bc3f9608f1212656607f31e4928836"
+    },
+    "historian/2025-10/site.csv.gz": {
+      "rows": 107136,
+      "sha256": "a1538224b7a2a6624b20014c0d1800d8e0d933482068cc38b196642171aa2de5"
+    },
+    "historian/2025-10/uf01-run.csv.gz": {
+      "rows": 3840,
+      "sha256": "c2190dd0a260869b7b9b261bfd080a33d2e6007b4e73cb54caa05a3794243537"
+    },
+    "historian/2025-10/uf01-unit.csv.gz": {
+      "rows": 4,
+      "sha256": "4ae0193e60eded40f8080fad879cad628b1588168826c4c59c5b4d924bacd016"
+    },
+    "historian/2025-10/vf01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "c8353726653c67e48e0fe1dad56303dabe54f9da04cefd52b62abf18a8fa9990"
+    },
+    "historian/2025-10/vt01-unit.csv.gz": {
+      "rows": 10,
+      "sha256": "2d40fd9ba63feb14c2adb309953785591ab24a09aea3971bc3a47a0b615894ec"
+    },
+    "historian/2025-10/wb01.csv.gz": {
+      "rows": 17856,
+      "sha256": "3c88cb8a28b0f83795cef3d4b515615ee889e02a316bdd8d5d61f2f7bc62742e"
+    },
+    "historian/2025-10/wb02.csv.gz": {
+      "rows": 17856,
+      "sha256": "128168b01c2412ded50fb956358ebe1f4a032a7e1301b0695ecbb16f1acd92a4"
+    },
+    "historian/2025-11/bp01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "1b2dd20dcc215e6f6b48c7bfef41bdf00b057997bbeabbc86b868873ecb6d5b3"
+    },
+    "historian/2025-11/br01-unit.csv.gz": {
+      "rows": 190,
+      "sha256": "ba2e55f0e7283a43cd101fe724def89a09601c9c32588f446cef748d2d403460"
+    },
+    "historian/2025-11/br01.csv.gz": {
+      "rows": 93224,
+      "sha256": "bde4b3fc58ea40dac686c5b2e3701ac978fce1a46340bb579c65e32fc75571b2"
+    },
+    "historian/2025-11/br02-unit.csv.gz": {
+      "rows": 183,
+      "sha256": "f71db4c0e3c37ef24f90e407c1674b28738d7f0e1ce265f42bd1e2c9ea69bcbe"
+    },
+    "historian/2025-11/br02.csv.gz": {
+      "rows": 92886,
+      "sha256": "c237c525c44f023e878711df1b171d550f47b422c62643c33cfb4cb2b59efde8"
+    },
+    "historian/2025-11/br03-unit.csv.gz": {
+      "rows": 190,
+      "sha256": "c0aed7c4ef4c4ca6c56dcfb88556fd9bfdb51479773e27e04d212398080d69f7"
+    },
+    "historian/2025-11/br03.csv.gz": {
+      "rows": 93252,
+      "sha256": "0706150f0a2023ee46501ae6491cc18e9e317d33c124a9b5207edb1999fdf83b"
+    },
+    "historian/2025-11/br04-unit.csv.gz": {
+      "rows": 190,
+      "sha256": "f326be355339b1765f5ae90a67ef1723d4133c2ce52101e9c2df712668a1a645"
+    },
+    "historian/2025-11/br04.csv.gz": {
+      "rows": 92956,
+      "sha256": "ae406e1c973d31cbabd80191d684f2fae16d4fcc1c2db7ac6ac77ea8dd11d473"
+    },
+    "historian/2025-11/cf01-run.csv.gz": {
+      "rows": 5780,
+      "sha256": "b03218bfdd5d8637a3a7278948a3376f13eb98dfe12d6fd935a99eff73a87452"
+    },
+    "historian/2025-11/cf01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "7ac6967432dd80c61b64a51c976f2164382ba49dea9dc258540a262354561361"
+    },
+    "historian/2025-11/cip01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "d8cc1899344d13d9b9bb10d5cd80850f4456263c50c975e9df7402bf99e182c4"
+    },
+    "historian/2025-11/cold.csv.gz": {
+      "rows": 17280,
+      "sha256": "28e5098d195f891f0d1d31aa85488c4d140b5c1e2291c0d89610abf32385ddae"
+    },
+    "historian/2025-11/cs01-run.csv.gz": {
+      "rows": 21840,
+      "sha256": "41240ab3fe7f3754238b229e9a805f45813ba5001368a99eba2581c5d5efe0a0"
+    },
+    "historian/2025-11/cs01-unit.csv.gz": {
+      "rows": 52,
+      "sha256": "8414b6dc49384cfca30309dfb22020fbab42611f6a8645ea35331198b3cd4f01"
+    },
+    "historian/2025-11/cs01.csv.gz": {
+      "rows": 8640,
+      "sha256": "a475e5b510c019681cbbcfbe7c835e8b6b49f2385f7e116e22709f308389d829"
+    },
+    "historian/2025-11/cs02-run.csv.gz": {
+      "rows": 14652,
+      "sha256": "7708ef4c94949878f3f77c26035200311c08a2e1e04291c9f8f911fcd5bdea49"
+    },
+    "historian/2025-11/cs02-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "a02de7002231a59894de20cba1b1089d56c4ceb6ef5338915fdf5234eabdbb3a"
+    },
+    "historian/2025-11/df01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "b1b038d562a728cb3b15a4be2dae5a566b1d9e5ecc971e58bd344e0b87b1fa8c"
+    },
+    "historian/2025-11/fl01-unit.csv.gz": {
+      "rows": 40019,
+      "sha256": "3611121e4abeda6458514b27bf1c7f3efa4b17b50c3e6a59807135760cd8d954"
+    },
+    "historian/2025-11/fr01-particles.csv.gz": {
+      "rows": 8640,
+      "sha256": "47e9efbd8e7d83e1f0aeec6a21b32e95843e47a4f41ad5c2c821445e6de99892"
+    },
+    "historian/2025-11/lab.csv.gz": {
+      "rows": 52,
+      "sha256": "43b83cf1e2f0aaafe317aa4778982b927559d0fba96f2e48250b994454977dc6"
+    },
+    "historian/2025-11/ly01-run.csv.gz": {
+      "rows": 116616,
+      "sha256": "c7ff588d75304ff95f72c12a98f2a2bb7096ae99e4c3fce37d1028494a0b560c"
+    },
+    "historian/2025-11/ly01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "18add5746f8f765957678b1feeec4c83b2ec770ff5d7135b6edb7871eefa8b01"
+    },
+    "historian/2025-11/mp01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "cc4c1f656c2c1200b1373f8f2b3687bb3f63ea5f4e4305d299711cf17b2165bf"
+    },
+    "historian/2025-11/sb01-unit.csv.gz": {
+      "rows": 6,
+      "sha256": "9b3672ecb8a1fe098caefb7894a4ba76f7fbb214970c6550bf4fbc359a07565b"
+    },
+    "historian/2025-11/sb01.csv.gz": {
+      "rows": 16732,
+      "sha256": "f165c7c2bb8adfc45c7ede74e84e91bf13dea0aae9ba0d9cfdcd575fac2e9526"
+    },
+    "historian/2025-11/sb02-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "e87b9ff2c4049dbebc87cb9bd64a9fd951d55933656e179c7af05e95b16c6f92"
+    },
+    "historian/2025-11/sb02.csv.gz": {
+      "rows": 16704,
+      "sha256": "6195f090434f924b1832b2a5a1383b76bf8f202bed557506ea17af77fb2f17fe"
+    },
+    "historian/2025-11/site.csv.gz": {
+      "rows": 103680,
+      "sha256": "856fd76e6e01b1749cc6fa855007cd7bbeaefb91862015ec8f48c6180aedb82e"
+    },
+    "historian/2025-11/uf01-run.csv.gz": {
+      "rows": 9264,
+      "sha256": "8401ebba39f346ea9185a0d1c9488b2d0fb9081fbd4a88e5f611cce94800abf7"
+    },
+    "historian/2025-11/uf01-unit.csv.gz": {
+      "rows": 9,
+      "sha256": "67bd4d63f1e856e3814b22eac8e22dc81dd654cc62a2a0a5ab0d347b1f3576da"
+    },
+    "historian/2025-11/vf01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "e564cf59a9ce80c2fedd5d2c39b2c1ef2e49b80a4b9c4b18eab75c96a88e4050"
+    },
+    "historian/2025-11/vt01-unit.csv.gz": {
+      "rows": 14,
+      "sha256": "0e5489dfac9b1813bba744c0fc1be3464f86d6dff5fef4f3bc3077833771601b"
+    },
+    "historian/2025-11/wb01.csv.gz": {
+      "rows": 17280,
+      "sha256": "6765c258930ca250d763bce3cf2ee25403d423096a85e31ca1060a298f52eb45"
+    },
+    "historian/2025-11/wb02.csv.gz": {
+      "rows": 17280,
+      "sha256": "a371240349b8133cdf55a62a859a242318a4d3ce3fb257855024ec04a4d0d4bc"
+    },
+    "historian/2025-12/bp01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "2f3836c136c1cd0b9681d884b77e52c7f2c8b50302c636ad4ef48b6a914821ac"
+    },
+    "historian/2025-12/br01-unit.csv.gz": {
+      "rows": 190,
+      "sha256": "9b98a373a4cdd60795b14fdc1ad7a5d4d1dd7649daf7cda95ffabdcabbfb7994"
+    },
+    "historian/2025-12/br01.csv.gz": {
+      "rows": 95208,
+      "sha256": "d81e9d820e562d8cf98832bed202ef7a14467c45e15b2ff4511f15c21dfeac1e"
+    },
+    "historian/2025-12/br02-unit.csv.gz": {
+      "rows": 183,
+      "sha256": "719fe76c710877cac039bc5af0447288461e0d03774b27b06c76f9fb45febcfc"
+    },
+    "historian/2025-12/br02.csv.gz": {
+      "rows": 94692,
+      "sha256": "7670094a2c82883721b3770be9075f09044808560da792e187e99f6b4dbc285a"
+    },
+    "historian/2025-12/br03-unit.csv.gz": {
+      "rows": 183,
+      "sha256": "d06a56be86e57f9d1986ead6af93f1091c4a71c8195cbd233f36787a94813b20"
+    },
+    "historian/2025-12/br03.csv.gz": {
+      "rows": 94696,
+      "sha256": "bb77216060481402d97e416e199a3aa1d2321311a7bb686ce8a299f322666d63"
+    },
+    "historian/2025-12/br04-unit.csv.gz": {
+      "rows": 183,
+      "sha256": "5c06ed0e5cc4c50cbcd4c56c05fb7419c735d39f167dff915991d655a397f380"
+    },
+    "historian/2025-12/br04.csv.gz": {
+      "rows": 94692,
+      "sha256": "06f0aacdec2aaa68bbd063031c66b1d455de9a004d3b18caea5bc44b60e44981"
+    },
+    "historian/2025-12/cf01-run.csv.gz": {
+      "rows": 5706,
+      "sha256": "5da98cebc6d03eaca2742822a6066a2489f2cec4ec4149a48fa4d276f2017994"
+    },
+    "historian/2025-12/cf01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "69973bebbef8d7c1c08fe94127276d1e1022ddfae5b369fcc46c43c060dde2d3"
+    },
+    "historian/2025-12/cip01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "87abdd1070488a7c8a631872cd7556c2e79ce44e9fe75af315f53c091bfdca73"
+    },
+    "historian/2025-12/cold.csv.gz": {
+      "rows": 17856,
+      "sha256": "af4802c98ab829602bf535dda02b6e44bd532eca20d4e0a6868956c8662a3d89"
+    },
+    "historian/2025-12/cs01-run.csv.gz": {
+      "rows": 18480,
+      "sha256": "33a15e44f484b05a1ba164f504ab8a557aca687d7482205fcc0ec99a6c8fe603"
+    },
+    "historian/2025-12/cs01-unit.csv.gz": {
+      "rows": 44,
+      "sha256": "b1310529af0a4b927cd624e1bef1d80fdd053939381f5234f30cd0ef78a36a05"
+    },
+    "historian/2025-12/cs01.csv.gz": {
+      "rows": 8928,
+      "sha256": "693c1cbbceec2a400c567670431b24ed0a3bf021a27efc5d975a4cc19689b96c"
+    },
+    "historian/2025-12/cs02-run.csv.gz": {
+      "rows": 15840,
+      "sha256": "9cfe404730a52cafc786ff26fae010e83073ad431565bf408cc82ef2cc24f9cc"
+    },
+    "historian/2025-12/cs02-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "a64e0c6b9b45f783891947cff0da89a63b8ea9213b7c09657fdb6a677747925c"
+    },
+    "historian/2025-12/df01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "eb15c8948a9a1315cadd11f3f1795a407be39c6cdcb5ecdd8b2cc82e86f5799b"
+    },
+    "historian/2025-12/fl01-unit.csv.gz": {
+      "rows": 45507,
+      "sha256": "4178d03972dd4288d2d88690c93b8650ec41b7c4006947accdfa0cfaf9b49e52"
+    },
+    "historian/2025-12/fr01-particles.csv.gz": {
+      "rows": 8928,
+      "sha256": "f6285832706541e7f255973f47dab8f0fb7bc33915ac67c32b817617f5613192"
+    },
+    "historian/2025-12/lab.csv.gz": {
+      "rows": 46,
+      "sha256": "55e5634ba4a86a77fb8b623d7fdf123e7c99cdbcf65ceb7c7112b9ec0881b382"
+    },
+    "historian/2025-12/ly01-run.csv.gz": {
+      "rows": 119040,
+      "sha256": "7570e900244e57c2d738b7c8f05dcc39c5ceddbc8f831d7fcad66f246d311149"
+    },
+    "historian/2025-12/ly01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "de26aded6a0b55b114136e4db66693199b8be4af56eaa19a7f489d4b0219d744"
+    },
+    "historian/2025-12/mp01-unit.csv.gz": {
+      "rows": 14,
+      "sha256": "3fb31e88e7cf21878eb856dd6942bb227347cff1b8945548032c43c6cd952fd3"
+    },
+    "historian/2025-12/sb01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "2d327b39112fb7617e66426446b713ee1909f6d002ffbd4897ab4954bc77fc09"
+    },
+    "historian/2025-12/sb01.csv.gz": {
+      "rows": 17940,
+      "sha256": "6cee16836053ee0cff12fe9de147bf71b43b684e81375ff0d6db14fbd380b9cb"
+    },
+    "historian/2025-12/sb02-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "e6685f7803bdfd2ee84fcb134f825f01e05510bbcb684bc41e6c594bcbd504de"
+    },
+    "historian/2025-12/sb02.csv.gz": {
+      "rows": 18264,
+      "sha256": "7aa9f836c3355567ff44552390b471579fbce4c5044ed980787c0e6f86b26563"
+    },
+    "historian/2025-12/site.csv.gz": {
+      "rows": 107136,
+      "sha256": "ccf8aa81ac4fcd23b0d3be01f9d14bdb5ee1b3aeebe626a60ccbbdc9ecd5c7f1"
+    },
+    "historian/2025-12/uf01-run.csv.gz": {
+      "rows": 7680,
+      "sha256": "c432fe710b60c0f51e62f4051657cc34b278bb67fe561341cdae004c5db8478d"
+    },
+    "historian/2025-12/uf01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "03239a6739d33b7ee591c856e77b0c1cc7bf5ed9d0bc30857156d8fa9ac3d361"
+    },
+    "historian/2025-12/vf01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "f685b9a568b6f3a716e0849155a4ee113b3a5fbe599f7d0a40201611f2d15a49"
+    },
+    "historian/2025-12/vt01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "beef8216262dcd0f3bdb0c5cab9955fbe0722532cbc6bad167cb5f56684f1198"
+    },
+    "historian/2025-12/wb01.csv.gz": {
+      "rows": 17856,
+      "sha256": "f2bee40193cb0ab79d240736ccbf93436f73a65c9a8fe786d69698b67e4253c8"
+    },
+    "historian/2025-12/wb02.csv.gz": {
+      "rows": 17856,
+      "sha256": "82a64f94571527a7dd6a07d0a581c00b84862aa0afac6344f6e6cc46ea391f82"
+    },
+    "historian/2026-01/bp01-unit.csv.gz": {
+      "rows": 9,
+      "sha256": "eb51a504c375c3a4c359677549c6ca32946949846d8e5cdf84d40ecbd650a276"
+    },
+    "historian/2026-01/br01-unit.csv.gz": {
+      "rows": 197,
+      "sha256": "b71b60d73c535f33aaa1496939353e5a9aa9f8ce2abdabb9926e3494ee9eff21"
+    },
+    "historian/2026-01/br01.csv.gz": {
+      "rows": 95830,
+      "sha256": "b3600e98b3e5b31718c9a448e27b3712d3324bbafe23bf44e8b08b1507cab03d"
+    },
+    "historian/2026-01/br02-unit.csv.gz": {
+      "rows": 197,
+      "sha256": "560f40e20460f121f91e12f308c591f75a1e9319777d5c45616afca3758ce279"
+    },
+    "historian/2026-01/br02.csv.gz": {
+      "rows": 96216,
+      "sha256": "76a18628c02dedfe5d2aa1493202ad9e342428147972bbbf661738c7d35a202a"
+    },
+    "historian/2026-01/br03-unit.csv.gz": {
+      "rows": 197,
+      "sha256": "15c844ed730105753c46e43af6d624a9ab0bf85ec9dcd93491a86b34c4858972"
+    },
+    "historian/2026-01/br03.csv.gz": {
+      "rows": 96182,
+      "sha256": "e1f84928f0dc8e26e4c70ae55b334fbfbb2e5c72d82d0ee1c299c438622984fb"
+    },
+    "historian/2026-01/br04-unit.csv.gz": {
+      "rows": 197,
+      "sha256": "a9d430781d9c1b7e2cf3ffd28a15ae8457c0f29f72429d1b07e37342c10d7330"
+    },
+    "historian/2026-01/br04.csv.gz": {
+      "rows": 96216,
+      "sha256": "531e57ac7822312190b2f1e8a405994b5bdf54aba7408c192f1afd3a3ee8e323"
+    },
+    "historian/2026-01/cf01-run.csv.gz": {
+      "rows": 5814,
+      "sha256": "16780b01152850a561c6a7e3c85ef63396417b5731dc8aa5c5ad327acbd22cf5"
+    },
+    "historian/2026-01/cf01-unit.csv.gz": {
+      "rows": 9,
+      "sha256": "36b4fdb03fb6c94d3d1b63bf59568d4b6af56dbaa6826734f0fdbeb4119bfe3a"
+    },
+    "historian/2026-01/cip01-unit.csv.gz": {
+      "rows": 9,
+      "sha256": "7663a74b18fd8fb70331dd24eb4ab4c6250fa041b04055e3d11bddc1b295237e"
+    },
+    "historian/2026-01/cold.csv.gz": {
+      "rows": 17856,
+      "sha256": "375e7f3d9d8d24f3cc5c0b5cdb318a2c07d57f82d8d0a59ac9c23b0779e11c26"
+    },
+    "historian/2026-01/cs01-run.csv.gz": {
+      "rows": 24576,
+      "sha256": "b55071567a253a3b33acd1c4995f7e6d4572ec6384d9f8141fa9d7620e86fb4d"
+    },
+    "historian/2026-01/cs01-unit.csv.gz": {
+      "rows": 58,
+      "sha256": "f5f111c1a2c561630069448a53aabeb8ca6503aaa4f63a0a7f7035e4adcc9098"
+    },
+    "historian/2026-01/cs01.csv.gz": {
+      "rows": 8928,
+      "sha256": "9c44ba38879d0ccbff42f122522354754311578d03e768eb2ea91e899385519c"
+    },
+    "historian/2026-01/cs02-run.csv.gz": {
+      "rows": 15840,
+      "sha256": "142d8c2a45c47df9b565d7b06721700a03bae89b81a21dabc7d11cf4844290ae"
+    },
+    "historian/2026-01/cs02-unit.csv.gz": {
+      "rows": 20,
+      "sha256": "d9ef4236d2f06f3ba9eb09e6a7255a3961dca97278199562b8a1e829fb2133d1"
+    },
+    "historian/2026-01/df01-unit.csv.gz": {
+      "rows": 9,
+      "sha256": "85b332e4fcda97314258bdaa6d399d19c1e55eb6d22fd7198cf5b168c4f99f47"
+    },
+    "historian/2026-01/fl01-unit.csv.gz": {
+      "rows": 43400,
+      "sha256": "28e866f722c938d83f485b64fe36b7ecaf61def9bd0b14e356e1b1430482917a"
+    },
+    "historian/2026-01/fr01-particles.csv.gz": {
+      "rows": 8928,
+      "sha256": "387841f72c2eab14cf7abe02f9a254370a474945e69508fd77b0ad534eff7222"
+    },
+    "historian/2026-01/lab.csv.gz": {
+      "rows": 48,
+      "sha256": "cb005df7a20167582276977ff6f003a9ecd3c74a74b9b5ff35164ad375a08cff"
+    },
+    "historian/2026-01/ly01-run.csv.gz": {
+      "rows": 118464,
+      "sha256": "391d021caa5997af80bc0a2abfcc49053b8c064e7b341de74dac325b78b915d8"
+    },
+    "historian/2026-01/ly01-unit.csv.gz": {
+      "rows": 9,
+      "sha256": "06a6f758438e85a084dc646d32a6146ec5ea207f74feb710090941f879cecd7e"
+    },
+    "historian/2026-01/mp01-unit.csv.gz": {
+      "rows": 18,
+      "sha256": "ad33ba9741d331d6db52040f90ec80e5250b9ca90b800997f805b4e16f252436"
+    },
+    "historian/2026-01/sb01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "d8ccf2b647436eb3fda022214f1d97da2d78ed84caa1f32e8857f5dd86680b70"
+    },
+    "historian/2026-01/sb01.csv.gz": {
+      "rows": 17270,
+      "sha256": "b04959177cc4fc40a00ff90b0216ee3463c636c534387c597ebbf769b749a934"
+    },
+    "historian/2026-01/sb02-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "38039913047d96eddc93f1581bda41015d57a415252e87f399af30d13c990cd2"
+    },
+    "historian/2026-01/sb02.csv.gz": {
+      "rows": 16992,
+      "sha256": "861f8b891ae64a81e10be20dc041154c74abd22f26fbe1342372628c17ed3b1a"
+    },
+    "historian/2026-01/site.csv.gz": {
+      "rows": 107136,
+      "sha256": "5f22f8969b487a275370e9966feb0a82a6bf12ae3bc73a61ec4cf7b96dcdde17"
+    },
+    "historian/2026-01/uf01-run.csv.gz": {
+      "rows": 7680,
+      "sha256": "9c250e8c0e7a8eb9cf0798f3a5749c8b2c7251b080bf764a5351e9684678762d"
+    },
+    "historian/2026-01/uf01-unit.csv.gz": {
+      "rows": 9,
+      "sha256": "4ce9410564ecc1fafbfc8fa852745abd9adbcef43b251bd7da58a577a91abe12"
+    },
+    "historian/2026-01/vf01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "12b1b38aba52fe7857f9a29218b9b639b59d241fcf9912f40494588364a585dd"
+    },
+    "historian/2026-01/vt01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "45b3db60a25afb9d26796bcdaf884cbcbb513401cb3cf537cd90403702def9f9"
+    },
+    "historian/2026-01/wb01.csv.gz": {
+      "rows": 17856,
+      "sha256": "cbd402e2b457b553e590d0ff8efd33a4508ded8b8e2bcca5c9c9baa7fb3bc5f5"
+    },
+    "historian/2026-01/wb02.csv.gz": {
+      "rows": 17856,
+      "sha256": "2c701006b468031687b6697de5c8b8ed3931b3820ccb4efcc7c0832f595f63b1"
+    },
+    "historian/2026-02/bp01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "b3eeb72a94535d3087cb18bf5ee524fd21dfb7c4ffb388430ee65c95680496ec"
+    },
+    "historian/2026-02/br01-unit.csv.gz": {
+      "rows": 176,
+      "sha256": "3f22a97812e3fcc28ed5e0db91beed0d55686fe56bd9b003853ff51fa3491f96"
+    },
+    "historian/2026-02/br01.csv.gz": {
+      "rows": 87398,
+      "sha256": "6b717c15714706afc6a299909929706ab3850ad5698ee2dbac176ee8a6a2b386"
+    },
+    "historian/2026-02/br02-unit.csv.gz": {
+      "rows": 169,
+      "sha256": "f9c51c09430e96d0ed62f80adbe7d03928948f7abe27e7a05b7482b6486d5d46"
+    },
+    "historian/2026-02/br02.csv.gz": {
+      "rows": 86706,
+      "sha256": "5a358c3bfe30866a0fe441411d469d5dab4d402b24944856db4aa15c16b5762e"
+    },
+    "historian/2026-02/br03-unit.csv.gz": {
+      "rows": 163,
+      "sha256": "023e3d8858db4bb9c4c57e55dde65f284a13523a3369eca5fa443fafe7b51d13"
+    },
+    "historian/2026-02/br03.csv.gz": {
+      "rows": 86710,
+      "sha256": "c3636ffe92a707a2b652d313ce51c1e70fa82bf56cf67bc2955ea2d084cab051"
+    },
+    "historian/2026-02/br04-unit.csv.gz": {
+      "rows": 165,
+      "sha256": "1069637cc902a20cb6933332222ab30501b3480c1981c5e99050c87368940888"
+    },
+    "historian/2026-02/br04.csv.gz": {
+      "rows": 86680,
+      "sha256": "4456e14bd646c14f70db97715276bf060c215e8f435e31d50f078a6b89355ea2"
+    },
+    "historian/2026-02/cf01-run.csv.gz": {
+      "rows": 5040,
+      "sha256": "fb9b670002e389716c3ce337635bc89a9390d6cb1f2e5e2ab23e395fbab4e656"
+    },
+    "historian/2026-02/cf01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "e0fc1731c73520e53e6cbdad6df7a794255322ab9975b45ed5180ae65f832fc7"
+    },
+    "historian/2026-02/cip01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "89c5628631ae4da999fa446b3ce306287e632b56045cf4503f8f6e9bec4cccf8"
+    },
+    "historian/2026-02/cold.csv.gz": {
+      "rows": 16128,
+      "sha256": "5a682793b81a19a12dc582d236a289dea9dac24aac1994d99ce96a58cd1ad6b9"
+    },
+    "historian/2026-02/cs01-run.csv.gz": {
+      "rows": 18264,
+      "sha256": "f99bde0f3aca5e2d82a4fe092ba7a2a295ae5fd5d92723e10df5938a54fe39db"
+    },
+    "historian/2026-02/cs01-unit.csv.gz": {
+      "rows": 44,
+      "sha256": "78a6557f0dadc4740f1d293d6f86bb565811ef2867fcbfcc3fa85675ab83dac8"
+    },
+    "historian/2026-02/cs01.csv.gz": {
+      "rows": 8064,
+      "sha256": "89c041ded82e32cbaaf9c96fdd4bc18181947162c6c7a3df40ed1e420248f57d"
+    },
+    "historian/2026-02/cs02-run.csv.gz": {
+      "rows": 15840,
+      "sha256": "978978de573b55fb7065029f04424911cc2f1bc425fe3c3972a88efc0cb634c4"
+    },
+    "historian/2026-02/cs02-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "8163fc23c926b171bd177a411d8c1c1a839c6bfb3945f337a941d68f5902fd54"
+    },
+    "historian/2026-02/df01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "0dc6828ee4898dfe8c07f848878500d9d2e1ad871f3be10fa9d86204c5cb9911"
+    },
+    "historian/2026-02/fl01-unit.csv.gz": {
+      "rows": 42873,
+      "sha256": "7a05643e8c9d9e358187cb167f39e70992c9486f392f64fb50180e3e6c282a26"
+    },
+    "historian/2026-02/fr01-particles.csv.gz": {
+      "rows": 8064,
+      "sha256": "7fd50ad7a853f1365788525e69e2ad6615a1718cbce154168e2020223b71600a"
+    },
+    "historian/2026-02/lab.csv.gz": {
+      "rows": 48,
+      "sha256": "5cba99b8a4275c3064de7ad3dc372a8ebba8e5d8c8e5f2e24f5be7549f089003"
+    },
+    "historian/2026-02/ly01-run.csv.gz": {
+      "rows": 108864,
+      "sha256": "f7fc151b8569a68ff6d083110c2b37e1ed4c452cc448b4c06cb71ef8b744b73e"
+    },
+    "historian/2026-02/ly01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "5616bd0bc12053f0c01d8abfc286c980f04120f33fd71f50521e4fab1c961895"
+    },
+    "historian/2026-02/mp01-unit.csv.gz": {
+      "rows": 14,
+      "sha256": "4752176f3c9a1a35f1b86e67d87c10f994c2e5ef3cf0f2edd950276f40e42e1a"
+    },
+    "historian/2026-02/sb01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "17317f28070f17fca5ec6e73358a018ece51601170af8aee96f31d20f9270688"
+    },
+    "historian/2026-02/sb01.csv.gz": {
+      "rows": 14688,
+      "sha256": "d93b8cf238d38d8abb24b6086246dc6980bd295ad90882791f8e9b1186d776e8"
+    },
+    "historian/2026-02/sb02-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "55f5dea2f2e57e108394e351d9aca8987d39acfde0f7e36df058fe666e264027"
+    },
+    "historian/2026-02/sb02.csv.gz": {
+      "rows": 16128,
+      "sha256": "b848b531439e3bed69a2f66ad53f104136324f28ab7335d3d5885999aea255d0"
+    },
+    "historian/2026-02/site.csv.gz": {
+      "rows": 96768,
+      "sha256": "b595249ce75cd35fd8b4cf2d2d89892579fb23cc826421db3561c60e85752c46"
+    },
+    "historian/2026-02/uf01-run.csv.gz": {
+      "rows": 7680,
+      "sha256": "b0b94615c1a5e7212266cbf68342d58e3fcd871325cdaba6d456c200893ac633"
+    },
+    "historian/2026-02/uf01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "6d0ce6fe7d922770cdbfc38eccfb012db1ecdb8f8b8457c40be9f86f4c829920"
+    },
+    "historian/2026-02/vf01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "d7a3a98bc9c5bbf059b1c2cf947f4d1960ad172bb7c04f425b614137b2093b89"
+    },
+    "historian/2026-02/vt01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "5285fb614af7059d2064be0c0e7cac318c911456d6358ffdf7bec304b90fbb91"
+    },
+    "historian/2026-02/wb01.csv.gz": {
+      "rows": 16128,
+      "sha256": "25765a480995ae330dc61c59d290a0b1e23f0734f4b3a5db28ceeb73c3011347"
+    },
+    "historian/2026-02/wb02.csv.gz": {
+      "rows": 16128,
+      "sha256": "766f9e2cef8e6211a049725c4c3c7e28ae9603e7f012630d471427f95f745daa"
+    },
+    "historian/2026-03/bp01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "c7095d50399e180d6cf62efdceef610a69fe0c6e51b44ea08a1fd777d3f44ac4"
+    },
+    "historian/2026-03/br01-unit.csv.gz": {
+      "rows": 183,
+      "sha256": "1bd0421450db9f005bd3ab87173fa18ea6bbe4f6bc1176a014bd11d4895266a8"
+    },
+    "historian/2026-03/br01.csv.gz": {
+      "rows": 94896,
+      "sha256": "4123e744d6853201944027ea76ce2731e89c92ef5f851e80fac2f5acf73e67d3"
+    },
+    "historian/2026-03/br02-unit.csv.gz": {
+      "rows": 190,
+      "sha256": "9344566ded9710103f47b78bdf05e7f4dce5ce7a32d5536c06f0e7f4d5821d47"
+    },
+    "historian/2026-03/br02.csv.gz": {
+      "rows": 94720,
+      "sha256": "bdab0e879ee1adf79bc56e08598dca4a7522d126ad9fa621781743c747ebd0cf"
+    },
+    "historian/2026-03/br03-unit.csv.gz": {
+      "rows": 190,
+      "sha256": "fbbfadde34ed50c67db2b4e1c3a13d6a9814c3c006f105bbd9de828cf6fcba63"
+    },
+    "historian/2026-03/br03.csv.gz": {
+      "rows": 94670,
+      "sha256": "53cfddf163875a3e9a926f882ee7a0f09d9b48471cc76502ec1d9dfd2e81164a"
+    },
+    "historian/2026-03/br04-unit.csv.gz": {
+      "rows": 190,
+      "sha256": "4855cf2b637e96cd447dc2edefe4b93886638cecafaecdb55d0ac08448c24eab"
+    },
+    "historian/2026-03/br04.csv.gz": {
+      "rows": 94692,
+      "sha256": "19e8fdcc79ee43dd03b70e43f0257ebf355bad322c0c24063d8fa4cbcbe04d81"
+    },
+    "historian/2026-03/cf01-run.csv.gz": {
+      "rows": 5780,
+      "sha256": "4cfcad7299d38a1bbaec81e3dfbbf58d67df6a82a26840da09ed323e277af796"
+    },
+    "historian/2026-03/cf01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "369151c0c8134dd7fc00a4b7744ead3dee229f62b4b573f619b6780793faa187"
+    },
+    "historian/2026-03/cip01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "28b936f406589f7f86821fdcb32fef2bb163c29df4135bcc08c463c65fc83f68"
+    },
+    "historian/2026-03/cold.csv.gz": {
+      "rows": 17856,
+      "sha256": "9e79cb7b1935f6020fec191f48463b3089d403d01268568b2f0e2286dd758bc2"
+    },
+    "historian/2026-03/cs01-run.csv.gz": {
+      "rows": 20160,
+      "sha256": "1ad31527cef117c23f17d790c7c3da9204fac3f33732d025a5b86a5f3125e113"
+    },
+    "historian/2026-03/cs01-unit.csv.gz": {
+      "rows": 48,
+      "sha256": "7c765e74b259c589acbb070bd1407b3c166c79437110d44aa58aa2b77765d752"
+    },
+    "historian/2026-03/cs01.csv.gz": {
+      "rows": 8928,
+      "sha256": "a05023703334daa03d8f2c6dc16b15ce46f6e4714ce1f62777ee740f0f69ae36"
+    },
+    "historian/2026-03/cs02-run.csv.gz": {
+      "rows": 15840,
+      "sha256": "76c2e8a764d16bd66c0763e62482b65ae35c1414978d998e05b4a92192fd77ff"
+    },
+    "historian/2026-03/cs02-unit.csv.gz": {
+      "rows": 20,
+      "sha256": "6f568982c38decd1e29999ba8e7164b5825bd72f950092cbb52cde6c6ea690e3"
+    },
+    "historian/2026-03/df01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "dfaf930d0aa0a09fe0436bfa03479fc3d63c6aed1fc91c8087f566cc38e5d616"
+    },
+    "historian/2026-03/fl01-unit.csv.gz": {
+      "rows": 43692,
+      "sha256": "9a201cc3f185366487907e046f6c684a2d9d30c46797a7576e42197f3c0d2f9b"
+    },
+    "historian/2026-03/fr01-particles.csv.gz": {
+      "rows": 8928,
+      "sha256": "760460505a76091c12af968a590302da4824cebd10c169707a9412f859e62f37"
+    },
+    "historian/2026-03/lab.csv.gz": {
+      "rows": 48,
+      "sha256": "978dc843548b979eb612c1e389c7f91e1bb484867fb89490b30ccb84a6756ffa"
+    },
+    "historian/2026-03/ly01-run.csv.gz": {
+      "rows": 118324,
+      "sha256": "2491f349332dc1ee0ef3f33b1b0a1a7518008cc259de1a5744acd2dfddff2633"
+    },
+    "historian/2026-03/ly01-unit.csv.gz": {
+      "rows": 9,
+      "sha256": "846695ce12b9d7507ec492d86d0b1d6d61e4cc3b1efcb72da921bbe0acee9f01"
+    },
+    "historian/2026-03/mp01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "7173e2028418bcb98d4b05be8574af55d7d9da0ea5143477e267433b3a93ae94"
+    },
+    "historian/2026-03/sb01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "4aa859e95aaf4b5bdec8d52ea20a38b10457c788f5e482c6e88f6c61c8456741"
+    },
+    "historian/2026-03/sb01.csv.gz": {
+      "rows": 18054,
+      "sha256": "666f450b34d16b74dfcdbeb25d73f0ddb33ef49efea964967319e088175473c7"
+    },
+    "historian/2026-03/sb02-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "462a5d616a5e9054a7d2b4f9725542df18fa077e8a4ca07ae99e7db695eb9384"
+    },
+    "historian/2026-03/sb02.csv.gz": {
+      "rows": 18320,
+      "sha256": "480ae1d1fe90db51ba35ddd2d3d5e12b4f1c1e816b184055854fbc306bc3af64"
+    },
+    "historian/2026-03/site.csv.gz": {
+      "rows": 107136,
+      "sha256": "49385521f16e721dec3360a3252dc9d443228aa5f7eaadf3668894665de642b3"
+    },
+    "historian/2026-03/uf01-run.csv.gz": {
+      "rows": 7680,
+      "sha256": "47ee832a8abd97dd22cb539d39a5fc5d86b9e53748655b297eb1535554b740f4"
+    },
+    "historian/2026-03/uf01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "d81747083322abcd32bc26bfbe997b9071a6c56213032642a4442d0a1875379d"
+    },
+    "historian/2026-03/vf01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "689d390ea33df12f9300fb3522b837b3d6a67686f07113dba5245451e3ab21c9"
+    },
+    "historian/2026-03/vt01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "d7042093eb8304795640e78f4a1c1c0f63058eaa38c7651ec98db5be56b660b9"
+    },
+    "historian/2026-03/wb01.csv.gz": {
+      "rows": 17856,
+      "sha256": "ba232c7718289e575564ef45e813e99752b7ac566e26beeda72ab64ae099a7e2"
+    },
+    "historian/2026-03/wb02.csv.gz": {
+      "rows": 17856,
+      "sha256": "409e3957ffce1d770cad7940fc95eb4718d91644a20402c4ff2ea3bbcdde1b17"
+    },
+    "historian/2026-04/bp01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "82f6703e2ff6b5e294fb056cb71521ab92c634b7ab91b7e6d9409208e5a1c52d"
+    },
+    "historian/2026-04/br01-unit.csv.gz": {
+      "rows": 190,
+      "sha256": "a4e20ffbe245e3c6497544a9d7b8e86cf830d08a4e06da3bdc5a7f307a0f591b"
+    },
+    "historian/2026-04/br01.csv.gz": {
+      "rows": 93000,
+      "sha256": "b7ba6ccd1075f087652ab0d473b8de229fb94d8130cb648c699d62481fd0fe76"
+    },
+    "historian/2026-04/br02-unit.csv.gz": {
+      "rows": 183,
+      "sha256": "1376541a8a75a6e4245e1f1cdefa87cb167d6255c8f47626a965dac6a246458a"
+    },
+    "historian/2026-04/br02.csv.gz": {
+      "rows": 93004,
+      "sha256": "6a5abcfd7d594ef0f2b1bd4333c80a3354b215c9a852a8d24d6cc5e0efec1b77"
+    },
+    "historian/2026-04/br03-unit.csv.gz": {
+      "rows": 183,
+      "sha256": "10ab8c19213b4fa4a87ada3d41fb1b9696278abcdfd710bded6bd4e7ab1a5ba6"
+    },
+    "historian/2026-04/br03.csv.gz": {
+      "rows": 93048,
+      "sha256": "7d86e0c8c4f9a200eba4f79b34afd1c35fbb026e6601c0772c164b4e497748d8"
+    },
+    "historian/2026-04/br04-unit.csv.gz": {
+      "rows": 184,
+      "sha256": "e07f6a8f71ff615ffedd1120f44c55afd158dbdebd73b9795425cc6fbd950c12"
+    },
+    "historian/2026-04/br04.csv.gz": {
+      "rows": 93030,
+      "sha256": "cc5df7142fbd091de570c6d42a30db1ebc861f8e78638c3bbf6e25e7c928fdd0"
+    },
+    "historian/2026-04/cf01-run.csv.gz": {
+      "rows": 5760,
+      "sha256": "570f8fbc4216b0a83ae89d79750624b1f7c1c66e80590e02a9c87dbabceb41d2"
+    },
+    "historian/2026-04/cf01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "c780cb42db0d68dddf892027e929aaa63858a073c4bb8f240b11183ced0275c2"
+    },
+    "historian/2026-04/cip01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "0837ad3199e81a4418355ecedb5be2c308bb58d80d73af186d4210f6483d6fa7"
+    },
+    "historian/2026-04/cold.csv.gz": {
+      "rows": 17280,
+      "sha256": "3252c14c104be1e49dc85ae0937bd2ad1addc27f54a7dc39de2e0bbd1d258b51"
+    },
+    "historian/2026-04/cs01-run.csv.gz": {
+      "rows": 19320,
+      "sha256": "fece1241dd86cbf01d407bde18046ab427f4020049374530459cfb0bec13e1d7"
+    },
+    "historian/2026-04/cs01-unit.csv.gz": {
+      "rows": 46,
+      "sha256": "aa315a7c50ccf960ed727b44c8c7e6ac992d1114a108cebd23be3791cb1c2c6d"
+    },
+    "historian/2026-04/cs01.csv.gz": {
+      "rows": 7992,
+      "sha256": "c45c80407ab17b625bfa0bfd94c6d9de671264a3631a75f19a14133f90a1bfa8"
+    },
+    "historian/2026-04/cs02-run.csv.gz": {
+      "rows": 13860,
+      "sha256": "06b1b30abc6d135a721f3f9dca0b2ea3b5ca4b863d95f2da26505df271dad582"
+    },
+    "historian/2026-04/cs02-unit.csv.gz": {
+      "rows": 14,
+      "sha256": "dcad695c7df0ba0c92cc900736f9a7f56e9eb54323131dcd579f2ece0cdc2b5a"
+    },
+    "historian/2026-04/df01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "42b0d46bd5e971cba49653d5680509163e6e165124537e49d80cbaef87d888cb"
+    },
+    "historian/2026-04/fl01-unit.csv.gz": {
+      "rows": 41565,
+      "sha256": "a8c467f2599a63f4957052680c1a6b8b7f8702f1e9fdf0fafdd2e8c2ab8e7b5c"
+    },
+    "historian/2026-04/fr01-particles.csv.gz": {
+      "rows": 8640,
+      "sha256": "5e73753f2f7baf0a4aeb2c080b4281b095c1ee8f73ccbc18d5d6b7879cf8899d"
+    },
+    "historian/2026-04/lab.csv.gz": {
+      "rows": 49,
+      "sha256": "793951cc6927d1b603d3402470c2d18b1fec6a7b6c14c8f02d1c75101b44afd3"
+    },
+    "historian/2026-04/ly01-run.csv.gz": {
+      "rows": 115628,
+      "sha256": "431f469be2b310378a2da1249e0addde57c8486947e75054eff151838cbde64f"
+    },
+    "historian/2026-04/ly01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "628c290a1dc226d0c186e118ad5ce6c58b2d9635e7340b93054cef98895deac8"
+    },
+    "historian/2026-04/mp01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "f9ed0d031cdfe4d641f1a338a766b7c9222394d58dd714e32d8f4c4f11b7e1cb"
+    },
+    "historian/2026-04/sb01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "2b2b20f49c96bb94e996f4abf118b6237bf38cbbb46aec685f9dde04b0895342"
+    },
+    "historian/2026-04/sb01.csv.gz": {
+      "rows": 16704,
+      "sha256": "0ff715706b4527d8fe7e9387a0a50f3aefd560139711c6c251f7e5e69794f815"
+    },
+    "historian/2026-04/sb02-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "f7b902c2714d21ccebd26d4d05a43087b19424ce1d3d3a0f52047e09a59cb5d4"
+    },
+    "historian/2026-04/sb02.csv.gz": {
+      "rows": 16704,
+      "sha256": "c0010b67922b0470d6f5911df847a5992a3cf6208437602910193146d862b84c"
+    },
+    "historian/2026-04/site.csv.gz": {
+      "rows": 103680,
+      "sha256": "fe2b7896d6b6fb9fb91960af6b559d5b48eb8422305f3ff54d81020bc4265444"
+    },
+    "historian/2026-04/uf01-run.csv.gz": {
+      "rows": 6720,
+      "sha256": "02183adb973985103e3039c1a201ee881d20040f69806b14538d7d5459925a96"
+    },
+    "historian/2026-04/uf01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "cef106bfe36979b3b42d7833323e00a56bb4d2a5f43aa445650873caf98d13ac"
+    },
+    "historian/2026-04/vf01-unit.csv.gz": {
+      "rows": 14,
+      "sha256": "2aee8c701918c36323531f9f6aabad48b0549d45658ca4377a78bece738b2f58"
+    },
+    "historian/2026-04/vt01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "115cbaf826f2ed02fbec312dd1be77848b0019a4824b5e04a28c4a9fa2f7ce61"
+    },
+    "historian/2026-04/wb01.csv.gz": {
+      "rows": 17280,
+      "sha256": "521607c949d698e0197575103c6e3cc03c6480f7043366785fb75954f6607281"
+    },
+    "historian/2026-04/wb02.csv.gz": {
+      "rows": 17280,
+      "sha256": "ce4c7035e61e54e7fa0603fa625cc1752f618365437e56d103fc5007cafa464f"
+    },
+    "historian/2026-05/bp01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "4b057e9744f3cb70805aaad8257f9bdb5c0388771798262edddd441dad4bfd39"
+    },
+    "historian/2026-05/br01-unit.csv.gz": {
+      "rows": 190,
+      "sha256": "430fa192cb7bb5488c5a3850466180c384767448559797aa88048fab981b6f6b"
+    },
+    "historian/2026-05/br01.csv.gz": {
+      "rows": 96184,
+      "sha256": "65220e35c42557294ee612bfe302ee8fc17cef79aa06a0b2b2c2aed53ab6b424"
+    },
+    "historian/2026-05/br02-unit.csv.gz": {
+      "rows": 197,
+      "sha256": "e07f99abb49edb6b496e05c899ac3bacbd8fa9206d534693dde0e01a7505af26"
+    },
+    "historian/2026-05/br02.csv.gz": {
+      "rows": 96182,
+      "sha256": "9ca7f013cd2d68d2b1b5f48c741ecd2110cdc4d77967213fe3e12e5f84f0743f"
+    },
+    "historian/2026-05/br03-unit.csv.gz": {
+      "rows": 197,
+      "sha256": "9632aaeaedf1a3999ded6a016193873315e0672a2f7f2bf47f44b3441b9447ce"
+    },
+    "historian/2026-05/br03.csv.gz": {
+      "rows": 96190,
+      "sha256": "e5e656ea9575d895de3af71a3471e68775bb68a3be094668f01ffecf23bd6ba5"
+    },
+    "historian/2026-05/br04-unit.csv.gz": {
+      "rows": 196,
+      "sha256": "0e996778a8d68d9d9b46a4181878ed7a1df5ba71fa668dab4ce0e47a1c02a178"
+    },
+    "historian/2026-05/br04.csv.gz": {
+      "rows": 96186,
+      "sha256": "23145bbfe942eac43e091b84bf8c2274c81a877e5126f6ddbc37c2c065e70b13"
+    },
+    "historian/2026-05/cf01-run.csv.gz": {
+      "rows": 5760,
+      "sha256": "1c33454bf7b4a2f3beaa1eba12f455ebdd1e6bbf920a3da689652cd8646181a0"
+    },
+    "historian/2026-05/cf01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "87b10e60e32ac04a0496665639bde5c2f69d731c5d1a6bb4c062002f89dc9ac8"
+    },
+    "historian/2026-05/cip01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "263216173377dd042eb0792065d04ad8bd8acfcd6704cbe9fd487f04b4db858b"
+    },
+    "historian/2026-05/cold.csv.gz": {
+      "rows": 17856,
+      "sha256": "b2211abf84efa399276ddc1f3e2af3d159a83caaa5fec09fe8c39994134c91ba"
+    },
+    "historian/2026-05/cs01-run.csv.gz": {
+      "rows": 20160,
+      "sha256": "a51f2f08add7e32d663e7593a98516faeb10e4d6fa8c9b4a33a85b6f7afeee5e"
+    },
+    "historian/2026-05/cs01-unit.csv.gz": {
+      "rows": 48,
+      "sha256": "f193c01873d17148f04a3ca4da1c0936b513cfcbef0967a190cb9bd55b72923b"
+    },
+    "historian/2026-05/cs01.csv.gz": {
+      "rows": 8928,
+      "sha256": "00caaf36faca08a976e09e9a64cb78d64ae6adbeb877fa745859f902986960d2"
+    },
+    "historian/2026-05/cs02-run.csv.gz": {
+      "rows": 15840,
+      "sha256": "760449b3519fe49977c9fa5580fa381bfc7de9eeeb6b05910a505ee5a92ac92d"
+    },
+    "historian/2026-05/cs02-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "f58d7b011f3bc8f6b59460736275f30b97f0fbabaf1a5a3133e8dc6dc0262bb4"
+    },
+    "historian/2026-05/df01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "5ed9b70a6d5c8ca9f5fdc792661811484540e2629d9cf51af28883b5c4158c03"
+    },
+    "historian/2026-05/fl01-unit.csv.gz": {
+      "rows": 47531,
+      "sha256": "aac2624d77d4c934166105e3388bbf6b9eb99e33cc38186192eeb10fbcd6e357"
+    },
+    "historian/2026-05/fr01-particles.csv.gz": {
+      "rows": 8928,
+      "sha256": "a2fc5bc23458a80d50e34755c27891d5b9600573ac62b6c9b6edac1522c8bf99"
+    },
+    "historian/2026-05/lab.csv.gz": {
+      "rows": 45,
+      "sha256": "50e097d8eee4a6110b4fe444f92ed9661ef7cf4ad4647ee4918538f2779c680f"
+    },
+    "historian/2026-05/ly01-run.csv.gz": {
+      "rows": 119060,
+      "sha256": "e4cb6e78e5ead49a134df2a9def508e70fad4e5c8d4867823c0e346693c092f6"
+    },
+    "historian/2026-05/ly01-unit.csv.gz": {
+      "rows": 9,
+      "sha256": "afb7a027a254ee4adefdbe2cfed00a53781c2c10a0d194545d9532b062b4f8d8"
+    },
+    "historian/2026-05/mp01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "8b25f2ec813e982aa265e278b6d134bd0c9bdff6135f740b89755d20e2b0daeb"
+    },
+    "historian/2026-05/sb01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "d2bb95ca78eda33720dd34b8bd165d30652d631efe431e6acecc4da0526c4dff"
+    },
+    "historian/2026-05/sb01.csv.gz": {
+      "rows": 16992,
+      "sha256": "d30bf8defd3a62ef5baab075764925cf62a0e89280a845ca1110d62cd933468a"
+    },
+    "historian/2026-05/sb02-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "e8fd7394b33ed72fe8fb2822e9ab6508fda24db5d062f321f8617280775a3cf6"
+    },
+    "historian/2026-05/sb02.csv.gz": {
+      "rows": 16992,
+      "sha256": "e07683b6bbb27b72d08d68e6753aca9e4c6f7a757e65aeecd03ceeeb8e198a2c"
+    },
+    "historian/2026-05/site.csv.gz": {
+      "rows": 107136,
+      "sha256": "f97db1dc8b43045d78d2ffbfc3c735bc010afd6a3245d054a0d6c4d30b6b8803"
+    },
+    "historian/2026-05/uf01-run.csv.gz": {
+      "rows": 8328,
+      "sha256": "aab539d3e2b51ff7f31e8e7a68510329428b76be1d841ff3e6ced4964e2f2f87"
+    },
+    "historian/2026-05/uf01-unit.csv.gz": {
+      "rows": 10,
+      "sha256": "4a3f9436f888011d58069b83cde7c699bbce974086c416046ceeec52fe3edd1b"
+    },
+    "historian/2026-05/vf01-unit.csv.gz": {
+      "rows": 18,
+      "sha256": "8a99205e86bc8f05e1017911e5655ba7a79cd924898310c9979bd38b3c1366ea"
+    },
+    "historian/2026-05/vt01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "5e3c20504ed70b97275e2109232f79d5eabe20fa9d991e98b42e7e9da1ec2dfc"
+    },
+    "historian/2026-05/wb01.csv.gz": {
+      "rows": 17856,
+      "sha256": "2324387be430f33657bcf903fb53e123179f48e96f43f535929f758c7c1f2973"
+    },
+    "historian/2026-05/wb02.csv.gz": {
+      "rows": 17856,
+      "sha256": "e61917c3eaa4c5ac3bfdfb6f97ee15efc3afc96bcc8af5a99a9b39a5d363a13a"
+    },
+    "historian/2026-06/bp01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "ce4b7c0c009c33f466dbef015d70d4cff9ce9693a6589174de1a3cb25d4593c6"
+    },
+    "historian/2026-06/br01-unit.csv.gz": {
+      "rows": 183,
+      "sha256": "665f4ab7c1680fafe06cc530636379e6948dbcf7ff0a52459caf14e9c56f50ec"
+    },
+    "historian/2026-06/br01.csv.gz": {
+      "rows": 91524,
+      "sha256": "48b8d651dd0483f7cc6c01a00695ede80867a5e7dc52b5f596c6ea40dd35e806"
+    },
+    "historian/2026-06/br02-unit.csv.gz": {
+      "rows": 169,
+      "sha256": "e351ff94f53e0eccbb97fe81ca7e77d2e9c45af7f9fc1060e85aabab1c97287d"
+    },
+    "historian/2026-06/br02.csv.gz": {
+      "rows": 90536,
+      "sha256": "964cf7c6aaf9a65c9447237dba5ed74643ddcfa9583036829bf0fbfa1094d99e"
+    },
+    "historian/2026-06/br03-unit.csv.gz": {
+      "rows": 171,
+      "sha256": "95feb616686960d5de3282ea6e1cb55fecce113d93ad845bd6a68383f4fc85da"
+    },
+    "historian/2026-06/br03.csv.gz": {
+      "rows": 91530,
+      "sha256": "b4a1471cb437fce88d4f6d84834dded7ded6a008ab88c24fcbcffa910e712e41"
+    },
+    "historian/2026-06/br04-unit.csv.gz": {
+      "rows": 184,
+      "sha256": "46ca3d751b25f30d3957a948d6d29e7ad88cc5e765d7583097e4e7cca0276906"
+    },
+    "historian/2026-06/br04.csv.gz": {
+      "rows": 92342,
+      "sha256": "b2343950ad86023276222129bd382538dbe7672250a791cc93457c9c1ff03bac"
+    },
+    "historian/2026-06/cf01-run.csv.gz": {
+      "rows": 5780,
+      "sha256": "0b046f72355e7bb37f54dae55c2ce677d87df64b0f5b6b908767fb237741654e"
+    },
+    "historian/2026-06/cf01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "a2dfea66f5b9381f3f86b9f6b0117ddaac15de5b6da3b99adb4e877bd9d4eebc"
+    },
+    "historian/2026-06/cip01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "87d4b365b80c3a6e46bd32a0a8b810e797dab0daab0abc9454a4ff437e4082be"
+    },
+    "historian/2026-06/cold.csv.gz": {
+      "rows": 17280,
+      "sha256": "92aa1aac4f6e98465cee66e8b21d11c2a34c30dee7a92ac211fbcdc842fec902"
+    },
+    "historian/2026-06/cs01-run.csv.gz": {
+      "rows": 20160,
+      "sha256": "28f4d1d9720589cb9819f3786c8095952c03e2737ecf185fd3d243684cf58663"
+    },
+    "historian/2026-06/cs01-unit.csv.gz": {
+      "rows": 48,
+      "sha256": "4514bb9b8c98054086583f01472dfe0dc2f390508fffffdcfbcf9bfce50794a1"
+    },
+    "historian/2026-06/cs01.csv.gz": {
+      "rows": 8640,
+      "sha256": "4b28e0dfa8c7aeb867f1b1a4388d3db0a7d6588a52ac01ae8d1aec0dbb7f5f84"
+    },
+    "historian/2026-06/cs02-run.csv.gz": {
+      "rows": 15840,
+      "sha256": "abcdb5aa0f99005f96ff6d3d38f40c22879363cf994fdb2c175221698aab6e9c"
+    },
+    "historian/2026-06/cs02-unit.csv.gz": {
+      "rows": 18,
+      "sha256": "629434c1aa7dd5e1a5c9474e9e0f8d6b50f61ed15f6d8626262402073eadd99b"
+    },
+    "historian/2026-06/df01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "60951dfe78674badf77d8c45166383f9395ac63d608f44e26a853c8443e22b87"
+    },
+    "historian/2026-06/fl01-unit.csv.gz": {
+      "rows": 43992,
+      "sha256": "458add4521257b2904d1e7d8447a50ac41a0680d943be2ff3ce84cfb398a0c8d"
+    },
+    "historian/2026-06/fr01-particles.csv.gz": {
+      "rows": 8640,
+      "sha256": "cd312bfdc098b87ff479a2590c02ccee48aef1f165cd22e300b6a076b57b581f"
+    },
+    "historian/2026-06/lab.csv.gz": {
+      "rows": 48,
+      "sha256": "6b982e2af7d84b9055b38ca981a08f30203be47e16981bd3772fd3de72b227f1"
+    },
+    "historian/2026-06/ly01-run.csv.gz": {
+      "rows": 119020,
+      "sha256": "d7f0bdc92eaa8a0ff52ee403f829f64f31f7cf21c833a2369bd5364f70e2ec1e"
+    },
+    "historian/2026-06/ly01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "db47e902e7a8bee9534f666296c23a07ba17365af31c21e2d7980b4f1c3ffb96"
+    },
+    "historian/2026-06/mp01-unit.csv.gz": {
+      "rows": 14,
+      "sha256": "06424dff2395944e498c8e075223fff3737f019c1fd6977df7d55b560ba76248"
+    },
+    "historian/2026-06/sb01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "a4802668e9c424a4ccc35781a0a65802ed0d52bf9a61a6c91e92e67002659ef1"
+    },
+    "historian/2026-06/sb01.csv.gz": {
+      "rows": 18436,
+      "sha256": "69029c908d834825fd3c8a478d42728460def4f248e8ade193af94d71cfafa23"
+    },
+    "historian/2026-06/sb02-unit.csv.gz": {
+      "rows": 6,
+      "sha256": "04627efa9ec1a207a37319f19fff1b1aa17c182f458b24ec20ad031dbc1c2a2b"
+    },
+    "historian/2026-06/sb02.csv.gz": {
+      "rows": 17874,
+      "sha256": "0fe044e0284e9ad5d377c76692b3d60775ffa07fa4aba46be63e67191e884914"
+    },
+    "historian/2026-06/site.csv.gz": {
+      "rows": 103680,
+      "sha256": "cecef72b6f87cd12cc3abeb685f488a1cf8bef509cea0fcfe69b5682c2cf51f8"
+    },
+    "historian/2026-06/uf01-run.csv.gz": {
+      "rows": 7844,
+      "sha256": "eec8d15434534327b221b75b27ab872b7c188932eeec2a1d08acf558fd8f52f6"
+    },
+    "historian/2026-06/uf01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "5d429343cd4e1b2910ea097f03b915abdbbe8c4251484133719617f7005dceab"
+    },
+    "historian/2026-06/vf01-unit.csv.gz": {
+      "rows": 14,
+      "sha256": "6996d83719d302ed02cee12901c13b0436e2ec003541bc6065f184c4ec7e9390"
+    },
+    "historian/2026-06/vt01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "e29ebb91ce5e787fdc3a7055ad413d6f665681f8ffbfad8a95c318c983d8cbb2"
+    },
+    "historian/2026-06/wb01.csv.gz": {
+      "rows": 17280,
+      "sha256": "2b331ac55e7b24f1283143c3e16fa99ab7af2d4bb18e5d0b174ad62e2df2cdbf"
+    },
+    "historian/2026-06/wb02.csv.gz": {
+      "rows": 17280,
+      "sha256": "10cccb877ba56ecc5388b35d35289692aa1cb11fc38801082c879d09c5bfc588"
+    },
+    "historian/2026-07/bp01-unit.csv.gz": {
+      "rows": 6,
+      "sha256": "60162e67c7d567e150231a2bcfbe05fa824f7b24bd8210452b28b9cff2bed996"
+    },
+    "historian/2026-07/br01-unit.csv.gz": {
+      "rows": 123,
+      "sha256": "768234da07484c9b44bbe825dc67b8c90b67f3ba2b585b860122c5297de602d5"
+    },
+    "historian/2026-07/br01.csv.gz": {
+      "rows": 83778,
+      "sha256": "32e988bdd84a9a4cad1caceb00e06d46d83258c91e3a2960995c07f5568ade81"
+    },
+    "historian/2026-07/br02-unit.csv.gz": {
+      "rows": 158,
+      "sha256": "78cab25d8624f24ea245a024598084d8b0fcaae1cde6b488e1c3c3827d6cc00a"
+    },
+    "historian/2026-07/br02.csv.gz": {
+      "rows": 88900,
+      "sha256": "59e6f4b0ba33cb89d74159208f88fd2d851afebc3dc407ae05f9f10d1895aa08"
+    },
+    "historian/2026-07/br03-unit.csv.gz": {
+      "rows": 89,
+      "sha256": "d6fb08878671776dd40181e2db4b1a6250ceb40fdeddaa5523536abb64e860e5"
+    },
+    "historian/2026-07/br03.csv.gz": {
+      "rows": 77016,
+      "sha256": "50fbae43ecd407685152a3d189f7b43ec357bd382ed571e3916101c99b39b3eb"
+    },
+    "historian/2026-07/br04-unit.csv.gz": {
+      "rows": 95,
+      "sha256": "7eec16bb7ca5bc707c3b56e1ee6c736c840d702b0a438d6605ecccdfb92b93f1"
+    },
+    "historian/2026-07/br04.csv.gz": {
+      "rows": 78864,
+      "sha256": "7126938a2e764dce192c41bd1a58e7c25403fa9177b6033e1bca993e7471a703"
+    },
+    "historian/2026-07/cf01-run.csv.gz": {
+      "rows": 4320,
+      "sha256": "94ae8773b6d682169ead9b21f1f5fe27681331158b6cf6c588ad958fba2846c5"
+    },
+    "historian/2026-07/cf01-unit.csv.gz": {
+      "rows": 6,
+      "sha256": "edec5d91e0cc48fc228863537e509e2679082916f9a85d42bc96f71a409ca665"
+    },
+    "historian/2026-07/cip01-unit.csv.gz": {
+      "rows": 3,
+      "sha256": "a93915f213069bfc99470fd9c69abd2bceae807d3f3bb2d06020ea15fffe5586"
+    },
+    "historian/2026-07/cold.csv.gz": {
+      "rows": 17856,
+      "sha256": "f5eb2af0b19fbecf0c67621928628d8a8e23c5bd885bea0ec091032c0fb86062"
+    },
+    "historian/2026-07/cs01-run.csv.gz": {
+      "rows": 15120,
+      "sha256": "ab2079733d99536b8f6bb828de8d4272f3e5dce06b9844f5c63724b3e8eb1d8e"
+    },
+    "historian/2026-07/cs01-unit.csv.gz": {
+      "rows": 36,
+      "sha256": "8c73234b24b2509d8cd03f640eda2f1be8b7aabfc96765abe11fe470cbe8434c"
+    },
+    "historian/2026-07/cs01.csv.gz": {
+      "rows": 8928,
+      "sha256": "11133b2d7d7d81c6be979de6902b8170d3466231bfb1c08ece48e953c206a73f"
+    },
+    "historian/2026-07/cs02-run.csv.gz": {
+      "rows": 11880,
+      "sha256": "fa2332345d586980bdd7ad232c2efdb0f3db58abba9280b35521161e33d6fb18"
+    },
+    "historian/2026-07/cs02-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "7913df0b35f484b0669b3b2c675d451d3333ead00086264257b2bb66ae3ed260"
+    },
+    "historian/2026-07/df01-unit.csv.gz": {
+      "rows": 6,
+      "sha256": "97060c686587bc3bebaed56322fcbe8a2cce9b00dad6dd0eb986bd6c67953dd6"
+    },
+    "historian/2026-07/fl01-unit.csv.gz": {
+      "rows": 37104,
+      "sha256": "7538843f25abdd2815640ea374d2eddc34ecf3e36a45177964d8c8a46690c077"
+    },
+    "historian/2026-07/fr01-particles.csv.gz": {
+      "rows": 8928,
+      "sha256": "2769f9914d7d1e1f56bf63f061f77291f64d27130e4f68802dfc281c08b67c9f"
+    },
+    "historian/2026-07/lab.csv.gz": {
+      "rows": 48,
+      "sha256": "2d260a33baac890a46392cffba95947e4253d7e85cc6c3a0ab1cdc4c3be433a8"
+    },
+    "historian/2026-07/ly01-run.csv.gz": {
+      "rows": 104160,
+      "sha256": "9f1ac0510a8592f9b725340fcb6a06b5b0bb04507451a4be5c8780acbb0f6d3d"
+    },
+    "historian/2026-07/ly01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "b108b6f3c6a0e613148e09e43a4b6101edd8ca498e3d5fa9c5691cf6457f617c"
+    },
+    "historian/2026-07/mp01-unit.csv.gz": {
+      "rows": 6,
+      "sha256": "5fa0f029917e2bd1dc27a2c79c9043eca8f87dea59d5831e55d74fd687a21439"
+    },
+    "historian/2026-07/sb01-unit.csv.gz": {
+      "rows": 2,
+      "sha256": "3aa722d14a0bf369daafb7d1a8b80fcf986d5deef7dcf36fe549dc504d24307f"
+    },
+    "historian/2026-07/sb01.csv.gz": {
+      "rows": 10944,
+      "sha256": "5e62f63ffe0c727fcb73ad7270a274544a57d2e655ab40450831fba944e2058e"
+    },
+    "historian/2026-07/sb02-unit.csv.gz": {
+      "rows": 4,
+      "sha256": "de729b9996743d592b588423a8737211df335b0d0a418023e9c7713a84058b70"
+    },
+    "historian/2026-07/sb02.csv.gz": {
+      "rows": 11486,
+      "sha256": "b2de47c6c52bcc357ace4496e0990080eb2b52673b439904bb733d055818f066"
+    },
+    "historian/2026-07/site.csv.gz": {
+      "rows": 107136,
+      "sha256": "7412b205d2ed8cdd48ac6d3c7312e0594270dba41f69b8526bc3d8c8db4d88a1"
+    },
+    "historian/2026-07/uf01-run.csv.gz": {
+      "rows": 6720,
+      "sha256": "73d0591085eb8c41e78defe73e195df8a1e75609ad580cbfe3ea9cec7101d1e4"
+    },
+    "historian/2026-07/uf01-unit.csv.gz": {
+      "rows": 7,
+      "sha256": "1b8bb89eafd65b771786cca9cf587dec5019df57a6493d5896c37c0ba429f908"
+    },
+    "historian/2026-07/vf01-unit.csv.gz": {
+      "rows": 14,
+      "sha256": "8a38cd2daf70c87031d3c6baadb85e048eb698c1e2d761f3d5ee29458e02b9fc"
+    },
+    "historian/2026-07/vt01-unit.csv.gz": {
+      "rows": 12,
+      "sha256": "71aa05888e4be7d5c2961bf613a843a5a0b848c95be4ef82c37dbc605925aead"
+    },
+    "historian/2026-07/wb01.csv.gz": {
+      "rows": 17856,
+      "sha256": "e6c687f9bfcac5ec063a2ea517a6d2aabe7c2b77026fbeba85ed20461a6851bf"
+    },
+    "historian/2026-07/wb02.csv.gz": {
+      "rows": 17856,
+      "sha256": "74ce433a2be18f3c68159f067d399f7bc19211b0a0be8127101d910803cece58"
+    },
+    "historian/2026-08/br01.csv.gz": {
+      "rows": 62496,
+      "sha256": "3885995b3136bb71afa7788d2e89de33645ee6a69951e593ddb902f0d7dc22e5"
+    },
+    "historian/2026-08/br02.csv.gz": {
+      "rows": 62496,
+      "sha256": "93955f8a14b5056f201f7a74408912808d569cc18389dd74a907fa273dff2b0f"
+    },
+    "historian/2026-08/br03.csv.gz": {
+      "rows": 62496,
+      "sha256": "08d6070a8f860f7d211a43c004c33deb47d0f45a2136062ca40be600a77bec92"
+    },
+    "historian/2026-08/br04.csv.gz": {
+      "rows": 62496,
+      "sha256": "2168cc8e0b8bb42d66305045113c77f3bd82931783d73b20675356148d81bdef"
+    },
+    "historian/2026-08/cold.csv.gz": {
+      "rows": 17856,
+      "sha256": "9f5a63e327fe209166dd1ed97baf85bcae6a915abd39497ddc6c0efd0ddef2e7"
+    },
+    "historian/2026-08/cs01.csv.gz": {
+      "rows": 8928,
+      "sha256": "a365d114c25797b2b88d2fa59afcc83508c91f74176672fd304cd2469ed67f5f"
+    },
+    "historian/2026-08/fl01-unit.csv.gz": {
+      "rows": 10409,
+      "sha256": "4fe7a9d4d0df3c9a027cdd29054c350c754b13ba03db129841960188d813d6ee"
+    },
+    "historian/2026-08/fr01-particles.csv.gz": {
+      "rows": 8928,
+      "sha256": "5ee970a710336f073d4d66946a492496d7782c09d455efab1b18a1d063e81b37"
+    },
+    "historian/2026-08/lab.csv.gz": {
+      "rows": 9,
+      "sha256": "7b3c40e0e15e9b789026dfc46a9860f00eb081138178e7d0b091441cdb1d7613"
+    },
+    "historian/2026-08/ly01-run.csv.gz": {
+      "rows": 29760,
+      "sha256": "44158897d64d073dac517687412fce4159168c74bc79316577f3db1248f5edb4"
+    },
+    "historian/2026-08/ly01-unit.csv.gz": {
+      "rows": 2,
+      "sha256": "e7a3c072c503600bf5fdf29b76a6d1b8959776898b3ace57ef358bfdda6e16a5"
+    },
+    "historian/2026-08/sb01.csv.gz": {
+      "rows": 9820,
+      "sha256": "aa7f2a822aa98abf11192edf3f7bc95a181b33bc53db587b9da3d04e75557e44"
+    },
+    "historian/2026-08/sb02.csv.gz": {
+      "rows": 8928,
+      "sha256": "c270ae22923c45db021462d78d9c45e347d71416c617530bdbc45f9a6d16ea45"
+    },
+    "historian/2026-08/site.csv.gz": {
+      "rows": 107136,
+      "sha256": "7d8e4de7d2f3aab4d898c705a390655c3cb3736825c593880f794eea050bcb55"
+    },
+    "historian/2026-08/wb01.csv.gz": {
+      "rows": 17856,
+      "sha256": "2a2dc1c46c266edd59b1169c879f4f46c49b8f655485455d7057c55c4e73285d"
+    },
+    "historian/2026-08/wb02.csv.gz": {
+      "rows": 17856,
+      "sha256": "ef9a94de7a547eab0e41e360ee68e50948a2da1ed79c5ef4579406b432b1a2ce"
+    },
+    "historian/2026-09/bp01-unit.csv.gz": {
+      "rows": 4,
+      "sha256": "bc972b8fc7594fdeccf00fd87f1f4a01cc3d0b93ddd577d61723a3a53442f11c"
+    },
+    "historian/2026-09/br01-unit.csv.gz": {
+      "rows": 155,
+      "sha256": "2632e12e23b803be69deca9b75a7a3beaa91f5dea9598e5e03bbd3fd84206b58"
+    },
+    "historian/2026-09/br01.csv.gz": {
+      "rows": 87524,
+      "sha256": "e2b12168230c0465cda0c08011e1ed6fcbb183d5791d4828688df5f6b2547184"
+    },
+    "historian/2026-09/br02-unit.csv.gz": {
+      "rows": 127,
+      "sha256": "982fcc9c3a6cce744175cf979bde7d05f2ff4249a416eaeab5376396d2861424"
+    },
+    "historian/2026-09/br02.csv.gz": {
+      "rows": 84110,
+      "sha256": "d50b41dba2df8c7afae1eed3b89a423eb410561b82aea2a04c62b0355e729978"
+    },
+    "historian/2026-09/br03-unit.csv.gz": {
+      "rows": 183,
+      "sha256": "39bb7556e3678e9c772c898871c2dc1fd1b3f91ae0bf935e543acc829d6d01cf"
+    },
+    "historian/2026-09/br03.csv.gz": {
+      "rows": 92234,
+      "sha256": "b3158a753ff2de531dd3cbff872f9811ca2e50367f82a2edbf41e258043db019"
+    },
+    "historian/2026-09/br04-unit.csv.gz": {
+      "rows": 141,
+      "sha256": "91206eaa3e56a967102509437a64eb7b395f81a17669fab2f2b62cfcd5b67216"
+    },
+    "historian/2026-09/br04.csv.gz": {
+      "rows": 85616,
+      "sha256": "160c747df019b2078f2bb7fa82a7b7a63380319851d29c1dd1e1e3f6059e2449"
+    },
+    "historian/2026-09/cf01-run.csv.gz": {
+      "rows": 2880,
+      "sha256": "481051dc69f0599920d31e17744a32ffe624c5454c311686cfecef46c66c89c3"
+    },
+    "historian/2026-09/cf01-unit.csv.gz": {
+      "rows": 4,
+      "sha256": "17125a14a3c68e030e81126ca3ebbb7f1f7556d1a2d840c978cc9a26a655b8f4"
+    },
+    "historian/2026-09/cip01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "1c70fcd3d8abdc9d898609405941badc0f0663b36d5dca6ea74f1fbd4691a1b6"
+    },
+    "historian/2026-09/cold.csv.gz": {
+      "rows": 17256,
+      "sha256": "835b3187033f55b7a8171b3358b0c5bea17eea60797daea0bbce5e9409e753d2"
+    },
+    "historian/2026-09/cs01-run.csv.gz": {
+      "rows": 10920,
+      "sha256": "c39fa606cae9cc82f92df20a0bbf39dea5b07b8cdf35a03237df7d376db67fbc"
+    },
+    "historian/2026-09/cs01-unit.csv.gz": {
+      "rows": 26,
+      "sha256": "708e7834671bee99e23d04ed5477db0994de1e789281d00fdabae56d4fff91aa"
+    },
+    "historian/2026-09/cs01.csv.gz": {
+      "rows": 8628,
+      "sha256": "2c965de43c2fcd5ab6c92c8f7be01edfd6b42ada7c5ee18558339e5ec30f209c"
+    },
+    "historian/2026-09/cs02-run.csv.gz": {
+      "rows": 7920,
+      "sha256": "f833c0baf0114e934b257211654072596bcd4555c049ed6cdc7e7f687cccd357"
+    },
+    "historian/2026-09/cs02-unit.csv.gz": {
+      "rows": 10,
+      "sha256": "3752d307b83eed6e8d134730aa1fc6e4ca1af1a32f82c6dcde1f9ffc35a5e2e6"
+    },
+    "historian/2026-09/df01-unit.csv.gz": {
+      "rows": 4,
+      "sha256": "a9fb7186c1f330b485ba21568a7761812f804e44908be80acd62ae29b8794291"
+    },
+    "historian/2026-09/fl01-unit.csv.gz": {
+      "rows": 5579,
+      "sha256": "5e1ba969ef472fc7b3d80521cdf7b8c0f95700cc258f2da04274ff51ecc60f92"
+    },
+    "historian/2026-09/fr01-particles.csv.gz": {
+      "rows": 8628,
+      "sha256": "7b377dc088d55e6de8f88b22b53a983fad82a680db1ad0837c1f9e95dd2f6190"
+    },
+    "historian/2026-09/lab.csv.gz": {
+      "rows": 14,
+      "sha256": "1eb0071913de31f068220d263f7d7cb9fec9d74d40a10c04b4b0ab69aedc381c"
+    },
+    "historian/2026-09/ly01-run.csv.gz": {
+      "rows": 14880,
+      "sha256": "c8b8a03b116bea620447c96da140bbb855677c6bfe6304cda7eacfe5f90cac53"
+    },
+    "historian/2026-09/ly01-unit.csv.gz": {
+      "rows": 3,
+      "sha256": "76b1745be4d29e09578e35c3702d322de9792b618878ffa38da33419ed768241"
+    },
+    "historian/2026-09/mp01-unit.csv.gz": {
+      "rows": 16,
+      "sha256": "1711171d7e265143a15b566faa7593452eda5b90de1fb517b8d19a060167f770"
+    },
+    "historian/2026-09/sb01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "423d084c82edb4224ccb566708c38ba338899eb3193f1d62084d770f64ca608e"
+    },
+    "historian/2026-09/sb01.csv.gz": {
+      "rows": 15970,
+      "sha256": "e22bbb30a9f93fdf30861545c0748de3ac18a0fa867449b5e5f86b5cd723aa71"
+    },
+    "historian/2026-09/sb02-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "b36459739e5086b92e08de84a17b188c96bbce4262127a4b337ec059ecf664cc"
+    },
+    "historian/2026-09/sb02.csv.gz": {
+      "rows": 16692,
+      "sha256": "f00501f1229b11e9612c1eb90f22ff2bad83e454b0dc06b84818bed412a52e19"
+    },
+    "historian/2026-09/site.csv.gz": {
+      "rows": 103536,
+      "sha256": "21c66b1db5221b8a03cfecb38ff6294e22c470b245a9af94397dcf382b896579"
+    },
+    "historian/2026-09/uf01-run.csv.gz": {
+      "rows": 3840,
+      "sha256": "a739ad9407efa139eb1bf4b49794d860ecbea34ecdbc9d4bf3eb101e4c91ae5e"
+    },
+    "historian/2026-09/uf01-unit.csv.gz": {
+      "rows": 4,
+      "sha256": "59821f264b245b17aef8b09171204c7f4133dfcf738748e1a03078a87cf9c8b1"
+    },
+    "historian/2026-09/vf01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "4956d305e52e7451e139b06fab1df6b3011997b48adb0cdf48b64a288665df56"
+    },
+    "historian/2026-09/vt01-unit.csv.gz": {
+      "rows": 8,
+      "sha256": "77f211e93a2183f892351a72603eb9b5df045acbbae6b584c13375449d861458"
+    },
+    "historian/2026-09/wb01.csv.gz": {
+      "rows": 17256,
+      "sha256": "00683654ffa3e4878603da861834edf69a792c896318c7a14d42a517e53595d7"
+    },
+    "historian/2026-09/wb02.csv.gz": {
+      "rows": 17256,
+      "sha256": "847d16066d6723f5f82794c033f352d6b253f6adcc4a2c78f0ef7be4455be2c2"
+    },
+    "tables/vials-2025-10.csv.gz": {
+      "rows": 17051,
+      "sha256": "2f0be4ff449b923b1c78814dec56bc0fd3e20cda22390d176906e9481caf0d57"
+    },
+    "tables/vials-2025-11.csv.gz": {
+      "rows": 40003,
+      "sha256": "55c3844382d5a391878b8c2afe01fe6daf42414138f00c1a6cbede5b196c3fe1"
+    },
+    "tables/vials-2025-12.csv.gz": {
+      "rows": 45507,
+      "sha256": "5a0ca29befe227a5ea5a0ebd6d5206f04fc2784a9928bf55da073e8907c7ab4a"
+    },
+    "tables/vials-2026-01.csv.gz": {
+      "rows": 43400,
+      "sha256": "7f795b249157d70bf50c8f4c58994f0020dd4d77570c45ca8f9409e6e0f81157"
+    },
+    "tables/vials-2026-02.csv.gz": {
+      "rows": 42873,
+      "sha256": "0cc5caf5ac68630ec78520aa4109f22afe4949ec298f296f2cb3a3724b9fb695"
+    },
+    "tables/vials-2026-03.csv.gz": {
+      "rows": 43692,
+      "sha256": "35c062e1edfab484e817d01e298a194aa9d9035b8e03d015592f1897d1c5ab70"
+    },
+    "tables/vials-2026-04.csv.gz": {
+      "rows": 41565,
+      "sha256": "01f01386e321abd343e1a61d22534bf39519a3b960d66fa6b7f1d3ec84fd72a1"
+    },
+    "tables/vials-2026-05.csv.gz": {
+      "rows": 47531,
+      "sha256": "7048aa3ea60c9b84f4521ace837598bf67950ee11edbe8411c2b8c2880aae4e7"
+    },
+    "tables/vials-2026-06.csv.gz": {
+      "rows": 43992,
+      "sha256": "f9df902fdedf595681fb522cd2e5a257412692dee58ab44113d70b46e592647c"
+    },
+    "tables/vials-2026-07.csv.gz": {
+      "rows": 37072,
+      "sha256": "3ac7641e34fde450f198c2d28fb05e93ea51805bbe0940807cc372f7d6521d66"
+    },
+    "tables/vials-2026-08.csv.gz": {
+      "rows": 10409,
+      "sha256": "71762ca2280fb3acdfda4822c820db83feccf52d181a4a14352d73b097a70b3b"
+    },
+    "tables/vials-2026-09.csv.gz": {
+      "rows": 5579,
+      "sha256": "4993c1864df06b75d6d8e428d1d77f777206f9e8519a1b82a24bd8fe36a2c4ec"
+    }
+  },
+  "tables": {
+    "generated/tables/vials-2025-10.csv.gz": {
+      "name": "Vials 2025-10",
+      "description": "Every BRN-217 vial filled in 2025-10: its genealogy (fill lot, bulk lot, batch, reactor), its needle, fill weight and place in the lyophiliser, the cycle's leak rate and pressure, and its inspection",
+      "text": [
+        "vial_id",
+        "fill_lot",
+        "bulk_lot",
+        "batch",
+        "reactor",
+        "filled",
+        "result",
+        "reject"
+      ]
+    },
+    "generated/tables/vials-2025-11.csv.gz": {
+      "name": "Vials 2025-11",
+      "description": "Every BRN-217 vial filled in 2025-11: its genealogy (fill lot, bulk lot, batch, reactor), its needle, fill weight and place in the lyophiliser, the cycle's leak rate and pressure, and its inspection",
+      "text": [
+        "vial_id",
+        "fill_lot",
+        "bulk_lot",
+        "batch",
+        "reactor",
+        "filled",
+        "result",
+        "reject"
+      ]
+    },
+    "generated/tables/vials-2025-12.csv.gz": {
+      "name": "Vials 2025-12",
+      "description": "Every BRN-217 vial filled in 2025-12: its genealogy (fill lot, bulk lot, batch, reactor), its needle, fill weight and place in the lyophiliser, the cycle's leak rate and pressure, and its inspection",
+      "text": [
+        "vial_id",
+        "fill_lot",
+        "bulk_lot",
+        "batch",
+        "reactor",
+        "filled",
+        "result",
+        "reject"
+      ]
+    },
+    "generated/tables/vials-2026-01.csv.gz": {
+      "name": "Vials 2026-01",
+      "description": "Every BRN-217 vial filled in 2026-01: its genealogy (fill lot, bulk lot, batch, reactor), its needle, fill weight and place in the lyophiliser, the cycle's leak rate and pressure, and its inspection",
+      "text": [
+        "vial_id",
+        "fill_lot",
+        "bulk_lot",
+        "batch",
+        "reactor",
+        "filled",
+        "result",
+        "reject"
+      ]
+    },
+    "generated/tables/vials-2026-02.csv.gz": {
+      "name": "Vials 2026-02",
+      "description": "Every BRN-217 vial filled in 2026-02: its genealogy (fill lot, bulk lot, batch, reactor), its needle, fill weight and place in the lyophiliser, the cycle's leak rate and pressure, and its inspection",
+      "text": [
+        "vial_id",
+        "fill_lot",
+        "bulk_lot",
+        "batch",
+        "reactor",
+        "filled",
+        "result",
+        "reject"
+      ]
+    },
+    "generated/tables/vials-2026-03.csv.gz": {
+      "name": "Vials 2026-03",
+      "description": "Every BRN-217 vial filled in 2026-03: its genealogy (fill lot, bulk lot, batch, reactor), its needle, fill weight and place in the lyophiliser, the cycle's leak rate and pressure, and its inspection",
+      "text": [
+        "vial_id",
+        "fill_lot",
+        "bulk_lot",
+        "batch",
+        "reactor",
+        "filled",
+        "result",
+        "reject"
+      ]
+    },
+    "generated/tables/vials-2026-04.csv.gz": {
+      "name": "Vials 2026-04",
+      "description": "Every BRN-217 vial filled in 2026-04: its genealogy (fill lot, bulk lot, batch, reactor), its needle, fill weight and place in the lyophiliser, the cycle's leak rate and pressure, and its inspection",
+      "text": [
+        "vial_id",
+        "fill_lot",
+        "bulk_lot",
+        "batch",
+        "reactor",
+        "filled",
+        "result",
+        "reject"
+      ]
+    },
+    "generated/tables/vials-2026-05.csv.gz": {
+      "name": "Vials 2026-05",
+      "description": "Every BRN-217 vial filled in 2026-05: its genealogy (fill lot, bulk lot, batch, reactor), its needle, fill weight and place in the lyophiliser, the cycle's leak rate and pressure, and its inspection",
+      "text": [
+        "vial_id",
+        "fill_lot",
+        "bulk_lot",
+        "batch",
+        "reactor",
+        "filled",
+        "result",
+        "reject"
+      ]
+    },
+    "generated/tables/vials-2026-06.csv.gz": {
+      "name": "Vials 2026-06",
+      "description": "Every BRN-217 vial filled in 2026-06: its genealogy (fill lot, bulk lot, batch, reactor), its needle, fill weight and place in the lyophiliser, the cycle's leak rate and pressure, and its inspection",
+      "text": [
+        "vial_id",
+        "fill_lot",
+        "bulk_lot",
+        "batch",
+        "reactor",
+        "filled",
+        "result",
+        "reject"
+      ]
+    },
+    "generated/tables/vials-2026-07.csv.gz": {
+      "name": "Vials 2026-07",
+      "description": "Every BRN-217 vial filled in 2026-07: its genealogy (fill lot, bulk lot, batch, reactor), its needle, fill weight and place in the lyophiliser, the cycle's leak rate and pressure, and its inspection",
+      "text": [
+        "vial_id",
+        "fill_lot",
+        "bulk_lot",
+        "batch",
+        "reactor",
+        "filled",
+        "result",
+        "reject"
+      ]
+    },
+    "generated/tables/vials-2026-08.csv.gz": {
+      "name": "Vials 2026-08",
+      "description": "Every BRN-217 vial filled in 2026-08: its genealogy (fill lot, bulk lot, batch, reactor), its needle, fill weight and place in the lyophiliser, the cycle's leak rate and pressure, and its inspection",
+      "text": [
+        "vial_id",
+        "fill_lot",
+        "bulk_lot",
+        "batch",
+        "reactor",
+        "filled",
+        "result",
+        "reject"
+      ]
+    },
+    "generated/tables/vials-2026-09.csv.gz": {
+      "name": "Vials 2026-09",
+      "description": "Every BRN-217 vial filled in 2026-09: its genealogy (fill lot, bulk lot, batch, reactor), its needle, fill weight and place in the lyophiliser, the cycle's leak rate and pressure, and its inspection",
+      "text": [
+        "vial_id",
+        "fill_lot",
+        "bulk_lot",
+        "batch",
+        "reactor",
+        "filled",
+        "result",
+        "reject"
+      ]
+    }
+  },
+  "batches": 82,
+  "vials": 418674
+}

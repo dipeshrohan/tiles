@@ -1,0 +1,39 @@
+item,of,value,unit
+downtime,WB-01,150.0,EUR/h
+downtime,WB-02,150.0,EUR/h
+downtime,SB-01,400.0,EUR/h
+downtime,SB-02,400.0,EUR/h
+downtime,BR-01,2500.0,EUR/h
+downtime,BR-02,2500.0,EUR/h
+downtime,BR-03,2500.0,EUR/h
+downtime,BR-04,2500.0,EUR/h
+downtime,MP-01,300.0,EUR/h
+downtime,CIP-01,600.0,EUR/h
+downtime,CF-01,1200.0,EUR/h
+downtime,DF-01,300.0,EUR/h
+downtime,BP-01,300.0,EUR/h
+downtime,CS-01,1500.0,EUR/h
+downtime,VT-01,200.0,EUR/h
+downtime,CS-02,1200.0,EUR/h
+downtime,VF-01,600.0,EUR/h
+downtime,UF-01,900.0,EUR/h
+downtime,BF-01,300.0,EUR/h
+downtime,CIP-02,400.0,EUR/h
+downtime,FL-01,1800.0,EUR/h
+downtime,LY-01,3200.0,EUR/h
+downtime,CP-01,600.0,EUR/h
+downtime,AVI-01,800.0,EUR/h
+downtime,WFI-01,1500.0,EUR/h
+scrap,lost batch,850000.0,EUR/batch
+scrap,drug substance,120.0,EUR/g
+scrap,vial,140.0,EUR/vial
+labour,maintenance technician,78.0,EUR/h
+part,agitator mechanical seal kit,14000.0,EUR
+part,centrifuge spindle bearing set,9500.0,EUR
+part,CEX column repack (labour and resin top-up),22000.0,EUR
+part,UF/DF cassette set,18000.0,EUR
+part,lyophiliser door seal and valve kit,6500.0,EUR
+part,filler dosing pump,4200.0,EUR
+part,AHU final filter set,7800.0,EUR
+part,WFI still service,5500.0,EUR
+part,"Protein A resin, 80 L",960000.0,EUR

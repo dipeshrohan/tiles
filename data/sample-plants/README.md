@@ -11,6 +11,7 @@ before they stop the line, as they would at a real one; the same seed gives the 
 | --- | --- | --- |
 | [die-casting](die-casting/README.md) | High-pressure aluminium die casting | Transmission and e-motor housings, covers, brackets |
 | [battery](battery/README.md) | Lithium-ion cell manufacturing | KX60 prismatic cells (NMC811, 60 Ah), with each cell's genealogy |
+| [biologics](biologics/README.md) | Monoclonal antibody manufacturing (biologics) | BRN-217, a humanised IgG1: drug substance and lyophilised vials, with each lot's and vial's genealogy |
 
 From `api/`:
 

@@ -1,0 +1,383 @@
+lot,kind,tested,test,result,unit,specification
+DS25001,drug substance,2025-10-22T12:37:50+01:00,"Aggregates (SEC-HPLC, HMW)",0.93,%,<= 2.0
+DS25001,drug substance,2025-10-22T12:37:50+01:00,Host cell protein (ELISA),21.4,ppm,<= 50
+DS25001,drug substance,2025-10-22T12:37:50+01:00,Endotoxin (LAL),0.007,EU/mg,<= 0.10
+DS25001,drug substance,2025-10-22T12:37:50+01:00,Concentration (A280),101.5,g/L,95 to 105
+DS25002,drug substance,2025-10-26T06:00:26+00:00,"Aggregates (SEC-HPLC, HMW)",0.92,%,<= 2.0
+DS25002,drug substance,2025-10-26T06:00:26+00:00,Host cell protein (ELISA),22.9,ppm,<= 50
+DS25002,drug substance,2025-10-26T06:00:26+00:00,Endotoxin (LAL),0.024,EU/mg,<= 0.10
+DS25002,drug substance,2025-10-26T06:00:26+00:00,Concentration (A280),100.1,g/L,95 to 105
+DS25003,drug substance,2025-11-01T03:20:56+00:00,"Aggregates (SEC-HPLC, HMW)",0.9,%,<= 2.0
+DS25003,drug substance,2025-11-01T03:20:56+00:00,Host cell protein (ELISA),19.2,ppm,<= 50
+DS25003,drug substance,2025-11-01T03:20:56+00:00,Endotoxin (LAL),0.024,EU/mg,<= 0.10
+DS25003,drug substance,2025-11-01T03:20:56+00:00,Concentration (A280),101.8,g/L,95 to 105
+DS25004,drug substance,2025-11-03T08:53:39+00:00,"Aggregates (SEC-HPLC, HMW)",1.03,%,<= 2.0
+DS25004,drug substance,2025-11-03T08:53:39+00:00,Host cell protein (ELISA),24.3,ppm,<= 50
+DS25004,drug substance,2025-11-03T08:53:39+00:00,Endotoxin (LAL),0.01,EU/mg,<= 0.10
+DS25004,drug substance,2025-11-03T08:53:39+00:00,Concentration (A280),100.7,g/L,95 to 105
+DS25005,drug substance,2025-11-09T10:38:22+00:00,"Aggregates (SEC-HPLC, HMW)",0.87,%,<= 2.0
+DS25005,drug substance,2025-11-09T10:38:22+00:00,Host cell protein (ELISA),24.7,ppm,<= 50
+DS25005,drug substance,2025-11-09T10:38:22+00:00,Endotoxin (LAL),0.007,EU/mg,<= 0.10
+DS25005,drug substance,2025-11-09T10:38:22+00:00,Concentration (A280),98.7,g/L,95 to 105
+DS25006,drug substance,2025-11-10T08:45:08+00:00,"Aggregates (SEC-HPLC, HMW)",0.97,%,<= 2.0
+DS25006,drug substance,2025-11-10T08:45:08+00:00,Host cell protein (ELISA),23.0,ppm,<= 50
+DS25006,drug substance,2025-11-10T08:45:08+00:00,Endotoxin (LAL),0.015,EU/mg,<= 0.10
+DS25006,drug substance,2025-11-10T08:45:08+00:00,Concentration (A280),99.5,g/L,95 to 105
+DS25007,drug substance,2025-11-15T04:38:53+00:00,"Aggregates (SEC-HPLC, HMW)",1.08,%,<= 2.0
+DS25007,drug substance,2025-11-15T04:38:53+00:00,Host cell protein (ELISA),22.6,ppm,<= 50
+DS25007,drug substance,2025-11-15T04:38:53+00:00,Endotoxin (LAL),0.018,EU/mg,<= 0.10
+DS25007,drug substance,2025-11-15T04:38:53+00:00,Concentration (A280),102.5,g/L,95 to 105
+DS25008,drug substance,2025-11-18T18:59:19+00:00,"Aggregates (SEC-HPLC, HMW)",0.91,%,<= 2.0
+DS25008,drug substance,2025-11-18T18:59:19+00:00,Host cell protein (ELISA),22.3,ppm,<= 50
+DS25008,drug substance,2025-11-18T18:59:19+00:00,Endotoxin (LAL),0.014,EU/mg,<= 0.10
+DS25008,drug substance,2025-11-18T18:59:19+00:00,Concentration (A280),100.4,g/L,95 to 105
+DS25009,drug substance,2025-11-22T09:08:01+00:00,"Aggregates (SEC-HPLC, HMW)",1.04,%,<= 2.0
+DS25009,drug substance,2025-11-22T09:08:01+00:00,Host cell protein (ELISA),19.1,ppm,<= 50
+DS25009,drug substance,2025-11-22T09:08:01+00:00,Endotoxin (LAL),0.006,EU/mg,<= 0.10
+DS25009,drug substance,2025-11-22T09:08:01+00:00,Concentration (A280),98.5,g/L,95 to 105
+DS25010,drug substance,2025-11-26T13:21:47+00:00,"Aggregates (SEC-HPLC, HMW)",0.94,%,<= 2.0
+DS25010,drug substance,2025-11-26T13:21:47+00:00,Host cell protein (ELISA),20.7,ppm,<= 50
+DS25010,drug substance,2025-11-26T13:21:47+00:00,Endotoxin (LAL),0.016,EU/mg,<= 0.10
+DS25010,drug substance,2025-11-26T13:21:47+00:00,Concentration (A280),99.9,g/L,95 to 105
+DS25011,drug substance,2025-11-30T17:07:06+00:00,"Aggregates (SEC-HPLC, HMW)",1.12,%,<= 2.0
+DS25011,drug substance,2025-11-30T17:07:06+00:00,Host cell protein (ELISA),22.0,ppm,<= 50
+DS25011,drug substance,2025-11-30T17:07:06+00:00,Endotoxin (LAL),0.022,EU/mg,<= 0.10
+DS25011,drug substance,2025-11-30T17:07:06+00:00,Concentration (A280),97.6,g/L,95 to 105
+DS25012,drug substance,2025-12-03T04:55:36+00:00,"Aggregates (SEC-HPLC, HMW)",0.96,%,<= 2.0
+DS25012,drug substance,2025-12-03T04:55:36+00:00,Host cell protein (ELISA),19.6,ppm,<= 50
+DS25012,drug substance,2025-12-03T04:55:36+00:00,Endotoxin (LAL),0.018,EU/mg,<= 0.10
+DS25012,drug substance,2025-12-03T04:55:36+00:00,Concentration (A280),102.0,g/L,95 to 105
+DS25013,drug substance,2025-12-08T06:42:43+00:00,"Aggregates (SEC-HPLC, HMW)",0.95,%,<= 2.0
+DS25013,drug substance,2025-12-08T06:42:43+00:00,Host cell protein (ELISA),19.2,ppm,<= 50
+DS25013,drug substance,2025-12-08T06:42:43+00:00,Endotoxin (LAL),0.012,EU/mg,<= 0.10
+DS25013,drug substance,2025-12-08T06:42:43+00:00,Concentration (A280),100.3,g/L,95 to 105
+DS25014,drug substance,2025-12-13T00:24:48+00:00,"Aggregates (SEC-HPLC, HMW)",0.84,%,<= 2.0
+DS25014,drug substance,2025-12-13T00:24:48+00:00,Host cell protein (ELISA),21.8,ppm,<= 50
+DS25014,drug substance,2025-12-13T00:24:48+00:00,Endotoxin (LAL),0.022,EU/mg,<= 0.10
+DS25014,drug substance,2025-12-13T00:24:48+00:00,Concentration (A280),99.8,g/L,95 to 105
+DS25015,drug substance,2025-12-16T15:52:44+00:00,"Aggregates (SEC-HPLC, HMW)",0.97,%,<= 2.0
+DS25015,drug substance,2025-12-16T15:52:44+00:00,Host cell protein (ELISA),19.5,ppm,<= 50
+DS25015,drug substance,2025-12-16T15:52:44+00:00,Endotoxin (LAL),0.013,EU/mg,<= 0.10
+DS25015,drug substance,2025-12-16T15:52:44+00:00,Concentration (A280),99.8,g/L,95 to 105
+DS25016,drug substance,2025-12-18T09:25:19+00:00,"Aggregates (SEC-HPLC, HMW)",1.0,%,<= 2.0
+DS25016,drug substance,2025-12-18T09:25:19+00:00,Host cell protein (ELISA),23.7,ppm,<= 50
+DS25016,drug substance,2025-12-18T09:25:19+00:00,Endotoxin (LAL),0.013,EU/mg,<= 0.10
+DS25016,drug substance,2025-12-18T09:25:19+00:00,Concentration (A280),98.3,g/L,95 to 105
+DS25017,drug substance,2025-12-24T03:31:59+00:00,"Aggregates (SEC-HPLC, HMW)",1.11,%,<= 2.0
+DS25017,drug substance,2025-12-24T03:31:59+00:00,Host cell protein (ELISA),25.6,ppm,<= 50
+DS25017,drug substance,2025-12-24T03:31:59+00:00,Endotoxin (LAL),0.018,EU/mg,<= 0.10
+DS25017,drug substance,2025-12-24T03:31:59+00:00,Concentration (A280),100.8,g/L,95 to 105
+DS25018,drug substance,2025-12-29T02:01:26+00:00,"Aggregates (SEC-HPLC, HMW)",0.99,%,<= 2.0
+DS25018,drug substance,2025-12-29T02:01:26+00:00,Host cell protein (ELISA),22.6,ppm,<= 50
+DS25018,drug substance,2025-12-29T02:01:26+00:00,Endotoxin (LAL),0.02,EU/mg,<= 0.10
+DS25018,drug substance,2025-12-29T02:01:26+00:00,Concentration (A280),101.6,g/L,95 to 105
+DS25019,drug substance,2026-01-01T02:24:12+00:00,"Aggregates (SEC-HPLC, HMW)",0.97,%,<= 2.0
+DS25019,drug substance,2026-01-01T02:24:12+00:00,Host cell protein (ELISA),23.6,ppm,<= 50
+DS25019,drug substance,2026-01-01T02:24:12+00:00,Endotoxin (LAL),0.021,EU/mg,<= 0.10
+DS25019,drug substance,2026-01-01T02:24:12+00:00,Concentration (A280),102.2,g/L,95 to 105
+DS25020,drug substance,2026-01-04T00:23:42+00:00,"Aggregates (SEC-HPLC, HMW)",1.38,%,<= 2.0
+DS25020,drug substance,2026-01-04T00:23:42+00:00,Host cell protein (ELISA),20.9,ppm,<= 50
+DS25020,drug substance,2026-01-04T00:23:42+00:00,Endotoxin (LAL),0.021,EU/mg,<= 0.10
+DS25020,drug substance,2026-01-04T00:23:42+00:00,Concentration (A280),97.0,g/L,95 to 105
+DS25021,drug substance,2026-01-11T00:23:36+00:00,"Aggregates (SEC-HPLC, HMW)",1.03,%,<= 2.0
+DS25021,drug substance,2026-01-11T00:23:36+00:00,Host cell protein (ELISA),20.2,ppm,<= 50
+DS25021,drug substance,2026-01-11T00:23:36+00:00,Endotoxin (LAL),0.021,EU/mg,<= 0.10
+DS25021,drug substance,2026-01-11T00:23:36+00:00,Concentration (A280),99.1,g/L,95 to 105
+DS25022,drug substance,2026-01-12T17:33:26+00:00,"Aggregates (SEC-HPLC, HMW)",0.96,%,<= 2.0
+DS25022,drug substance,2026-01-12T17:33:26+00:00,Host cell protein (ELISA),23.0,ppm,<= 50
+DS25022,drug substance,2026-01-12T17:33:26+00:00,Endotoxin (LAL),0.013,EU/mg,<= 0.10
+DS25022,drug substance,2026-01-12T17:33:26+00:00,Concentration (A280),100.0,g/L,95 to 105
+DS25023,drug substance,2026-01-16T04:22:38+00:00,"Aggregates (SEC-HPLC, HMW)",0.96,%,<= 2.0
+DS25023,drug substance,2026-01-16T04:22:38+00:00,Host cell protein (ELISA),19.5,ppm,<= 50
+DS25023,drug substance,2026-01-16T04:22:38+00:00,Endotoxin (LAL),0.016,EU/mg,<= 0.10
+DS25023,drug substance,2026-01-16T04:22:38+00:00,Concentration (A280),101.4,g/L,95 to 105
+DS25024,drug substance,2026-01-21T06:19:55+00:00,"Aggregates (SEC-HPLC, HMW)",0.93,%,<= 2.0
+DS25024,drug substance,2026-01-21T06:19:55+00:00,Host cell protein (ELISA),24.3,ppm,<= 50
+DS25024,drug substance,2026-01-21T06:19:55+00:00,Endotoxin (LAL),0.01,EU/mg,<= 0.10
+DS25024,drug substance,2026-01-21T06:19:55+00:00,Concentration (A280),99.3,g/L,95 to 105
+DS26025,drug substance,2026-01-25T11:35:03+00:00,"Aggregates (SEC-HPLC, HMW)",0.95,%,<= 2.0
+DS26025,drug substance,2026-01-25T11:35:03+00:00,Host cell protein (ELISA),24.0,ppm,<= 50
+DS26025,drug substance,2026-01-25T11:35:03+00:00,Endotoxin (LAL),0.01,EU/mg,<= 0.10
+DS26025,drug substance,2026-01-25T11:35:03+00:00,Concentration (A280),97.5,g/L,95 to 105
+DS26026,drug substance,2026-01-29T12:24:40+00:00,"Aggregates (SEC-HPLC, HMW)",1.03,%,<= 2.0
+DS26026,drug substance,2026-01-29T12:24:40+00:00,Host cell protein (ELISA),22.7,ppm,<= 50
+DS26026,drug substance,2026-01-29T12:24:40+00:00,Endotoxin (LAL),0.016,EU/mg,<= 0.10
+DS26026,drug substance,2026-01-29T12:24:40+00:00,Concentration (A280),101.1,g/L,95 to 105
+DS26027,drug substance,2026-02-02T10:56:29+00:00,"Aggregates (SEC-HPLC, HMW)",1.01,%,<= 2.0
+DS26027,drug substance,2026-02-02T10:56:29+00:00,Host cell protein (ELISA),18.9,ppm,<= 50
+DS26027,drug substance,2026-02-02T10:56:29+00:00,Endotoxin (LAL),0.017,EU/mg,<= 0.10
+DS26027,drug substance,2026-02-02T10:56:29+00:00,Concentration (A280),102.5,g/L,95 to 105
+DS26028,drug substance,2026-02-03T03:05:29+00:00,"Aggregates (SEC-HPLC, HMW)",0.84,%,<= 2.0
+DS26028,drug substance,2026-02-03T03:05:29+00:00,Host cell protein (ELISA),13.5,ppm,<= 50
+DS26028,drug substance,2026-02-03T03:05:29+00:00,Endotoxin (LAL),0.019,EU/mg,<= 0.10
+DS26028,drug substance,2026-02-03T03:05:29+00:00,Concentration (A280),100.9,g/L,95 to 105
+DS26029,drug substance,2026-02-09T18:13:26+00:00,"Aggregates (SEC-HPLC, HMW)",1.01,%,<= 2.0
+DS26029,drug substance,2026-02-09T18:13:26+00:00,Host cell protein (ELISA),17.1,ppm,<= 50
+DS26029,drug substance,2026-02-09T18:13:26+00:00,Endotoxin (LAL),0.014,EU/mg,<= 0.10
+DS26029,drug substance,2026-02-09T18:13:26+00:00,Concentration (A280),101.3,g/L,95 to 105
+DS26030,drug substance,2026-02-12T09:33:45+00:00,"Aggregates (SEC-HPLC, HMW)",0.93,%,<= 2.0
+DS26030,drug substance,2026-02-12T09:33:45+00:00,Host cell protein (ELISA),22.9,ppm,<= 50
+DS26030,drug substance,2026-02-12T09:33:45+00:00,Endotoxin (LAL),0.018,EU/mg,<= 0.10
+DS26030,drug substance,2026-02-12T09:33:45+00:00,Concentration (A280),101.7,g/L,95 to 105
+DS26031,drug substance,2026-02-16T01:55:58+00:00,"Aggregates (SEC-HPLC, HMW)",0.86,%,<= 2.0
+DS26031,drug substance,2026-02-16T01:55:58+00:00,Host cell protein (ELISA),17.6,ppm,<= 50
+DS26031,drug substance,2026-02-16T01:55:58+00:00,Endotoxin (LAL),0.018,EU/mg,<= 0.10
+DS26031,drug substance,2026-02-16T01:55:58+00:00,Concentration (A280),102.0,g/L,95 to 105
+DS26032,drug substance,2026-02-18T18:31:38+00:00,"Aggregates (SEC-HPLC, HMW)",1.01,%,<= 2.0
+DS26032,drug substance,2026-02-18T18:31:38+00:00,Host cell protein (ELISA),21.9,ppm,<= 50
+DS26032,drug substance,2026-02-18T18:31:38+00:00,Endotoxin (LAL),0.018,EU/mg,<= 0.10
+DS26032,drug substance,2026-02-18T18:31:38+00:00,Concentration (A280),100.2,g/L,95 to 105
+DS26033,drug substance,2026-02-22T20:35:26+00:00,"Aggregates (SEC-HPLC, HMW)",0.9,%,<= 2.0
+DS26033,drug substance,2026-02-22T20:35:26+00:00,Host cell protein (ELISA),21.2,ppm,<= 50
+DS26033,drug substance,2026-02-22T20:35:26+00:00,Endotoxin (LAL),0.028,EU/mg,<= 0.10
+DS26033,drug substance,2026-02-22T20:35:26+00:00,Concentration (A280),99.9,g/L,95 to 105
+DS26034,drug substance,2026-02-26T10:08:34+00:00,"Aggregates (SEC-HPLC, HMW)",0.93,%,<= 2.0
+DS26034,drug substance,2026-02-26T10:08:34+00:00,Host cell protein (ELISA),23.0,ppm,<= 50
+DS26034,drug substance,2026-02-26T10:08:34+00:00,Endotoxin (LAL),0.006,EU/mg,<= 0.10
+DS26034,drug substance,2026-02-26T10:08:34+00:00,Concentration (A280),99.0,g/L,95 to 105
+DS26035,drug substance,2026-03-04T03:55:51+00:00,"Aggregates (SEC-HPLC, HMW)",0.93,%,<= 2.0
+DS26035,drug substance,2026-03-04T03:55:51+00:00,Host cell protein (ELISA),24.7,ppm,<= 50
+DS26035,drug substance,2026-03-04T03:55:51+00:00,Endotoxin (LAL),0.017,EU/mg,<= 0.10
+DS26035,drug substance,2026-03-04T03:55:51+00:00,Concentration (A280),100.2,g/L,95 to 105
+DS26036,drug substance,2026-03-06T16:26:54+00:00,"Aggregates (SEC-HPLC, HMW)",0.95,%,<= 2.0
+DS26036,drug substance,2026-03-06T16:26:54+00:00,Host cell protein (ELISA),23.0,ppm,<= 50
+DS26036,drug substance,2026-03-06T16:26:54+00:00,Endotoxin (LAL),0.02,EU/mg,<= 0.10
+DS26036,drug substance,2026-03-06T16:26:54+00:00,Concentration (A280),100.1,g/L,95 to 105
+DS26037,drug substance,2026-03-11T14:41:44+00:00,"Aggregates (SEC-HPLC, HMW)",0.92,%,<= 2.0
+DS26037,drug substance,2026-03-11T14:41:44+00:00,Host cell protein (ELISA),20.8,ppm,<= 50
+DS26037,drug substance,2026-03-11T14:41:44+00:00,Endotoxin (LAL),0.019,EU/mg,<= 0.10
+DS26037,drug substance,2026-03-11T14:41:44+00:00,Concentration (A280),103.0,g/L,95 to 105
+DS26038,drug substance,2026-03-14T00:35:07+00:00,"Aggregates (SEC-HPLC, HMW)",1.0,%,<= 2.0
+DS26038,drug substance,2026-03-14T00:35:07+00:00,Host cell protein (ELISA),27.0,ppm,<= 50
+DS26038,drug substance,2026-03-14T00:35:07+00:00,Endotoxin (LAL),0.012,EU/mg,<= 0.10
+DS26038,drug substance,2026-03-14T00:35:07+00:00,Concentration (A280),101.5,g/L,95 to 105
+DS26039,drug substance,2026-03-18T09:20:01+00:00,"Aggregates (SEC-HPLC, HMW)",0.98,%,<= 2.0
+DS26039,drug substance,2026-03-18T09:20:01+00:00,Host cell protein (ELISA),24.7,ppm,<= 50
+DS26039,drug substance,2026-03-18T09:20:01+00:00,Endotoxin (LAL),0.021,EU/mg,<= 0.10
+DS26039,drug substance,2026-03-18T09:20:01+00:00,Concentration (A280),98.4,g/L,95 to 105
+DS26040,drug substance,2026-03-23T17:08:01+00:00,"Aggregates (SEC-HPLC, HMW)",1.16,%,<= 2.0
+DS26040,drug substance,2026-03-23T17:08:01+00:00,Host cell protein (ELISA),24.0,ppm,<= 50
+DS26040,drug substance,2026-03-23T17:08:01+00:00,Endotoxin (LAL),0.003,EU/mg,<= 0.10
+DS26040,drug substance,2026-03-23T17:08:01+00:00,Concentration (A280),99.9,g/L,95 to 105
+DS26041,drug substance,2026-03-25T02:42:45+00:00,"Aggregates (SEC-HPLC, HMW)",1.28,%,<= 2.0
+DS26041,drug substance,2026-03-25T02:42:45+00:00,Host cell protein (ELISA),17.5,ppm,<= 50
+DS26041,drug substance,2026-03-25T02:42:45+00:00,Endotoxin (LAL),0.008,EU/mg,<= 0.10
+DS26041,drug substance,2026-03-25T02:42:45+00:00,Concentration (A280),99.9,g/L,95 to 105
+DS26042,drug substance,2026-03-31T03:21:43+01:00,"Aggregates (SEC-HPLC, HMW)",0.93,%,<= 2.0
+DS26042,drug substance,2026-03-31T03:21:43+01:00,Host cell protein (ELISA),20.8,ppm,<= 50
+DS26042,drug substance,2026-03-31T03:21:43+01:00,Endotoxin (LAL),0.008,EU/mg,<= 0.10
+DS26042,drug substance,2026-03-31T03:21:43+01:00,Concentration (A280),100.6,g/L,95 to 105
+DS26043,drug substance,2026-04-04T00:50:42+01:00,"Aggregates (SEC-HPLC, HMW)",0.98,%,<= 2.0
+DS26043,drug substance,2026-04-04T00:50:42+01:00,Host cell protein (ELISA),18.6,ppm,<= 50
+DS26043,drug substance,2026-04-04T00:50:42+01:00,Endotoxin (LAL),0.023,EU/mg,<= 0.10
+DS26043,drug substance,2026-04-04T00:50:42+01:00,Concentration (A280),100.1,g/L,95 to 105
+DS26044,drug substance,2026-04-06T21:56:28+01:00,"Aggregates (SEC-HPLC, HMW)",0.9,%,<= 2.0
+DS26044,drug substance,2026-04-06T21:56:28+01:00,Host cell protein (ELISA),22.4,ppm,<= 50
+DS26044,drug substance,2026-04-06T21:56:28+01:00,Endotoxin (LAL),0.018,EU/mg,<= 0.10
+DS26044,drug substance,2026-04-06T21:56:28+01:00,Concentration (A280),97.1,g/L,95 to 105
+DS26045,drug substance,2026-04-11T23:13:10+01:00,"Aggregates (SEC-HPLC, HMW)",0.9,%,<= 2.0
+DS26045,drug substance,2026-04-11T23:13:10+01:00,Host cell protein (ELISA),20.5,ppm,<= 50
+DS26045,drug substance,2026-04-11T23:13:10+01:00,Endotoxin (LAL),0.01,EU/mg,<= 0.10
+DS26045,drug substance,2026-04-11T23:13:10+01:00,Concentration (A280),99.6,g/L,95 to 105
+DS26046,drug substance,2026-04-16T05:27:21+01:00,"Aggregates (SEC-HPLC, HMW)",0.95,%,<= 2.0
+DS26046,drug substance,2026-04-16T05:27:21+01:00,Host cell protein (ELISA),22.3,ppm,<= 50
+DS26046,drug substance,2026-04-16T05:27:21+01:00,Endotoxin (LAL),0.025,EU/mg,<= 0.10
+DS26046,drug substance,2026-04-16T05:27:21+01:00,Concentration (A280),100.2,g/L,95 to 105
+DS26047,drug substance,2026-04-19T03:15:58+01:00,"Aggregates (SEC-HPLC, HMW)",1.0,%,<= 2.0
+DS26047,drug substance,2026-04-19T03:15:58+01:00,Host cell protein (ELISA),18.8,ppm,<= 50
+DS26047,drug substance,2026-04-19T03:15:58+01:00,Endotoxin (LAL),0.016,EU/mg,<= 0.10
+DS26047,drug substance,2026-04-19T03:15:58+01:00,Concentration (A280),100.0,g/L,95 to 105
+DS26048,drug substance,2026-04-23T03:06:45+01:00,"Aggregates (SEC-HPLC, HMW)",1.03,%,<= 2.0
+DS26048,drug substance,2026-04-23T03:06:45+01:00,Host cell protein (ELISA),20.1,ppm,<= 50
+DS26048,drug substance,2026-04-23T03:06:45+01:00,Endotoxin (LAL),0.011,EU/mg,<= 0.10
+DS26048,drug substance,2026-04-23T03:06:45+01:00,Concentration (A280),97.4,g/L,95 to 105
+DS26049,drug substance,2026-04-28T14:18:18+01:00,"Aggregates (SEC-HPLC, HMW)",0.92,%,<= 2.0
+DS26049,drug substance,2026-04-28T14:18:18+01:00,Host cell protein (ELISA),24.3,ppm,<= 50
+DS26049,drug substance,2026-04-28T14:18:18+01:00,Endotoxin (LAL),0.017,EU/mg,<= 0.10
+DS26049,drug substance,2026-04-28T14:18:18+01:00,Concentration (A280),100.4,g/L,95 to 105
+DS26050,drug substance,2026-04-30T20:22:13+01:00,"Aggregates (SEC-HPLC, HMW)",0.94,%,<= 2.0
+DS26050,drug substance,2026-04-30T20:22:13+01:00,Host cell protein (ELISA),24.8,ppm,<= 50
+DS26050,drug substance,2026-04-30T20:22:13+01:00,Endotoxin (LAL),0.015,EU/mg,<= 0.10
+DS26050,drug substance,2026-04-30T20:22:13+01:00,Concentration (A280),99.2,g/L,95 to 105
+DS26051,drug substance,2026-05-05T01:44:32+01:00,"Aggregates (SEC-HPLC, HMW)",0.98,%,<= 2.0
+DS26051,drug substance,2026-05-05T01:44:32+01:00,Host cell protein (ELISA),25.2,ppm,<= 50
+DS26051,drug substance,2026-05-05T01:44:32+01:00,Endotoxin (LAL),0.021,EU/mg,<= 0.10
+DS26051,drug substance,2026-05-05T01:44:32+01:00,Concentration (A280),99.6,g/L,95 to 105
+DS26052,drug substance,2026-05-09T00:48:19+01:00,"Aggregates (SEC-HPLC, HMW)",1.02,%,<= 2.0
+DS26052,drug substance,2026-05-09T00:48:19+01:00,Host cell protein (ELISA),24.4,ppm,<= 50
+DS26052,drug substance,2026-05-09T00:48:19+01:00,Endotoxin (LAL),0.024,EU/mg,<= 0.10
+DS26052,drug substance,2026-05-09T00:48:19+01:00,Concentration (A280),100.9,g/L,95 to 105
+DS26053,drug substance,2026-05-12T00:36:21+01:00,"Aggregates (SEC-HPLC, HMW)",1.03,%,<= 2.0
+DS26053,drug substance,2026-05-12T00:36:21+01:00,Host cell protein (ELISA),24.0,ppm,<= 50
+DS26053,drug substance,2026-05-12T00:36:21+01:00,Endotoxin (LAL),0.021,EU/mg,<= 0.10
+DS26053,drug substance,2026-05-12T00:36:21+01:00,Concentration (A280),102.8,g/L,95 to 105
+DS26054,drug substance,2026-05-17T12:10:20+01:00,"Aggregates (SEC-HPLC, HMW)",1.05,%,<= 2.0
+DS26054,drug substance,2026-05-17T12:10:20+01:00,Host cell protein (ELISA),20.7,ppm,<= 50
+DS26054,drug substance,2026-05-17T12:10:20+01:00,Endotoxin (LAL),0.019,EU/mg,<= 0.10
+DS26054,drug substance,2026-05-17T12:10:20+01:00,Concentration (A280),99.5,g/L,95 to 105
+DS26055,drug substance,2026-05-21T07:43:59+01:00,"Aggregates (SEC-HPLC, HMW)",0.92,%,<= 2.0
+DS26055,drug substance,2026-05-21T07:43:59+01:00,Host cell protein (ELISA),19.0,ppm,<= 50
+DS26055,drug substance,2026-05-21T07:43:59+01:00,Endotoxin (LAL),0.018,EU/mg,<= 0.10
+DS26055,drug substance,2026-05-21T07:43:59+01:00,Concentration (A280),98.6,g/L,95 to 105
+DS26056,drug substance,2026-05-23T04:46:55+01:00,"Aggregates (SEC-HPLC, HMW)",0.95,%,<= 2.0
+DS26056,drug substance,2026-05-23T04:46:55+01:00,Host cell protein (ELISA),20.8,ppm,<= 50
+DS26056,drug substance,2026-05-23T04:46:55+01:00,Endotoxin (LAL),0.015,EU/mg,<= 0.10
+DS26056,drug substance,2026-05-23T04:46:55+01:00,Concentration (A280),100.6,g/L,95 to 105
+DS26057,drug substance,2026-05-27T03:52:26+01:00,"Aggregates (SEC-HPLC, HMW)",0.84,%,<= 2.0
+DS26057,drug substance,2026-05-27T03:52:26+01:00,Host cell protein (ELISA),25.2,ppm,<= 50
+DS26057,drug substance,2026-05-27T03:52:26+01:00,Endotoxin (LAL),0.016,EU/mg,<= 0.10
+DS26057,drug substance,2026-05-27T03:52:26+01:00,Concentration (A280),98.4,g/L,95 to 105
+DS26058,drug substance,2026-06-01T01:01:16+01:00,"Aggregates (SEC-HPLC, HMW)",1.0,%,<= 2.0
+DS26058,drug substance,2026-06-01T01:01:16+01:00,Host cell protein (ELISA),20.9,ppm,<= 50
+DS26058,drug substance,2026-06-01T01:01:16+01:00,Endotoxin (LAL),0.014,EU/mg,<= 0.10
+DS26058,drug substance,2026-06-01T01:01:16+01:00,Concentration (A280),98.6,g/L,95 to 105
+DS26059,drug substance,2026-06-05T01:25:27+01:00,"Aggregates (SEC-HPLC, HMW)",1.15,%,<= 2.0
+DS26059,drug substance,2026-06-05T01:25:27+01:00,Host cell protein (ELISA),21.8,ppm,<= 50
+DS26059,drug substance,2026-06-05T01:25:27+01:00,Endotoxin (LAL),0.02,EU/mg,<= 0.10
+DS26059,drug substance,2026-06-05T01:25:27+01:00,Concentration (A280),101.3,g/L,95 to 105
+DS26060,drug substance,2026-06-09T12:13:23+01:00,"Aggregates (SEC-HPLC, HMW)",1.44,%,<= 2.0
+DS26060,drug substance,2026-06-09T12:13:23+01:00,Host cell protein (ELISA),23.3,ppm,<= 50
+DS26060,drug substance,2026-06-09T12:13:23+01:00,Endotoxin (LAL),0.024,EU/mg,<= 0.10
+DS26060,drug substance,2026-06-09T12:13:23+01:00,Concentration (A280),102.5,g/L,95 to 105
+DS26061,drug substance,2026-06-11T08:49:53+01:00,"Aggregates (SEC-HPLC, HMW)",1.75,%,<= 2.0
+DS26061,drug substance,2026-06-11T08:49:53+01:00,Host cell protein (ELISA),22.3,ppm,<= 50
+DS26061,drug substance,2026-06-11T08:49:53+01:00,Endotoxin (LAL),0.013,EU/mg,<= 0.10
+DS26061,drug substance,2026-06-11T08:49:53+01:00,Concentration (A280),100.0,g/L,95 to 105
+DS26062,drug substance,2026-06-17T14:05:34+01:00,"Aggregates (SEC-HPLC, HMW)",0.89,%,<= 2.0
+DS26062,drug substance,2026-06-17T14:05:34+01:00,Host cell protein (ELISA),25.7,ppm,<= 50
+DS26062,drug substance,2026-06-17T14:05:34+01:00,Endotoxin (LAL),0.025,EU/mg,<= 0.10
+DS26062,drug substance,2026-06-17T14:05:34+01:00,Concentration (A280),97.9,g/L,95 to 105
+DS26063,drug substance,2026-06-20T23:41:48+01:00,"Aggregates (SEC-HPLC, HMW)",0.94,%,<= 2.0
+DS26063,drug substance,2026-06-20T23:41:48+01:00,Host cell protein (ELISA),21.8,ppm,<= 50
+DS26063,drug substance,2026-06-20T23:41:48+01:00,Endotoxin (LAL),0.014,EU/mg,<= 0.10
+DS26063,drug substance,2026-06-20T23:41:48+01:00,Concentration (A280),98.8,g/L,95 to 105
+DS26064,drug substance,2026-06-22T21:21:04+01:00,"Aggregates (SEC-HPLC, HMW)",1.09,%,<= 2.0
+DS26064,drug substance,2026-06-22T21:21:04+01:00,Host cell protein (ELISA),18.6,ppm,<= 50
+DS26064,drug substance,2026-06-22T21:21:04+01:00,Endotoxin (LAL),0.005,EU/mg,<= 0.10
+DS26064,drug substance,2026-06-22T21:21:04+01:00,Concentration (A280),101.2,g/L,95 to 105
+DS26065,drug substance,2026-06-27T08:40:19+01:00,"Aggregates (SEC-HPLC, HMW)",0.88,%,<= 2.0
+DS26065,drug substance,2026-06-27T08:40:19+01:00,Host cell protein (ELISA),24.0,ppm,<= 50
+DS26065,drug substance,2026-06-27T08:40:19+01:00,Endotoxin (LAL),0.026,EU/mg,<= 0.10
+DS26065,drug substance,2026-06-27T08:40:19+01:00,Concentration (A280),98.9,g/L,95 to 105
+DS26066,drug substance,2026-07-02T05:36:08+01:00,"Aggregates (SEC-HPLC, HMW)",0.82,%,<= 2.0
+DS26066,drug substance,2026-07-02T05:36:08+01:00,Host cell protein (ELISA),20.7,ppm,<= 50
+DS26066,drug substance,2026-07-02T05:36:08+01:00,Endotoxin (LAL),0.0,EU/mg,<= 0.10
+DS26066,drug substance,2026-07-02T05:36:08+01:00,Concentration (A280),100.1,g/L,95 to 105
+DS26067,drug substance,2026-07-06T09:14:46+01:00,"Aggregates (SEC-HPLC, HMW)",1.06,%,<= 2.0
+DS26067,drug substance,2026-07-06T09:14:46+01:00,Host cell protein (ELISA),26.5,ppm,<= 50
+DS26067,drug substance,2026-07-06T09:14:46+01:00,Endotoxin (LAL),0.011,EU/mg,<= 0.10
+DS26067,drug substance,2026-07-06T09:14:46+01:00,Concentration (A280),103.3,g/L,95 to 105
+DS26068,drug substance,2026-07-08T03:51:54+01:00,"Aggregates (SEC-HPLC, HMW)",0.96,%,<= 2.0
+DS26068,drug substance,2026-07-08T03:51:54+01:00,Host cell protein (ELISA),23.8,ppm,<= 50
+DS26068,drug substance,2026-07-08T03:51:54+01:00,Endotoxin (LAL),0.002,EU/mg,<= 0.10
+DS26068,drug substance,2026-07-08T03:51:54+01:00,Concentration (A280),99.5,g/L,95 to 105
+DS26069,drug substance,2026-07-12T18:44:02+01:00,"Aggregates (SEC-HPLC, HMW)",1.17,%,<= 2.0
+DS26069,drug substance,2026-07-12T18:44:02+01:00,Host cell protein (ELISA),21.0,ppm,<= 50
+DS26069,drug substance,2026-07-12T18:44:02+01:00,Endotoxin (LAL),0.013,EU/mg,<= 0.10
+DS26069,drug substance,2026-07-12T18:44:02+01:00,Concentration (A280),99.6,g/L,95 to 105
+DS26070,drug substance,2026-07-16T18:04:43+01:00,"Aggregates (SEC-HPLC, HMW)",1.56,%,<= 2.0
+DS26070,drug substance,2026-07-16T18:04:43+01:00,Host cell protein (ELISA),20.1,ppm,<= 50
+DS26070,drug substance,2026-07-16T18:04:43+01:00,Endotoxin (LAL),0.016,EU/mg,<= 0.10
+DS26070,drug substance,2026-07-16T18:04:43+01:00,Concentration (A280),102.1,g/L,95 to 105
+DS26071,drug substance,2026-07-23T10:22:02+01:00,"Aggregates (SEC-HPLC, HMW)",1.09,%,<= 2.0
+DS26071,drug substance,2026-07-23T10:22:02+01:00,Host cell protein (ELISA),19.5,ppm,<= 50
+DS26071,drug substance,2026-07-23T10:22:02+01:00,Endotoxin (LAL),0.024,EU/mg,<= 0.10
+DS26071,drug substance,2026-07-23T10:22:02+01:00,Concentration (A280),97.4,g/L,95 to 105
+DS26072,drug substance,2026-07-25T20:30:33+01:00,"Aggregates (SEC-HPLC, HMW)",1.0,%,<= 2.0
+DS26072,drug substance,2026-07-25T20:30:33+01:00,Host cell protein (ELISA),20.4,ppm,<= 50
+DS26072,drug substance,2026-07-25T20:30:33+01:00,Endotoxin (LAL),0.016,EU/mg,<= 0.10
+DS26072,drug substance,2026-07-25T20:30:33+01:00,Concentration (A280),100.4,g/L,95 to 105
+DS26073,drug substance,2026-07-29T10:35:47+01:00,"Aggregates (SEC-HPLC, HMW)",1.0,%,<= 2.0
+DS26073,drug substance,2026-07-29T10:35:47+01:00,Host cell protein (ELISA),24.6,ppm,<= 50
+DS26073,drug substance,2026-07-29T10:35:47+01:00,Endotoxin (LAL),0.011,EU/mg,<= 0.10
+DS26073,drug substance,2026-07-29T10:35:47+01:00,Concentration (A280),98.6,g/L,95 to 105
+DS26074,drug substance,2026-08-02T04:35:03+01:00,"Aggregates (SEC-HPLC, HMW)",0.89,%,<= 2.0
+DS26074,drug substance,2026-08-02T04:35:03+01:00,Host cell protein (ELISA),21.2,ppm,<= 50
+DS26074,drug substance,2026-08-02T04:35:03+01:00,Endotoxin (LAL),0.005,EU/mg,<= 0.10
+DS26074,drug substance,2026-08-02T04:35:03+01:00,Concentration (A280),101.1,g/L,95 to 105
+DS26075,drug substance,2026-09-26T12:44:02+01:00,"Aggregates (SEC-HPLC, HMW)",0.94,%,<= 2.0
+DS26075,drug substance,2026-09-26T12:44:02+01:00,Host cell protein (ELISA),22.9,ppm,<= 50
+DS26075,drug substance,2026-09-26T12:44:02+01:00,Endotoxin (LAL),0.02,EU/mg,<= 0.10
+DS26075,drug substance,2026-09-26T12:44:02+01:00,Concentration (A280),96.3,g/L,95 to 105
+DS26076,drug substance,2026-09-28T11:08:09+01:00,"Aggregates (SEC-HPLC, HMW)",0.91,%,<= 2.0
+DS26076,drug substance,2026-09-28T11:08:09+01:00,Host cell protein (ELISA),20.9,ppm,<= 50
+DS26076,drug substance,2026-09-28T11:08:09+01:00,Endotoxin (LAL),0.014,EU/mg,<= 0.10
+DS26076,drug substance,2026-09-28T11:08:09+01:00,Concentration (A280),101.1,g/L,95 to 105
+DS26077,drug substance,2026-09-30T08:59:30+01:00,"Aggregates (SEC-HPLC, HMW)",0.91,%,<= 2.0
+DS26077,drug substance,2026-09-30T08:59:30+01:00,Host cell protein (ELISA),20.7,ppm,<= 50
+DS26077,drug substance,2026-09-30T08:59:30+01:00,Endotoxin (LAL),0.0,EU/mg,<= 0.10
+DS26077,drug substance,2026-09-30T08:59:30+01:00,Concentration (A280),102.0,g/L,95 to 105
+DP25001,drug product,2025-11-02T18:18:15+00:00,Residual moisture (Karl Fischer),0.72,%,<= 2.0
+DP25002,drug product,2025-11-06T08:25:32+00:00,Residual moisture (Karl Fischer),0.98,%,<= 2.0
+DP25003,drug product,2025-11-09T13:38:01+00:00,Residual moisture (Karl Fischer),0.92,%,<= 2.0
+DP25004,drug product,2025-11-13T16:37:51+00:00,Residual moisture (Karl Fischer),0.81,%,<= 2.0
+DP25005,drug product,2025-11-16T03:46:47+00:00,Residual moisture (Karl Fischer),0.81,%,<= 2.0
+DP25006,drug product,2025-11-19T18:49:59+00:00,Residual moisture (Karl Fischer),0.81,%,<= 2.0
+DP25007,drug product,2025-11-23T04:38:08+00:00,Residual moisture (Karl Fischer),0.87,%,<= 2.0
+DP25008,drug product,2025-11-27T10:39:30+00:00,Residual moisture (Karl Fischer),0.77,%,<= 2.0
+DP25009,drug product,2025-12-01T03:16:36+00:00,Residual moisture (Karl Fischer),0.86,%,<= 2.0
+DP25010,drug product,2025-12-07T13:32:29+00:00,Residual moisture (Karl Fischer),0.88,%,<= 2.0
+DP25011,drug product,2025-12-09T16:11:28+00:00,Residual moisture (Karl Fischer),0.79,%,<= 2.0
+DP25012,drug product,2025-12-13T00:47:58+00:00,Residual moisture (Karl Fischer),0.8,%,<= 2.0
+DP25013,drug product,2025-12-18T05:20:52+00:00,Residual moisture (Karl Fischer),0.91,%,<= 2.0
+DP25014,drug product,2025-12-20T13:11:05+00:00,Residual moisture (Karl Fischer),0.89,%,<= 2.0
+DP25015,drug product,2025-12-25T14:46:43+00:00,Residual moisture (Karl Fischer),0.7,%,<= 2.0
+DP25016,drug product,2025-12-29T16:48:06+00:00,Residual moisture (Karl Fischer),0.95,%,<= 2.0
+DP25017,drug product,2026-01-01T03:34:40+00:00,Residual moisture (Karl Fischer),0.85,%,<= 2.0
+DP25018,drug product,2026-01-04T04:05:46+00:00,Residual moisture (Karl Fischer),0.85,%,<= 2.0
+DP25019,drug product,2026-01-09T14:42:16+00:00,Residual moisture (Karl Fischer),0.95,%,<= 2.0
+DP25020,drug product,2026-01-11T03:37:35+00:00,Residual moisture (Karl Fischer),0.86,%,<= 2.0
+DP25021,drug product,2026-01-18T22:47:52+00:00,Residual moisture (Karl Fischer),0.94,%,<= 2.0
+DP25022,drug product,2026-01-21T21:51:51+00:00,Residual moisture (Karl Fischer),0.84,%,<= 2.0
+DP25023,drug product,2026-01-26T17:00:30+00:00,Residual moisture (Karl Fischer),0.9,%,<= 2.0
+DP25024,drug product,2026-01-28T06:13:16+00:00,Residual moisture (Karl Fischer),0.97,%,<= 2.0
+DP26025,drug product,2026-02-03T00:26:40+00:00,Residual moisture (Karl Fischer),1.41,%,<= 2.0
+DP26026,drug product,2026-02-05T12:27:23+00:00,Residual moisture (Karl Fischer),0.97,%,<= 2.0
+DP26027,drug product,2026-02-11T04:14:53+00:00,Residual moisture (Karl Fischer),0.75,%,<= 2.0
+DP26028,drug product,2026-02-14T19:52:34+00:00,Residual moisture (Karl Fischer),0.83,%,<= 2.0
+DP26029,drug product,2026-02-17T01:12:22+00:00,Residual moisture (Karl Fischer),0.91,%,<= 2.0
+DP26030,drug product,2026-02-21T04:01:21+00:00,Residual moisture (Karl Fischer),0.97,%,<= 2.0
+DP26031,drug product,2026-02-24T03:38:46+00:00,Residual moisture (Karl Fischer),0.86,%,<= 2.0
+DP26032,drug product,2026-02-28T23:59:11+00:00,Residual moisture (Karl Fischer),0.85,%,<= 2.0
+DP26033,drug product,2026-03-04T02:24:39+00:00,Residual moisture (Karl Fischer),0.84,%,<= 2.0
+DP26034,drug product,2026-03-07T09:41:45+00:00,Residual moisture (Karl Fischer),0.97,%,<= 2.0
+DP26035,drug product,2026-03-11T11:39:01+00:00,Residual moisture (Karl Fischer),0.82,%,<= 2.0
+DP26036,drug product,2026-03-15T21:45:39+00:00,Residual moisture (Karl Fischer),0.77,%,<= 2.0
+DP26037,drug product,2026-03-19T18:59:27+00:00,Residual moisture (Karl Fischer),0.73,%,<= 2.0
+DP26038,drug product,2026-03-23T10:20:24+00:00,Residual moisture (Karl Fischer),0.84,%,<= 2.0
+DP26039,drug product,2026-03-27T09:32:43+00:00,Residual moisture (Karl Fischer),0.86,%,<= 2.0
+DP26040,drug product,2026-04-01T07:21:25+01:00,Residual moisture (Karl Fischer),0.95,%,<= 2.0
+DP26041,drug product,2026-04-04T14:56:41+01:00,Residual moisture (Karl Fischer),0.93,%,<= 2.0
+DP26042,drug product,2026-04-10T06:42:47+01:00,Residual moisture (Karl Fischer),0.87,%,<= 2.0
+DP26043,drug product,2026-04-13T02:42:36+01:00,Residual moisture (Karl Fischer),0.68,%,<= 2.0
+DP26044,drug product,2026-04-16T03:59:12+01:00,Residual moisture (Karl Fischer),0.86,%,<= 2.0
+DP26045,drug product,2026-04-21T09:28:52+01:00,Residual moisture (Karl Fischer),0.93,%,<= 2.0
+DP26046,drug product,2026-04-25T07:51:35+01:00,Residual moisture (Karl Fischer),0.86,%,<= 2.0
+DP26047,drug product,2026-04-27T15:32:04+01:00,Residual moisture (Karl Fischer),0.87,%,<= 2.0
+DP26048,drug product,2026-05-02T03:24:03+01:00,Residual moisture (Karl Fischer),0.73,%,<= 2.0
+DP26049,drug product,2026-05-05T14:56:43+01:00,Residual moisture (Karl Fischer),0.83,%,<= 2.0
+DP26050,drug product,2026-05-09T05:52:58+01:00,Residual moisture (Karl Fischer),0.88,%,<= 2.0
+DP26051,drug product,2026-05-15T06:37:53+01:00,Residual moisture (Karl Fischer),0.88,%,<= 2.0
+DP26052,drug product,2026-05-16T00:24:08+01:00,Residual moisture (Karl Fischer),0.82,%,<= 2.0
+DP26053,drug product,2026-05-22T06:40:54+01:00,Residual moisture (Karl Fischer),0.75,%,<= 2.0
+DP26054,drug product,2026-05-24T05:25:00+01:00,Residual moisture (Karl Fischer),0.96,%,<= 2.0
+DP26055,drug product,2026-05-28T08:30:19+01:00,Residual moisture (Karl Fischer),0.78,%,<= 2.0
+DP26056,drug product,2026-05-31T11:06:00+01:00,Residual moisture (Karl Fischer),0.82,%,<= 2.0
+DP26057,drug product,2026-06-05T01:18:05+01:00,Residual moisture (Karl Fischer),0.86,%,<= 2.0
+DP26058,drug product,2026-06-08T14:43:56+01:00,Residual moisture (Karl Fischer),0.83,%,<= 2.0
+DP26059,drug product,2026-06-13T15:42:28+01:00,Residual moisture (Karl Fischer),0.83,%,<= 2.0
+DP26060,drug product,2026-06-16T13:34:32+01:00,Residual moisture (Karl Fischer),0.85,%,<= 2.0
+DP26061,drug product,2026-06-20T09:21:57+01:00,Residual moisture (Karl Fischer),0.78,%,<= 2.0
+DP26062,drug product,2026-06-24T18:00:17+01:00,Residual moisture (Karl Fischer),0.86,%,<= 2.0
+DP26063,drug product,2026-06-27T17:38:57+01:00,Residual moisture (Karl Fischer),0.76,%,<= 2.0
+DP26064,drug product,2026-07-02T15:30:14+01:00,Residual moisture (Karl Fischer),0.85,%,<= 2.0
+DP26065,drug product,2026-07-06T18:07:01+01:00,Residual moisture (Karl Fischer),0.86,%,<= 2.0
+DP26066,drug product,2026-07-11T06:22:55+01:00,Residual moisture (Karl Fischer),0.81,%,<= 2.0
+DP26067,drug product,2026-07-13T07:00:15+01:00,Residual moisture (Karl Fischer),0.74,%,<= 2.0
+DP26068,drug product,2026-07-17T16:40:04+01:00,Residual moisture (Karl Fischer),0.86,%,<= 2.0
+DP26069,drug product,2026-07-22T02:01:18+01:00,Residual moisture (Karl Fischer),0.74,%,<= 2.0
+DP26070,drug product,2026-07-27T16:33:35+01:00,Residual moisture (Karl Fischer),0.84,%,<= 2.0
+DP26071,drug product,2026-08-01T00:14:57+01:00,Residual moisture (Karl Fischer),0.9,%,<= 2.0
+DP26072,drug product,2026-08-15T15:34:13+01:00,Residual moisture (Karl Fischer),0.89,%,<= 2.0
+DP26073,drug product,2026-08-18T08:01:11+01:00,Residual moisture (Karl Fischer),0.87,%,<= 2.0
+DP26074,drug product,2026-08-22T02:53:53+01:00,Residual moisture (Karl Fischer),0.77,%,<= 2.0
