@@ -219,5 +219,8 @@ uv run tiles-evaluate --cases ../data/sample-plants/die-casting/copilot/question
 - **The knowledge base (T5.03):** SOPs and reports to search.
 - **Choosing failure modes (T8.01):** stops, hours and cost per mode and machine, with the history
   each needs.
+- **The failure-mode models (T8.02 to T8.04):** [backtests/](backtests/) has each model's backtest on
+  Line 2's year (`tiles-sample-plant backtest die-casting`), against the target it was set
+  ([docs/failure-modes.md](../../../docs/failure-modes.md)).
 - **The process model (T11.01):** X-ray grades from known physics, to fit and to check against.
 - **The ROI report (T6.01, T12.01):** costs, stops and scrap, by machine and by mode.

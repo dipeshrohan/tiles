@@ -375,13 +375,13 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
   *Done when:* every machine on the line has its tags mapped to Signal nodes in the ontology.
 ### Month 8: More failure modes (Jun 2027)
 
-- [ ] `T8.01` [#337](https://github.com/dipeshrohan/tiles/issues/337) **Choose three failure modes** · PM+ML · 1d · T7.04
+- [x] `T8.01` [#337](https://github.com/dipeshrohan/tiles/issues/337) **Choose three failure modes** · PM+ML · 1d · T7.04
   *Done when:* three failure modes are chosen and recorded with their baseline hours, cost and the history available.
-- [ ] `T8.02` [#338](https://github.com/dipeshrohan/tiles/issues/338) **Failure-mode model 1** · ML · 5d · T8.01
+- [x] `T8.02` [#338](https://github.com/dipeshrohan/tiles/issues/338) **Failure-mode model 1** · ML · 5d · T8.01
   *Done when:* the model is in the registry and its backtest report beats its target.
-- [ ] `T8.03` [#339](https://github.com/dipeshrohan/tiles/issues/339) **Failure-mode model 2** · ML · 5d · T8.01
+- [x] `T8.03` [#339](https://github.com/dipeshrohan/tiles/issues/339) **Failure-mode model 2** · ML · 5d · T8.01
   *Done when:* the model is in the registry and its backtest report beats its target.
-- [ ] `T8.04` [#340](https://github.com/dipeshrohan/tiles/issues/340) **Failure-mode model 3** · ML · 5d · T8.01
+- [x] `T8.04` [#340](https://github.com/dipeshrohan/tiles/issues/340) **Failure-mode model 3** · ML · 5d · T8.01
   *Done when:* the model is in the registry and its backtest report beats its target.
 - [ ] `T8.05` [#341](https://github.com/dipeshrohan/tiles/issues/341) **Bind the new models and go live** · FDE+ML · 2d · T8.02–T8.04
   *Done when:* the three models are bound on the line and their warnings reach the warning workflow.

@@ -1,0 +1,56 @@
+{
+  "accumulator-charge": {
+    "version": "1.0.0",
+    "output": "sag",
+    "code": "DT-HYD",
+    "setting": {
+      "window": 120,
+      "k": 3.0,
+      "persist": 3,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 1.0
+    },
+    "recall": 0.9090909090909091,
+    "false_per_day": 0.0007,
+    "median_warning_hours": 50.47,
+    "held_out_recall": 1.0,
+    "passed": true
+  },
+  "furnace-heater": {
+    "version": "1.0.0",
+    "output": "heater_excess",
+    "code": "DT-FUR",
+    "setting": {
+      "window": 240,
+      "k": 3.0,
+      "persist": 2,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 1.0
+    },
+    "recall": 1.0,
+    "false_per_day": 0.0,
+    "median_warning_hours": 180.12,
+    "held_out_recall": 1.0,
+    "passed": true
+  },
+  "die-cooling": {
+    "version": "1.0.0",
+    "output": "over_limit",
+    "code": "DT-DIE",
+    "setting": {
+      "window": 120,
+      "k": 1.0,
+      "persist": 4,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 0.01
+    },
+    "recall": 1.0,
+    "false_per_day": 0.0014,
+    "median_warning_hours": 141.51,
+    "held_out_recall": 1.0,
+    "passed": true
+  }
+}
