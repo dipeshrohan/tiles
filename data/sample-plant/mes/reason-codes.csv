@@ -1,0 +1,29 @@
+code,description,category,kind,planned
+DT-PLG,Plunger seized or tip damaged,Shot end,downtime,no
+DT-HYD,Hydraulic fault: accumulator pressure or pressure build-up,Hydraulics,downtime,no
+DT-OIL,Hydraulic oil over temperature,Hydraulics,downtime,no
+DT-DIE,Die cleaning: soldering or blocked cooling,Die,downtime,no
+DT-VAC,Vacuum system fault,Vacuum,downtime,no
+DT-SPR,Spray robot: nozzles blocked or spray fault,Spray,downtime,no
+DT-FUR,Holding furnace fault,Furnace,downtime,no
+DT-ROB,Extraction robot fault,Automation,downtime,no
+DT-TRM,Trim press fault,Automation,downtime,no
+DT-ELE,Electrical or control fault,Electrical,downtime,no
+DT-SEN,Sensor fault,Electrical,downtime,no
+DT-MAT,No metal: melting or transport delay,Logistics,downtime,no
+DT-OPR,No operator,Organisation,downtime,no
+DT-QH,Quality hold,Quality,downtime,no
+DT-OTH,Other,Other,downtime,no
+PL-PM,Planned maintenance,Planned,downtime,yes
+PL-TIP,Planned plunger tip change,Planned,downtime,yes
+PL-DIE,Die change,Planned,downtime,yes
+PL-TRL,Trial or sampling run,Planned,downtime,yes
+PL-SHD,Plant shutdown or holiday,Planned,downtime,yes
+POR,Porosity (X-ray grade 3 or 4),Internal,scrap,no
+CS,Cold shut or misrun,Filling,scrap,no
+SOLD,Soldering,Die,scrap,no
+STK,Sticking or drag marks,Die,scrap,no
+FL,Flash,Die,scrap,no
+WU,Warm-up shot,Start-up,scrap,no
+DIM,Out of tolerance,Dimensions,scrap,no
+DAM,Handling damage,Handling,scrap,no

@@ -1,0 +1,353 @@
+"""Loads the sample plant into a Tiles site through the API, as a site's own data would arrive:
+- the plant model, imported and committed;
+- readings, by imports;
+- the MES's unplanned stops and scrap, as event streams;
+- the signal catalogue;
+- planned codes and stops;
+- documents;
+- the X-ray tables, as batch tables.
+
+The historian, X-ray and shot-curve files come from `tiles-sample-plant generate --all`; without
+them the readings and X-ray tables are left out, and everything else still loads. The copilot's
+question set is asked with `tiles-evaluate --cases data/sample-plant/copilot/questions.csv --site …
+--as …` once the plant is loaded without a time shift.
+
+`--shift-to-now` moves every time on by whole weeks, so that the year ends in the week before
+today: the copilot's and the pages' default windows ("the last 30 days") then find it. Weekdays
+and shifts stay as they were, but the question set's dates no longer hold.
+"""
+
+import csv
+import gzip
+import json
+import math
+import urllib.error
+import urllib.parse
+import urllib.request
+from collections.abc import Callable, Iterable, Iterator
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+from tiles_api.sample_plant.plant import END, PLANNED_CODES
+
+BATCH = 10_000  # readings a request (POST …/imports/{id}/samples takes at most 10,000)
+ROWS = 5_000  # batch-table rows a request
+TEXT_COLUMNS = ("shot_id", "time", "asset", "product", "defect", "result")
+
+
+# An httpx-shaped client: the API's TestClient, or HttpClient below (get, post, patch and put with
+# json=, params=, content= and headers=, answering with status_code, text, content and json()).
+Client = Any
+Response = Any
+
+
+class LoadError(RuntimeError):
+    """A request the API refused."""
+
+
+@dataclass
+class _Reply:
+    status_code: int
+    content: bytes
+
+    @property
+    def text(self) -> str:
+        return self.content.decode("utf-8", "replace")
+
+    def json(self) -> Any:
+        return json.loads(self.content)
+
+
+class HttpClient:
+    """The few calls the loader makes, over HTTP with the standard library (TestClient's shape)."""
+
+    def __init__(self, base: str) -> None:
+        self.base = base.rstrip("/")
+        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # the API is local
+
+    def _call(
+        self,
+        method: str,
+        url: str,
+        json_body: Any = None,
+        params: dict[str, Any] | None = None,
+        content: bytes | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> _Reply:
+        full = self.base + url
+        if params:
+            full += "?" + urllib.parse.urlencode(params)
+        data = content
+        head = dict(headers or {})
+        if json_body is not None:
+            data = json.dumps(json_body).encode()
+            head["Content-Type"] = "application/json"
+        req = urllib.request.Request(full, data=data, method=method, headers=head)  # noqa: S310 - the API's own address
+        try:
+            with self.opener.open(req, timeout=300) as res:
+                return _Reply(res.status, res.read())
+        except urllib.error.HTTPError as e:
+            return _Reply(e.code, e.read())
+
+    def get(self, url: str, **kw: Any) -> _Reply:
+        return self._call("GET", url, params=kw.get("params"), headers=kw.get("headers"))
+
+    def post(self, url: str, **kw: Any) -> _Reply:
+        return self._call("POST", url, kw.get("json"), kw.get("params"), kw.get("content"), kw.get("headers"))
+
+    def patch(self, url: str, **kw: Any) -> _Reply:
+        return self._call("PATCH", url, kw.get("json"), kw.get("params"), None, kw.get("headers"))
+
+    def put(self, url: str, **kw: Any) -> _Reply:
+        return self._call("PUT", url, kw.get("json"), kw.get("params"), None, kw.get("headers"))
+
+
+def _ok(res: Response, what: str) -> Any:
+    if res.status_code >= 300:
+        raise LoadError(f"{what}: {res.status_code} {res.text[:300]}")
+    return res.json() if res.content else None
+
+
+def shift_to_now(now: datetime) -> timedelta:
+    """Whole weeks that move the year's end to the last week before `now`."""
+    weeks = math.floor((now - END) / timedelta(weeks=1))
+    return timedelta(weeks=max(0, weeks))
+
+
+def _at(text: str, shift: timedelta) -> str:
+    return (datetime.fromisoformat(text.replace("Z", "+00:00")) + shift).isoformat()
+
+
+def _key(asset: str) -> str:
+    return asset.lower().replace("-", "")
+
+
+Reading = tuple[str, str, float | str]  # tag, time (ISO), value
+
+
+def historian_readings(root: Path, keep: Callable[[str, str], bool] | None = None) -> Iterator[Reading]:
+    """The historian export and the shot curves, file by file (`keep(tag, time)` narrows them)."""
+    files = sorted((root / "generated" / "historian").glob("*/*.csv.gz")) + sorted(
+        (root / "generated" / "traces").glob("*.csv.gz")
+    )
+    for path in files:
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                if keep is None or keep(row["tag"], row["timestamp"]):
+                    yield row["tag"], row["timestamp"], float(row["value"])
+
+
+def event_readings(root: Path) -> Iterator[Reading]:
+    """The MES's unplanned stops (each at its start, its code the value) and its scrapped parts."""
+    with (root / "mes" / "stops.csv").open(encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row["planned"] != "yes":
+                yield f"mes.{_key(row['asset'])}.downtime", row["start"], row["code"]
+    with (root / "mes" / "scrap.csv").open(encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            yield f"mes.{_key(row['asset'])}.scrap", row["time"], row["code"]
+
+
+@dataclass
+class Loader:
+    api: Client
+    site: str
+    who: dict[str, str]  # the engineer's headers
+    shift: timedelta = timedelta(0)
+    say: Callable[[str], None] = lambda _m: None
+
+    def url(self, path: str) -> str:
+        return f"/sites/{self.site}{path}"
+
+    def ontology(self, root: Path) -> None:
+        content = (root / "plant" / "ontology.json").read_text(encoding="utf-8")
+        body = {"format": "json", "content": content, "mode": "merge", "name": "ontology.json"}
+        out = _ok(self.api.post(self.url("/ontology/import"), json=body, headers=self.who), "the plant model")
+        if out["total"]:
+            _ok(
+                self.api.post(
+                    self.url("/ontology/commits"),
+                    json={"message": "The Kesselbach plant model (sample plant)"},
+                    headers=self.who,
+                ),
+                "the plant model's commit",
+            )
+        self.say(f"Plant model: {out['total']} changes")
+
+    def readings(self, name: str, readings: Iterable[Reading]) -> int:
+        """One import of the readings, in batches; how many were new."""
+        imp = _ok(self.api.post(self.url("/imports"), json={"name": name}, headers=self.who), f"import {name}")
+        stored = 0
+        batch: list[dict[str, Any]] = []
+
+        def send() -> None:
+            nonlocal stored
+            out = _ok(
+                self.api.post(self.url(f"/imports/{imp['id']}/samples"), json={"samples": batch}, headers=self.who),
+                f"readings of {name}",
+            )
+            stored += out["stored"]
+            batch.clear()
+
+        for tag, at, value in readings:
+            batch.append({"signal": tag, "at": _at(at, self.shift), "value": value})
+            if len(batch) >= BATCH:
+                send()
+        if batch:
+            send()
+        _ok(self.api.post(self.url(f"/imports/{imp['id']}/finish"), headers=self.who), f"finishing {name}")
+        self.say(f"{name}: {stored:,} new readings")
+        return stored
+
+    def signals(self) -> dict[str, dict[str, Any]]:
+        out: dict[str, dict[str, Any]] = {}
+        offset = 0
+        while True:
+            page = _ok(
+                self.api.get(self.url("/signals"), params={"limit": 500, "offset": offset}, headers=self.who),
+                "the signals",
+            )
+            for s in page["signals"]:
+                out[s["tag"]] = s
+            if len(page["signals"]) < 500:
+                return out
+            offset += 500
+
+    def catalogue(self, root: Path) -> int:
+        """Describes each signal that has readings as the tag list says, linked to its Signal node."""
+        have = self.signals()
+        nodes = {
+            n["props"].get("tag"): n["id"]
+            for n in json.loads((root / "plant" / "ontology.json").read_text())["nodes"]
+            if n["type"] == "Signal"
+        }
+        done = 0
+        with (root / "plant" / "tags.csv").open(encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                signal = have.get(row["tag"])
+                if signal is None:
+                    continue
+                change: dict[str, Any] = {"description": row["description"]}
+                for name in ("unit", "asset", "event_kind", "wear_direction"):
+                    if row[name]:
+                        change[name] = row[name]
+                for name in ("sample_rate_hz", "range_min", "range_max", "stuck_after_s", "wear_limit"):
+                    if row[name]:
+                        change[name] = float(row[name])
+                if row["tag"] in nodes:
+                    change["node_id"] = nodes[row["tag"]]
+                _ok(
+                    self.api.patch(self.url(f"/signals/{signal['id']}"), json=change, headers=self.who),
+                    f"signal {row['tag']}",
+                )
+                done += 1
+        self.say(f"Signal catalogue: {done} signals described")
+        return done
+
+    def planned(self, root: Path) -> int:
+        _ok(
+            self.api.put(self.url("/planned-codes"), json={"codes": list(PLANNED_CODES)}, headers=self.who),
+            "the planned codes",
+        )
+        n = 0
+        with (root / "calendar" / "planned-stops.csv").open(encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                body = {
+                    "asset": row["asset"] or None,
+                    "starts_at": _at(row["start"], self.shift),
+                    "ends_at": _at(row["end"], self.shift),
+                    "reason": row["reason"],
+                }
+                _ok(self.api.post(self.url("/planned-stops"), json=body, headers=self.who), "a planned stop")
+                n += 1
+        self.say(f"Planned stops: {n}")
+        return n
+
+    def documents(self, root: Path) -> int:
+        n = 0
+        for path in sorted((root / "documents").glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            title = text.splitlines()[0].removeprefix("# ")[:200]
+            _ok(
+                self.api.post(
+                    self.url("/documents"),
+                    params={"title": title, "filename": path.name},
+                    content=text.encode(),
+                    headers={**self.who, "Content-Type": "text/markdown"},
+                ),
+                f"document {path.name}",
+            )
+            n += 1
+        self.say(f"Documents: {n}")
+        return n
+
+    def dataset(self, name: str, description: str, rows: list[dict[str, Any]]) -> None:
+        if not rows:
+            return
+        columns = [{"name": k, "kind": "text" if k in TEXT_COLUMNS else "number"} for k in rows[0]]
+        d = _ok(
+            self.api.post(
+                self.url("/datasets"),
+                json={"name": name, "description": description, "columns": columns},
+                headers=self.who,
+            ),
+            f"dataset {name}",
+        )
+        for i in range(0, len(rows), ROWS):
+            _ok(
+                self.api.post(
+                    self.url(f"/datasets/{d['id']}/rows"), json={"rows": rows[i : i + ROWS]}, headers=self.who
+                ),
+                f"rows of {name}",
+            )
+        self.say(f"{name}: {len(rows):,} rows")
+
+    def xray_tables(self, root: Path) -> int:
+        n = 0
+        for path in sorted((root / "generated" / "quality").glob("*.csv.gz")):
+            key, month = path.name.removesuffix(".csv.gz").split("-", 1)
+            asset = f"DC-{key[2:]}"
+            with gzip.open(path, "rt", encoding="utf-8") as f:
+                rows = [{k: (v if k in TEXT_COLUMNS else float(v)) for k, v in r.items()} for r in csv.DictReader(f)]
+            self.dataset(
+                f"X-ray results {asset} {month}",
+                f"Every shot of {asset} in {month}: its process values and X-ray result",
+                rows,
+            )
+            n += 1
+        return n
+
+
+def load(
+    api: Client,
+    site: str,
+    who: dict[str, str],
+    root: Path,
+    *,
+    shift: timedelta = timedelta(0),
+    readings: bool = True,
+    say: Callable[[str], None] = print,
+) -> None:
+    """Loads everything there is under `root` into the site."""
+    ld = Loader(api, site, who, shift, say)
+    ld.ontology(root)
+    if readings and (root / "generated" / "historian").exists():
+        ld.readings("historian export (sample plant)", historian_readings(root))
+    ld.readings("MES stops and scrap (sample plant)", event_readings(root))
+    ld.catalogue(root)
+    ld.planned(root)
+    ld.documents(root)
+    if readings:
+        ld.xray_tables(root)
+
+
+def main(args: Any) -> None:
+    api = HttpClient(args.api)
+    who = {"Authorization": f"Bearer {args.token}"} if args.token else {"X-Tiles-User": getattr(args, "as")}
+    shift = shift_to_now(datetime.now(UTC)) if args.shift_to_now else timedelta(0)
+    load(api, args.site, who, args.root, shift=shift, readings=not args.no_readings)
+
+
+__all__ = ["HttpClient", "LoadError", "Loader", "event_readings", "historian_readings", "load", "shift_to_now"]

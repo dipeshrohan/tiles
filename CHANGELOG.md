@@ -20,7 +20,8 @@ The first version: everything up to the pilot. Not yet tagged.
   - CSV imports;
   - a signal catalogue with data-quality checks;
   - a data explorer;
-  - suggested tag mappings.
+  - suggested tag mappings;
+  - **a sample plant** (`data/sample-plant/`, `tiles-sample-plant`): a year of a made-up die-casting plant, complete as a partner hands it over (its plant model, tags, historian readings, MES stops, scrap and production, shift calendar, CMMS work orders, lab tests, X-ray results, costs, SOPs and reports), simulated shot by shot so each breakdown shows in its signals first, with the ground truth and 100+ copilot questions answerable from it, and loaded into a site through the API.
 - **Models and warnings:**
   - a model registry and a model runner that writes derived signals;
   - an organisation's own models, computed by its service and registered with their spec and an https endpoint on a host the deployment allows; they are tried, bound, run and swept like the built-in ones, every call checked against the spec, the endpoint's token sealed; or from a GitHub repository at a commit, the code kept and run only in a sandbox: a new process per evaluation, the standard library only, within limits, in a pod that reaches nothing (T4.15);
@@ -50,7 +51,7 @@ The first version: everything up to the pilot. Not yet tagged.
 - **Design studio:** physics-based design models, runs with lineage and audit export (PDF), and parameter sweeps.
 - **Copilot:**
   - Claude with read-only tools over the site's data;
-  - grounded answers;
+  - grounded answers (a machine's or a part's code, such as DC-01 or EM-220, is no longer read as a number to check);
   - proposals for ontology changes, which go through review;
   - cost controls per question, organisation and day;
   - **on per site:** a site's admins turn the copilot on in Settings, which says what it sends to Anthropic; off on a new site (sites that already used it stay on);

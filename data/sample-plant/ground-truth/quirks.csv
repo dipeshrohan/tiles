@@ -1,0 +1,9 @@
+quirk,where,from,to,what
+historian outage,"dc03.*, hf03.*",2026-02-10T06:00:00+01:00,2026-02-12T14:00:00+01:00,No readings: the historian's collector for Cell DC-03 was down
+stuck value,dc02.die_temp_fixed,2026-01-19T10:00:00+01:00,2026-01-22T15:30:00+01:00,Thermocouple failed: reads 238.4 °C; replaced on 22 January
+wrong unit,dc04.intensification_pressure,2026-05-11T08:00:00+02:00,2026-05-18T07:00:00+02:00,Logged in MPa (a tenth of the bar values) after a PLC firmware update
+code renamed,mes/stops.csv,2025-10-01T00:00:00+02:00,2025-12-01T00:00:00+01:00,"Hydraulic faults are HYD before the MES update, DT-HYD after"
+wrong asset,mes/stops.csv,2026-03-01,2026-10-01T00:00:00+02:00,2 stops of DC-04 booked on DC-03
+duplicate rows,mes/stops.csv,2025-10-01T00:00:00+02:00,2026-10-01T00:00:00+02:00,"About 0.4% of stops are logged twice (same start, asset and code)"
+no end time,mes/stops.csv,2025-10-01T00:00:00+02:00,2026-10-01T00:00:00+02:00,About 0.3% of unplanned stops have no end time
+not logged,"Line 1 (DC-05, DC-06)",2025-10-01T00:00:00+02:00,2026-10-01T00:00:00+02:00,"Older cells: only 5-minute cycle time and die temperature over MQTT, and MES events"

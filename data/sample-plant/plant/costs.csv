@@ -1,0 +1,17 @@
+item,of,value,unit
+downtime,DC-01,3100.0,EUR/h
+downtime,DC-02,3100.0,EUR/h
+downtime,DC-03,2700.0,EUR/h
+downtime,DC-04,2400.0,EUR/h
+downtime,DC-05,900.0,EUR/h
+downtime,DC-06,900.0,EUR/h
+scrap,TH-410,48.0,EUR/part
+scrap,EM-220,36.0,EUR/part
+scrap,CV-90,14.0,EUR/part
+scrap,BR-35,6.0,EUR/part
+labour,maintenance technician,68.0,EUR/h
+part,plunger tip,420.0,EUR
+part,shot sleeve,6800.0,EUR
+part,accumulator nitrogen recharge,160.0,EUR
+part,vacuum filter,95.0,EUR
+part,heater element,1900.0,EUR

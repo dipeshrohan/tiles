@@ -39,6 +39,7 @@ tiles-loadtest = "tiles_api.loadtest:main"
 tiles-apidoc = "tiles_api.apidoc:main"
 tiles-sandbox = "tiles_api.sandbox.server:main"
 tiles-evaluate = "tiles_api.evaluation:main"
+tiles-sample-plant = "tiles_api.sample_plant:main"
 
 [dependency-groups]
 dev = [
@@ -65,6 +66,7 @@ ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
+"src/tiles_api/sample_plant/**" = ["S311"]  # a simulation: seeded randomness, never for security
 
 [tool.mypy]
 strict = true

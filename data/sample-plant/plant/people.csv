@@ -1,0 +1,12 @@
+name,email,tiles_role,job,crew
+Katrin Vogel,katrin.vogel@example.com,admin,Plant manager (sponsor),
+Jonas Brandt,jonas.brandt@example.com,engineer,"Process engineer, die casting",
+Aylin Demir,aylin.demir@example.com,engineer,Maintenance lead,
+Marek Nowak,marek.nowak@example.com,engineer,Quality lead,
+Sofia Reiter,sofia.reiter@example.com,engineer,Maintenance technician,A
+Tobias Lang,tobias.lang@example.com,engineer,Maintenance technician,B
+Emre Kaya,emre.kaya@example.com,engineer,Maintenance technician,C
+Lena Hoffmann,lena.hoffmann@example.com,viewer,"Shift lead, Line 2",A
+Patrick Schulz,patrick.schulz@example.com,viewer,"Shift lead, Line 2",B
+Dariusz Wójcik,dariusz.wojcik@example.com,viewer,"Shift lead, Line 2",C
+Nina Becker,nina.becker@example.com,admin,IT and OT lead,

@@ -1,0 +1,44 @@
+{
+  "porosity_pct": {
+    "base": 0.45,
+    "vacuum_above_50_mbar": 0.002,
+    "intensification_below_set_bar": 0.003,
+    "hydrogen_above_0.10": 2.5,
+    "die_temp_off_set_c": 0.004,
+    "speed_2nd_below_set_m_s": 0.12,
+    "buildup_above_25_ms": 0.006,
+    "noise_sd": 0.07,
+    "entrapped_air_chance": 0.006
+  },
+  "set_points": {
+    "TH-410": {
+      "die_temp_c": 232.0,
+      "speed_2nd_m_s": 4.8,
+      "intensification_bar": 900.0
+    },
+    "EM-220": {
+      "die_temp_c": 238.0,
+      "speed_2nd_m_s": 4.6,
+      "intensification_bar": 940.0
+    },
+    "CV-90": {
+      "die_temp_c": 226.0,
+      "speed_2nd_m_s": 4.2,
+      "intensification_bar": 860.0
+    },
+    "BR-35": {
+      "die_temp_c": 220.0,
+      "speed_2nd_m_s": 3.9,
+      "intensification_bar": 820.0
+    }
+  },
+  "xray_grades": {
+    "0": "below 0.6",
+    "1": "0.6 to 0.85",
+    "2": "0.85 to 1.1",
+    "3": "1.1 to 1.4",
+    "4": "1.4 or more"
+  },
+  "scrapped_from_grade": 3,
+  "notes": "porosity = base + each coefficient times its term + noise; a part of grade 3 or 4 is scrap (POR)"
+}

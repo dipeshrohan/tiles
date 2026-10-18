@@ -28,10 +28,11 @@ DECLINE = "I can't answer that from the site's data"
 _LABEL = re.compile(r"^\[(\d+)\] ")
 _CITE = re.compile(r"\[(\d+)\]")
 _CODE = re.compile(r"`([^`\n]{1,200})`")
-# A number standing on its own: not inside a tag (press9, W-03, w03.power) or a citation ([3]); a
-# unit may follow it (1900W, 17h). A dash after a digit is a range ("5-10"), not a sign.
+# A number standing on its own: not inside a tag or code (press9, W-03, EM-220, w03.power), not the
+# tail of another number, not a citation ([3]); a unit may follow it (1900W, 17h). A dash after a
+# digit is a range ("5-10"), not a sign.
 _NUMBER = re.compile(
-    r"(?<![A-Za-z_.\/:#\[,])(?<![A-Za-z_]-)((?<!\d)-)?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(%?)(?![\d\]]|\.\d|,\d)"
+    r"(?<![A-Za-z_.\/:#\[,\d])(?<![A-Za-z_]-)((?<!\d)-)?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(%?)(?![\d\]]|\.\d|,\d)"
 )
 _DIGITS = re.compile(r"\d+(?:\.\d+)?")
 _LIST_MARKER = re.compile(r"(?m)^[ \t]*(?:[-*]|\d{1,2}[.)])[ \t]+")

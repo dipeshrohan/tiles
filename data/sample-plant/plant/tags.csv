@@ -1,0 +1,112 @@
+tag,unit,kind,sample_rate_hz,description,asset,measure,range_min,range_max,stuck_after_s,wear_limit,wear_direction,event_kind
+dc01.cycle_time,s,shot,,DC-01 cycle time,DC-01,cycle,40,400,,,,
+dc01.shot_speed_1st,m/s,shot,,DC-01 first-phase (slow) shot speed,DC-01,speed,0.1,0.6,,,,
+dc01.shot_speed_2nd,m/s,shot,,DC-01 second-phase (fast) shot speed,DC-01,speed,2.5,7.0,,,,
+dc01.fill_time,ms,shot,,DC-01 cavity fill time,DC-01,time,20,200,,,,
+dc01.intensification_pressure,bar,shot,,DC-01 metal pressure at intensification,DC-01,pressure,500,1200,,,,
+dc01.pressure_buildup_time,ms,shot,,DC-01 intensification pressure build-up time,DC-01,time,5,120,,,,
+dc01.biscuit_length,mm,shot,,DC-01 biscuit length,DC-01,length,5,80,,,,
+dc01.vacuum_level,mbar,shot,,DC-01 cavity vacuum at the shot (absolute),DC-01,vacuum,10,1013,,,,
+dc01.die_temp_fixed,°C,shot,,DC-01 fixed die half before spraying,DC-01,temperature,20,320,,,,
+dc01.die_temp_moving,°C,shot,,DC-01 moving die half before spraying,DC-01,temperature,20,320,,,,
+dc01.plunger_pressure_1st,bar,shot,,DC-01 shot cylinder pressure in the slow phase: rises with plunger friction,DC-01,friction,5,80,,36.0,up,
+dc01.spray_pressure,bar,shot,,DC-01 spray robot manifold pressure,DC-01,pressure,1,8,,,,
+dc01.hydraulic_oil_temp,°C,continuous,0.0033333333333333335,DC-01 hydraulic oil tank temperature,DC-01,temperature,10,70,7200,,,
+dc01.accumulator_pressure,bar,continuous,0.0033333333333333335,"DC-01 shot accumulator pressure, recharged",DC-01,pressure,60,200,7200,,,
+dc01.cooling_flow_fixed,l/min,continuous,0.0033333333333333335,"DC-01 die cooling flow, fixed half",DC-01,flow,0,80,7200,,,
+dc01.cooling_flow_moving,l/min,continuous,0.0033333333333333335,"DC-01 die cooling flow, moving half",DC-01,flow,0,80,7200,,,
+dc01.tcu_oil_temp,°C,continuous,0.0033333333333333335,DC-01 thermal control unit oil temperature,DC-01,temperature,20,260,7200,,,
+hf01.bath_temp,°C,continuous,0.0033333333333333335,HF-01 metal bath temperature,HF-01,temperature,600,760,7200,,,
+hf01.heater_power,kW,continuous,0.0033333333333333335,HF-01 heater power,HF-01,power,0,120,7200,,,
+mes.dc01.downtime,,event,,DC-01 stops from the MES: the reason code,DC-01,,,,,,,downtime
+mes.dc01.scrap,,event,,DC-01 scrapped parts from the MES: the defect code,DC-01,,,,,,,scrap
+dc02.cycle_time,s,shot,,DC-02 cycle time,DC-02,cycle,40,400,,,,
+dc02.shot_speed_1st,m/s,shot,,DC-02 first-phase (slow) shot speed,DC-02,speed,0.1,0.6,,,,
+dc02.shot_speed_2nd,m/s,shot,,DC-02 second-phase (fast) shot speed,DC-02,speed,2.5,7.0,,,,
+dc02.fill_time,ms,shot,,DC-02 cavity fill time,DC-02,time,20,200,,,,
+dc02.intensification_pressure,bar,shot,,DC-02 metal pressure at intensification,DC-02,pressure,500,1200,,,,
+dc02.pressure_buildup_time,ms,shot,,DC-02 intensification pressure build-up time,DC-02,time,5,120,,,,
+dc02.biscuit_length,mm,shot,,DC-02 biscuit length,DC-02,length,5,80,,,,
+dc02.vacuum_level,mbar,shot,,DC-02 cavity vacuum at the shot (absolute),DC-02,vacuum,10,1013,,,,
+dc02.die_temp_fixed,°C,shot,,DC-02 fixed die half before spraying,DC-02,temperature,20,320,,,,
+dc02.die_temp_moving,°C,shot,,DC-02 moving die half before spraying,DC-02,temperature,20,320,,,,
+dc02.plunger_pressure_1st,bar,shot,,DC-02 shot cylinder pressure in the slow phase: rises with plunger friction,DC-02,friction,5,80,,36.0,up,
+dc02.spray_pressure,bar,shot,,DC-02 spray robot manifold pressure,DC-02,pressure,1,8,,,,
+dc02.hydraulic_oil_temp,°C,continuous,0.0033333333333333335,DC-02 hydraulic oil tank temperature,DC-02,temperature,10,70,7200,,,
+dc02.accumulator_pressure,bar,continuous,0.0033333333333333335,"DC-02 shot accumulator pressure, recharged",DC-02,pressure,60,200,7200,,,
+dc02.cooling_flow_fixed,l/min,continuous,0.0033333333333333335,"DC-02 die cooling flow, fixed half",DC-02,flow,0,80,7200,,,
+dc02.cooling_flow_moving,l/min,continuous,0.0033333333333333335,"DC-02 die cooling flow, moving half",DC-02,flow,0,80,7200,,,
+dc02.tcu_oil_temp,°C,continuous,0.0033333333333333335,DC-02 thermal control unit oil temperature,DC-02,temperature,20,260,7200,,,
+hf02.bath_temp,°C,continuous,0.0033333333333333335,HF-02 metal bath temperature,HF-02,temperature,600,760,7200,,,
+hf02.heater_power,kW,continuous,0.0033333333333333335,HF-02 heater power,HF-02,power,0,120,7200,,,
+mes.dc02.downtime,,event,,DC-02 stops from the MES: the reason code,DC-02,,,,,,,downtime
+mes.dc02.scrap,,event,,DC-02 scrapped parts from the MES: the defect code,DC-02,,,,,,,scrap
+dc03.cycle_time,s,shot,,DC-03 cycle time,DC-03,cycle,40,400,,,,
+dc03.shot_speed_1st,m/s,shot,,DC-03 first-phase (slow) shot speed,DC-03,speed,0.1,0.6,,,,
+dc03.shot_speed_2nd,m/s,shot,,DC-03 second-phase (fast) shot speed,DC-03,speed,2.5,7.0,,,,
+dc03.fill_time,ms,shot,,DC-03 cavity fill time,DC-03,time,20,200,,,,
+dc03.intensification_pressure,bar,shot,,DC-03 metal pressure at intensification,DC-03,pressure,500,1200,,,,
+dc03.pressure_buildup_time,ms,shot,,DC-03 intensification pressure build-up time,DC-03,time,5,120,,,,
+dc03.biscuit_length,mm,shot,,DC-03 biscuit length,DC-03,length,5,80,,,,
+dc03.vacuum_level,mbar,shot,,DC-03 cavity vacuum at the shot (absolute),DC-03,vacuum,10,1013,,,,
+dc03.die_temp_fixed,°C,shot,,DC-03 fixed die half before spraying,DC-03,temperature,20,320,,,,
+dc03.die_temp_moving,°C,shot,,DC-03 moving die half before spraying,DC-03,temperature,20,320,,,,
+dc03.plunger_pressure_1st,bar,shot,,DC-03 shot cylinder pressure in the slow phase: rises with plunger friction,DC-03,friction,5,80,,36.0,up,
+dc03.spray_pressure,bar,shot,,DC-03 spray robot manifold pressure,DC-03,pressure,1,8,,,,
+dc03.hydraulic_oil_temp,°C,continuous,0.0033333333333333335,DC-03 hydraulic oil tank temperature,DC-03,temperature,10,70,7200,,,
+dc03.accumulator_pressure,bar,continuous,0.0033333333333333335,"DC-03 shot accumulator pressure, recharged",DC-03,pressure,60,200,7200,,,
+dc03.cooling_flow_fixed,l/min,continuous,0.0033333333333333335,"DC-03 die cooling flow, fixed half",DC-03,flow,0,80,7200,,,
+dc03.cooling_flow_moving,l/min,continuous,0.0033333333333333335,"DC-03 die cooling flow, moving half",DC-03,flow,0,80,7200,,,
+dc03.tcu_oil_temp,°C,continuous,0.0033333333333333335,DC-03 thermal control unit oil temperature,DC-03,temperature,20,260,7200,,,
+hf03.bath_temp,°C,continuous,0.0033333333333333335,HF-03 metal bath temperature,HF-03,temperature,600,760,7200,,,
+hf03.heater_power,kW,continuous,0.0033333333333333335,HF-03 heater power,HF-03,power,0,120,7200,,,
+mes.dc03.downtime,,event,,DC-03 stops from the MES: the reason code,DC-03,,,,,,,downtime
+mes.dc03.scrap,,event,,DC-03 scrapped parts from the MES: the defect code,DC-03,,,,,,,scrap
+dc04.cycle_time,s,shot,,DC-04 cycle time,DC-04,cycle,40,400,,,,
+dc04.shot_speed_1st,m/s,shot,,DC-04 first-phase (slow) shot speed,DC-04,speed,0.1,0.6,,,,
+dc04.shot_speed_2nd,m/s,shot,,DC-04 second-phase (fast) shot speed,DC-04,speed,2.5,7.0,,,,
+dc04.fill_time,ms,shot,,DC-04 cavity fill time,DC-04,time,20,200,,,,
+dc04.intensification_pressure,bar,shot,,DC-04 metal pressure at intensification,DC-04,pressure,500,1200,,,,
+dc04.pressure_buildup_time,ms,shot,,DC-04 intensification pressure build-up time,DC-04,time,5,120,,,,
+dc04.biscuit_length,mm,shot,,DC-04 biscuit length,DC-04,length,5,80,,,,
+dc04.vacuum_level,mbar,shot,,DC-04 cavity vacuum at the shot (absolute),DC-04,vacuum,10,1013,,,,
+dc04.die_temp_fixed,°C,shot,,DC-04 fixed die half before spraying,DC-04,temperature,20,320,,,,
+dc04.die_temp_moving,°C,shot,,DC-04 moving die half before spraying,DC-04,temperature,20,320,,,,
+dc04.plunger_pressure_1st,bar,shot,,DC-04 shot cylinder pressure in the slow phase: rises with plunger friction,DC-04,friction,5,80,,36.0,up,
+dc04.spray_pressure,bar,shot,,DC-04 spray robot manifold pressure,DC-04,pressure,1,8,,,,
+dc04.hydraulic_oil_temp,°C,continuous,0.0033333333333333335,DC-04 hydraulic oil tank temperature,DC-04,temperature,10,70,7200,,,
+dc04.accumulator_pressure,bar,continuous,0.0033333333333333335,"DC-04 shot accumulator pressure, recharged",DC-04,pressure,60,200,7200,,,
+dc04.cooling_flow_fixed,l/min,continuous,0.0033333333333333335,"DC-04 die cooling flow, fixed half",DC-04,flow,0,80,7200,,,
+dc04.cooling_flow_moving,l/min,continuous,0.0033333333333333335,"DC-04 die cooling flow, moving half",DC-04,flow,0,80,7200,,,
+dc04.tcu_oil_temp,°C,continuous,0.0033333333333333335,DC-04 thermal control unit oil temperature,DC-04,temperature,20,260,7200,,,
+hf04.bath_temp,°C,continuous,0.0033333333333333335,HF-04 metal bath temperature,HF-04,temperature,600,760,7200,,,
+hf04.heater_power,kW,continuous,0.0033333333333333335,HF-04 heater power,HF-04,power,0,120,7200,,,
+mes.dc04.downtime,,event,,DC-04 stops from the MES: the reason code,DC-04,,,,,,,downtime
+mes.dc04.scrap,,event,,DC-04 scrapped parts from the MES: the defect code,DC-04,,,,,,,scrap
+dc05.cycle_time,s,continuous,0.0033333333333333335,"DC-05 cycle time, 5-minute average",DC-05,cycle,40,200,,,,
+dc05.die_temp_fixed,°C,continuous,0.0033333333333333335,"DC-05 fixed die half, 5-minute average",DC-05,temperature,20,300,7200,,,
+mes.dc05.downtime,,event,,DC-05 stops from the MES: the reason code,DC-05,,,,,,,downtime
+mes.dc05.scrap,,event,,DC-05 scrapped parts from the MES: the defect code,DC-05,,,,,,,scrap
+dc06.cycle_time,s,continuous,0.0033333333333333335,"DC-06 cycle time, 5-minute average",DC-06,cycle,40,200,,,,
+dc06.die_temp_fixed,°C,continuous,0.0033333333333333335,"DC-06 fixed die half, 5-minute average",DC-06,temperature,20,300,7200,,,
+mes.dc06.downtime,,event,,DC-06 stops from the MES: the reason code,DC-06,,,,,,,downtime
+mes.dc06.scrap,,event,,DC-06 scrapped parts from the MES: the defect code,DC-06,,,,,,,scrap
+dc01.shot.v,m/s,trace,200.0,DC-01 plunger velocity through the shot (shot monitoring),DC-01,speed,,,,,,
+dc01.shot.ph,bar,trace,200.0,DC-01 shot cylinder (hydraulic) pressure through the shot,DC-01,pressure,,,,,,
+dc01.shot.pm,bar,trace,200.0,DC-01 metal pressure through the shot,DC-01,pressure,,,,,,
+mf01.melt_temp,°C,continuous,0.0033333333333333335,MF-01 melt temperature at tapping,MF-01,temperature,650,800,7200,,,
+mf01.gas_flow,m³/h,continuous,0.0033333333333333335,MF-01 natural gas flow,MF-01,flow,0,400,7200,,,
+lab.hydrogen,ml/100g,lab,,"Hydrogen in the melt after degassing (density index test, DG-01)",DG-01,content,0.03,0.4,,,,
+ct01.supply_temp,°C,continuous,0.0033333333333333335,Cooling water supply temperature,CT-01,temperature,5,40,7200,,,
+cp01.header_pressure,bar,continuous,0.0033333333333333335,Compressed air header pressure,CP-01,pressure,4,9,7200,,,
+hall.ambient_temp,°C,continuous,0.0033333333333333335,Die-casting hall air temperature,,temperature,-5,45,7200,,,
+mes.mf01.downtime,,event,,MF-01 stops from the MES: the reason code,MF-01,,,,,,,downtime
+mes.mf02.downtime,,event,,MF-02 stops from the MES: the reason code,MF-02,,,,,,,downtime
+mes.sb01.downtime,,event,,SB-01 stops from the MES: the reason code,SB-01,,,,,,,downtime
+mes.ft01.downtime,,event,,FT-01 stops from the MES: the reason code,FT-01,,,,,,,downtime
+mes.im01.downtime,,event,,IM-01 stops from the MES: the reason code,IM-01,,,,,,,downtime
+mes.cnc01.downtime,,event,,CNC-01 stops from the MES: the reason code,CNC-01,,,,,,,downtime
+mes.cnc02.downtime,,event,,CNC-02 stops from the MES: the reason code,CNC-02,,,,,,,downtime
+mes.cnc03.downtime,,event,,CNC-03 stops from the MES: the reason code,CNC-03,,,,,,,downtime
+mes.cnc04.downtime,,event,,CNC-04 stops from the MES: the reason code,CNC-04,,,,,,,downtime
+mes.lt01.downtime,,event,,LT-01 stops from the MES: the reason code,LT-01,,,,,,,downtime
