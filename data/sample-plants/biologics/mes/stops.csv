@@ -1,0 +1,445 @@
+stop_id,asset,start,end,code,planned,shift,crew,comment
+S000001,MP-01,2025-10-03T08:00:00+01:00,2025-10-03T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000002,WFI-01,2025-10-04T08:00:00+01:00,2025-10-04T14:00:00+01:00,PL-PM,yes,D,A,"Monthly WFI still service: heat exchanger, vent filter, sensors"
+S000003,WB-01,2025-10-05T02:24:00+01:00,2025-10-05T06:24:00+01:00,PL-PM,yes,N,B,Monthly planned maintenance
+S000004,CIP-01,2025-10-05T08:00:00+01:00,2025-10-05T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000005,CF-01,2025-10-06T08:00:00+01:00,2025-10-06T14:00:00+01:00,PL-PM,yes,D,C,Monthly centrifuge maintenance and vibration check
+S000006,DF-01,2025-10-06T08:00:00+01:00,2025-10-06T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000007,BP-01,2025-10-07T08:00:00+01:00,2025-10-07T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000008,CS-01,2025-10-08T08:00:00+01:00,2025-10-08T14:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000009,VT-01,2025-10-08T08:00:00+01:00,2025-10-08T11:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000010,SB-01,2025-10-08T14:24:00+01:00,2025-10-08T18:24:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000011,WB-02,2025-10-08T16:48:00+01:00,2025-10-08T20:48:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000012,CS-02,2025-10-09T08:00:00+01:00,2025-10-09T14:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000013,UF-01,2025-10-10T08:00:00+01:00,2025-10-10T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000014,VF-01,2025-10-10T08:00:00+01:00,2025-10-10T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000015,SB-02,2025-10-12T04:48:00+01:00,2025-10-12T08:48:00+01:00,PL-PM,yes,N,D,Monthly planned maintenance
+S000016,BF-01,2025-10-12T08:00:00+01:00,2025-10-12T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000017,CIP-02,2025-10-12T08:00:00+01:00,2025-10-12T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000018,SB-01,2025-10-13T09:36:00+01:00,2025-10-13T10:23:41+01:00,DT-CTL,no,D,A,Rocker drive fault
+S000019,FL-01,2025-10-14T08:00:00+01:00,2025-10-14T16:00:00+01:00,PL-PM,yes,D,A,"Monthly filler maintenance: pumps, needles, checkweigher"
+S000020,LY-01,2025-10-15T08:00:00+01:00,2025-10-15T18:00:00+01:00,PL-PM,yes,D,C,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps"
+S000021,BR-01,2025-10-15T23:36:00+01:00,2025-10-16T00:36:24+01:00,DT-OTH,no,N,D,Paperwork
+S000022,CP-01,2025-10-16T08:00:00+01:00,2025-10-16T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000023,SB-02,2025-10-17T00:00:00+01:00,2025-10-17T03:28:56+01:00,DT-CTL,no,N,D,Rocker drive fault
+S000024,AVI-01,2025-10-17T08:00:00+01:00,2025-10-17T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000025,BR-02,2025-10-19T14:00:00+01:00,2025-10-19T17:10:56+01:00,DT-MAT,no,D,A,Clean steam not available
+S000026,MP-01,2025-10-22T20:24:00+01:00,2025-10-22T20:49:04+01:00,DT-OTH,no,N,B,Line clearance
+S000027,CS-02,2025-10-31T18:53:41+00:00,2025-11-01T00:11:10+00:00,DT-MAT,no,D,A,Buffer lot not released
+S000028,SB-01,2025-11-02T08:00:00+00:00,2025-11-02T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000029,SB-02,2025-11-02T08:00:00+00:00,2025-11-02T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000030,WB-01,2025-11-02T08:00:00+00:00,2025-11-02T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000031,WB-02,2025-11-02T12:00:00+00:00,2025-11-02T16:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000032,MP-01,2025-11-03T08:00:00+00:00,2025-11-03T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000033,WFI-01,2025-11-04T08:00:00+00:00,2025-11-04T14:00:00+00:00,PL-PM,yes,D,C,"Monthly WFI still service: heat exchanger, vent filter, sensors"
+S000034,CIP-01,2025-11-05T08:00:00+00:00,2025-11-05T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000035,CF-01,2025-11-06T08:00:00+00:00,2025-11-06T14:00:00+00:00,PL-PM,yes,D,A,Monthly centrifuge maintenance and vibration check
+S000036,DF-01,2025-11-06T08:00:00+00:00,2025-11-06T11:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000037,BP-01,2025-11-07T08:00:00+00:00,2025-11-07T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000038,CS-01,2025-11-08T08:00:00+00:00,2025-11-08T14:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000039,VT-01,2025-11-08T08:00:00+00:00,2025-11-08T11:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000040,LY-01,2025-11-09T03:20:06+00:00,2025-11-09T04:14:55+00:00,DT-CTL,no,N,D,Vacuum pump fault
+S000041,CS-02,2025-11-09T08:00:00+00:00,2025-11-09T14:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000042,UF-01,2025-11-10T08:00:00+00:00,2025-11-10T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000043,VF-01,2025-11-10T08:00:00+00:00,2025-11-10T11:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000044,BP-01,2025-11-10T13:48:00+00:00,2025-11-10T14:10:23+00:00,DT-OTH,no,D,A,Restarted
+S000045,BP-01,2025-11-10T14:10:23+00:00,2025-11-10T14:38:26+00:00,DT-CTL,no,D,A,Sensor fault
+S000046,BR-04,2025-11-10T21:48:00+00:00,2025-11-11T01:35:01+00:00,DT-MAT,no,N,B,Clean steam not available
+S000047,AVI-01,2025-11-11T20:44:55+00:00,2025-11-11T20:53:09+00:00,DT-JAM,no,N,B,Vial fallen in the carousel
+S000048,BF-01,2025-11-12T08:00:00+00:00,2025-11-12T11:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000049,CIP-02,2025-11-12T08:00:00+00:00,2025-11-12T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000050,SB-01,2025-11-13T09:23:41+00:00,2025-11-13T11:17:59+00:00,DT-CTL,no,D,C,Rocker drive fault
+S000051,FL-01,2025-11-14T08:00:00+00:00,2025-11-14T16:00:00+00:00,PL-PM,yes,D,A,"Monthly filler maintenance: pumps, needles, checkweigher"
+S000052,LY-01,2025-11-15T08:00:00+00:00,2025-11-15T18:00:00+00:00,PL-PM,yes,D,A,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps"
+S000053,BR-01,2025-11-15T15:23:41+00:00,2025-11-15T16:46:56+00:00,DT-MAT,no,D,A,Clean steam not available
+S000054,CF-01,2025-11-15T15:23:41+00:00,2025-11-16T07:23:41+00:00,PL-BRG,yes,D,A,Spindle bearings changed: vibration 4.5 mm/s at the last harvest
+S000055,CP-01,2025-11-16T08:00:00+00:00,2025-11-16T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000056,AVI-01,2025-11-17T08:00:00+00:00,2025-11-17T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000057,UF-01,2025-11-21T13:30:00+00:00,2025-11-21T21:30:00+00:00,PL-UF,yes,D,C,Cassettes replaced: water flux 65 LMH/bar
+S000058,CS-02,2025-11-24T01:00:00+00:00,2025-11-24T03:41:15+00:00,DT-MAT,no,N,D,Buffer lot not released
+S000059,CS-02,2025-11-24T03:41:15+00:00,2025-11-24T03:50:57+00:00,DT-OTH,no,N,D,Line clearance
+S000060,FL-01,2025-11-24T12:31:22+00:00,2025-11-24T17:18:23+00:00,DT-FIL,no,D,A,"Checkweigher rejects: pump piston worn, changed"
+S000061,BP-01,2025-11-26T01:48:00+00:00,2025-11-26T01:57:53+00:00,DT-OTH,no,N,B,Restarted
+S000062,CP-01,2025-12-02T02:12:15+00:00,2025-12-02T02:39:56+00:00,DT-JAM,no,N,D,Vial fallen at the crimping head
+S000063,SB-01,2025-12-02T08:00:00+00:00,2025-12-02T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000064,SB-02,2025-12-02T08:00:00+00:00,2025-12-02T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000065,WB-02,2025-12-02T08:00:00+00:00,2025-12-02T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000066,SB-01,2025-12-02T12:00:00+00:00,2025-12-02T12:20:26+00:00,DT-CTL,no,D,C,Rocker drive fault
+S000067,WB-01,2025-12-02T12:20:26+00:00,2025-12-02T16:20:26+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000068,MP-01,2025-12-03T08:00:00+00:00,2025-12-03T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000069,WFI-01,2025-12-04T08:00:00+00:00,2025-12-04T14:00:00+00:00,PL-PM,yes,D,A,"Monthly WFI still service: heat exchanger, vent filter, sensors"
+S000070,CIP-01,2025-12-05T08:00:00+00:00,2025-12-05T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000071,SB-02,2025-12-05T12:00:00+00:00,2025-12-05T14:17:33+00:00,DT-CTL,no,D,C,Controller lost communication
+S000072,CF-01,2025-12-06T08:00:00+00:00,2025-12-06T14:00:00+00:00,PL-PM,yes,D,C,Monthly centrifuge maintenance and vibration check
+S000073,DF-01,2025-12-06T08:00:00+00:00,2025-12-06T11:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000074,BP-01,2025-12-07T08:00:00+00:00,2025-12-07T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000075,CS-01,2025-12-08T08:00:00+00:00,2025-12-08T14:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000076,VT-01,2025-12-08T08:00:00+00:00,2025-12-08T11:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000077,CF-01,2025-12-08T12:00:00+00:00,2025-12-08T12:07:59+00:00,DT-OTH,no,D,A,Restarted
+S000078,CS-02,2025-12-09T08:00:00+00:00,2025-12-09T14:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000079,CS-02,2025-12-09T14:00:00+00:00,2025-12-09T14:11:02+00:00,DT-OTH,no,D,A,Line clearance
+S000080,UF-01,2025-12-10T08:00:00+00:00,2025-12-10T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000081,VF-01,2025-12-10T08:00:00+00:00,2025-12-10T11:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000082,MP-01,2025-12-11T21:48:00+00:00,2025-12-11T22:07:08+00:00,DT-OTH,no,N,D,Restarted
+S000083,BF-01,2025-12-12T08:00:00+00:00,2025-12-12T11:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000084,CIP-02,2025-12-12T08:00:00+00:00,2025-12-12T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000085,FL-01,2025-12-14T08:00:00+00:00,2025-12-14T16:00:00+00:00,PL-PM,yes,D,A,"Monthly filler maintenance: pumps, needles, checkweigher"
+S000086,LY-01,2025-12-15T08:00:00+00:00,2025-12-15T18:00:00+00:00,PL-PM,yes,D,C,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps"
+S000087,CP-01,2025-12-16T08:00:00+00:00,2025-12-16T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000088,AVI-01,2025-12-17T08:00:00+00:00,2025-12-17T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000089,FL-01,2025-12-18T08:00:00+00:00,2025-12-18T08:22:39+00:00,DT-OTH,no,D,A,Glove port check
+S000090,AVI-01,2025-12-18T10:30:00+00:00,2025-12-18T10:44:13+00:00,DT-JAM,no,D,A,Vial jam at the infeed
+S000091,BP-01,2025-12-19T22:20:26+00:00,2025-12-19T22:25:12+00:00,DT-OTH,no,N,D,Line clearance
+S000092,BR-01,2025-12-20T06:20:26+00:00,2025-12-21T18:20:26+00:00,PL-PM,yes,N,D,"Bioreactor maintenance every six batches: seal, valves, probes"
+S000093,FL-01,2025-12-20T22:22:39+00:00,2025-12-20T22:38:48+00:00,DT-JAM,no,N,D,Broken vial at the needles: line cleared
+S000094,BR-02,2025-12-23T08:17:33+00:00,2025-12-24T20:17:33+00:00,PL-PM,yes,D,A,"Bioreactor maintenance every six batches: seal, valves, probes"
+S000095,CS-02,2025-12-23T23:47:33+00:00,2025-12-24T00:13:29+00:00,DT-CTL,no,N,B,Pump fault
+S000096,DF-01,2025-12-24T00:00:00+00:00,2025-12-24T00:18:23+00:00,DT-OTH,no,N,B,Restarted
+S000097,BR-03,2025-12-24T06:00:00+00:00,2025-12-25T18:00:00+00:00,PL-PM,yes,N,B,"Bioreactor maintenance every six batches: seal, valves, probes"
+S000098,BR-04,2025-12-27T09:48:00+00:00,2025-12-28T21:48:00+00:00,PL-PM,yes,D,A,"Bioreactor maintenance every six batches: seal, valves, probes"
+S000099,CS-01,2025-12-27T11:48:00+00:00,2025-12-27T11:58:30+00:00,DT-OTH,no,D,A,Restarted
+S000100,FL-01,2025-12-29T00:55:12+00:00,2025-12-29T01:08:53+00:00,DT-JAM,no,N,B,Broken vial at the needles: line cleared
+S000101,AVI-01,2025-12-31T17:38:53+00:00,2025-12-31T17:56:52+00:00,DT-VIS,no,D,A,False rejects: camera cleaned
+S000102,SB-01,2026-01-02T08:00:00+00:00,2026-01-02T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000103,SB-02,2026-01-02T08:00:00+00:00,2026-01-02T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000104,WB-01,2026-01-02T08:00:00+00:00,2026-01-02T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000105,WB-02,2026-01-02T08:00:00+00:00,2026-01-02T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000106,MP-01,2026-01-03T08:00:00+00:00,2026-01-03T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000107,FL-01,2026-01-03T17:13:29+00:00,2026-01-03T17:23:43+00:00,DT-OTH,no,D,C,Line clearance
+S000108,WFI-01,2026-01-04T08:00:00+00:00,2026-01-04T14:00:00+00:00,PL-PM,yes,D,C,"Monthly WFI still service: heat exchanger, vent filter, sensors"
+S000109,CIP-01,2026-01-05T08:00:00+00:00,2026-01-05T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000110,WB-01,2026-01-05T12:00:00+00:00,2026-01-05T13:00:51+00:00,DT-CTL,no,D,A,Controller lost communication
+S000111,CP-01,2026-01-06T07:23:43+00:00,2026-01-06T08:26:18+00:00,DT-JAM,no,D,A,Vial fallen at the crimping head
+S000112,CF-01,2026-01-06T08:00:00+00:00,2026-01-06T14:00:00+00:00,PL-PM,yes,D,A,Monthly centrifuge maintenance and vibration check
+S000113,DF-01,2026-01-06T08:00:00+00:00,2026-01-06T11:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000114,AVI-01,2026-01-06T10:56:18+00:00,2026-01-06T11:01:25+00:00,DT-JAM,no,D,A,Vial jam at the infeed
+S000115,CS-02,2026-01-06T15:50:26+00:00,2026-01-07T12:13:24+00:00,DT-COL,no,D,A,Pre-use test failed: CEX column repacked
+S000116,BP-01,2026-01-07T08:00:00+00:00,2026-01-07T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000117,CS-02,2026-01-07T12:13:24+00:00,2026-01-07T12:52:25+00:00,DT-CTL,no,D,C,Valve fault
+S000118,BR-01,2026-01-07T14:24:00+00:00,2026-01-07T14:28:29+00:00,DT-OTH,no,D,C,Paperwork
+S000119,CS-01,2026-01-08T08:00:00+00:00,2026-01-08T14:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000120,VT-01,2026-01-08T08:00:00+00:00,2026-01-08T11:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000121,CS-02,2026-01-09T08:00:00+00:00,2026-01-09T14:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000122,UF-01,2026-01-10T08:00:00+00:00,2026-01-10T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000123,VF-01,2026-01-10T08:00:00+00:00,2026-01-10T11:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000124,BF-01,2026-01-12T08:00:00+00:00,2026-01-12T11:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000125,CIP-02,2026-01-12T08:00:00+00:00,2026-01-12T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000126,FL-01,2026-01-14T08:00:00+00:00,2026-01-14T16:00:00+00:00,PL-PM,yes,D,A,"Monthly filler maintenance: pumps, needles, checkweigher"
+S000127,LY-01,2026-01-15T08:00:00+00:00,2026-01-15T18:00:00+00:00,PL-PM,yes,D,A,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps"
+S000128,FL-01,2026-01-15T23:41:38+00:00,2026-01-15T23:47:35+00:00,DT-JAM,no,N,B,Vial jam at the infeed star wheel
+S000129,CP-01,2026-01-16T08:00:00+00:00,2026-01-16T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000130,AVI-01,2026-01-17T08:00:00+00:00,2026-01-17T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000131,FL-01,2026-01-18T13:47:35+00:00,2026-01-18T13:55:28+00:00,DT-JAM,no,D,C,Vial jam at the infeed star wheel
+S000132,SB-01,2026-01-21T00:00:00+00:00,,DT-CTL,no,N,B,Controller lost communication
+S000133,CF-01,2026-01-23T00:00:00+00:00,2026-01-23T00:38:30+00:00,DT-CTL,no,N,D,Pump fault
+S000134,WB-02,2026-01-23T09:48:00+00:00,2026-01-23T10:06:57+00:00,DT-CTL,no,D,A,Controller lost communication
+S000135,FL-01,2026-01-23T17:55:28+00:00,2026-01-23T18:04:13+00:00,DT-JAM,no,D,A,Vial jam at the infeed star wheel
+S000136,CS-02,2026-01-23T22:08:30+00:00,2026-01-23T22:29:20+00:00,DT-CTL,no,N,B,Valve fault
+S000137,SB-01,2026-01-24T12:21:17+00:00,2026-01-24T12:48:17+00:00,DT-CTL,no,D,A,Controller lost communication
+S000138,BR-02,2026-01-24T14:17:33+00:00,2026-01-24T14:32:43+00:00,DT-OTH,no,D,A,Paperwork
+S000139,BP-01,2026-01-24T22:05:00+00:00,2026-01-25T04:51:18+00:00,DT-WFI,no,N,B,"Conductivity above 1.3 µS/cm: loop drained, still serviced and loop sanitised"
+S000140,CIP-01,2026-01-24T22:05:00+00:00,2026-01-25T04:51:18+00:00,DT-WFI,no,N,B,"Conductivity above 1.3 µS/cm: loop drained, still serviced and loop sanitised"
+S000141,CIP-02,2026-01-24T22:05:00+00:00,2026-01-25T04:51:18+00:00,DT-WFI,no,N,B,"Conductivity above 1.3 µS/cm: loop drained, still serviced and loop sanitised"
+S000142,WFI-01,2026-01-24T22:05:00+00:00,2026-01-25T04:51:18+00:00,DT-WFI,no,N,B,"Conductivity above 1.3 µS/cm: loop drained, still serviced and loop sanitised"
+S000143,MP-01,2026-01-24T22:17:33+00:00,2026-01-25T04:51:18+00:00,DT-WFI,no,N,B,"Conductivity above 1.3 µS/cm: loop drained, still serviced and loop sanitised"
+S000144,AVI-01,2026-01-26T10:34:13+00:00,2026-01-26T10:39:35+00:00,DT-JAM,no,D,C,Vial fallen in the carousel
+S000145,CS-01,2026-01-26T20:00:00+00:00,2026-01-26T20:19:53+00:00,DT-OTH,no,N,D,Line clearance
+S000146,VT-01,2026-01-27T06:49:53+00:00,2026-01-27T07:01:28+00:00,DT-OTH,no,N,D,Line clearance
+S000147,UF-01,2026-01-28T02:01:28+00:00,2026-01-28T03:03:48+00:00,DT-CTL,no,N,D,Pump fault
+S000148,BR-04,2026-01-28T23:48:00+00:00,2026-01-29T00:48:36+00:00,DT-CTL,no,N,B,Load cell fault
+S000149,CS-02,2026-01-29T07:18:00+00:00,2026-01-29T07:31:41+00:00,DT-OTH,no,D,A,Line clearance
+S000150,LY-01,2026-02-01T18:41:25+00:00,2026-02-02T12:16:09+00:00,DT-LYO,no,D,C,Leak rate over 20 µbar·L/s: isolation valve rebuilt
+S000151,SB-01,2026-02-02T08:00:00+00:00,2026-02-02T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000152,SB-02,2026-02-02T08:00:00+00:00,2026-02-02T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000153,WB-01,2026-02-02T08:00:00+00:00,2026-02-02T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000154,WB-02,2026-02-02T08:00:00+00:00,2026-02-02T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000155,FL-01,2026-02-02T12:16:09+00:00,2026-02-02T12:21:44+00:00,DT-JAM,no,D,A,Vial jam at the infeed star wheel
+S000156,MP-01,2026-02-03T08:00:00+00:00,2026-02-03T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000157,WFI-01,2026-02-04T08:00:00+00:00,2026-02-04T14:00:00+00:00,PL-PM,yes,D,C,"Monthly WFI still service: heat exchanger, vent filter, sensors"
+S000158,AVI-01,2026-02-05T04:51:44+00:00,2026-02-05T05:17:21+00:00,DT-VIS,no,N,D,False rejects: camera cleaned
+S000159,CIP-01,2026-02-05T08:00:00+00:00,2026-02-05T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000160,CF-01,2026-02-06T08:00:00+00:00,2026-02-06T14:00:00+00:00,PL-PM,yes,D,A,Monthly centrifuge maintenance and vibration check
+S000161,DF-01,2026-02-06T08:00:00+00:00,2026-02-06T11:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000162,CP-01,2026-02-07T06:00:00+00:00,2026-02-07T14:10:38+00:00,DT-HVAC,no,N,B,FR-01 pressure cascade lost: final filters replaced
+S000163,FL-01,2026-02-07T06:00:00+00:00,2026-02-07T14:10:38+00:00,DT-HVAC,no,N,B,FR-01 pressure cascade lost: final filters replaced
+S000164,FR-01,2026-02-07T06:00:00+00:00,2026-02-07T14:10:38+00:00,DT-HVAC,no,N,B,FR-01 pressure cascade lost: final filters replaced
+S000165,BP-01,2026-02-07T08:00:00+00:00,2026-02-07T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000166,CP-01,2026-02-07T16:21:44+00:00,2026-02-07T16:27:42+00:00,DT-JAM,no,D,A,Vial fallen at the crimping head
+S000167,FL-01,2026-02-07T16:21:44+00:00,2026-02-07T16:43:54+00:00,DT-JAM,no,D,A,Broken vial at the needles: line cleared
+S000168,CS-01,2026-02-08T08:00:00+00:00,2026-02-08T14:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000169,VT-01,2026-02-08T08:00:00+00:00,2026-02-08T11:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000170,CS-01,2026-02-08T14:00:00+00:00,2026-02-08T14:12:20+00:00,DT-CTL,no,D,A,Skid controller fault
+S000171,CS-02,2026-02-09T08:00:00+00:00,2026-02-09T14:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000172,CS-02,2026-02-09T14:00:00+00:00,2026-02-09T14:28:13+00:00,DT-OTH,no,D,C,Restarted
+S000173,FL-01,2026-02-10T06:43:54+00:00,2026-02-10T07:09:02+00:00,DT-JAM,no,N,D,Broken vial at the needles: line cleared
+S000174,UF-01,2026-02-10T08:00:00+00:00,2026-02-10T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000175,VF-01,2026-02-10T08:00:00+00:00,2026-02-10T11:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000176,BR-03,2026-02-11T06:48:17+00:00,2026-02-11T06:55:22+00:00,DT-OTH,no,N,D,Paperwork
+S000177,BF-01,2026-02-12T08:00:00+00:00,2026-02-12T11:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000178,CIP-02,2026-02-12T08:00:00+00:00,2026-02-12T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000179,CP-01,2026-02-12T21:09:02+00:00,2026-02-12T21:18:25+00:00,DT-JAM,no,N,B,Cap feed jammed
+S000180,FL-01,2026-02-14T08:00:00+00:00,2026-02-14T16:00:00+00:00,PL-PM,yes,D,C,"Monthly filler maintenance: pumps, needles, checkweigher"
+S000181,LY-01,2026-02-15T08:00:00+00:00,2026-02-15T18:00:00+00:00,PL-PM,yes,D,C,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps"
+S000182,CP-01,2026-02-16T08:00:00+00:00,2026-02-16T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000183,AVI-01,2026-02-17T08:00:00+00:00,2026-02-17T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000184,SB-02,2026-02-22T08:17:33+00:00,2026-02-22T08:23:38+00:00,DT-CTL,no,D,A,Rocker drive fault
+S000185,FL-01,2026-02-23T08:41:28+00:00,2026-02-23T08:45:09+00:00,DT-JAM,no,D,C,Broken vial at the needles: line cleared
+S000186,CF-01,2026-02-24T14:17:33+00:00,2026-02-25T06:17:33+00:00,PL-BRG,yes,D,C,Spindle bearings changed: vibration 4.6 mm/s at the last harvest
+S000187,BR-03,2026-02-26T18:48:17+00:00,2026-02-26T19:46:17+00:00,DT-OTH,no,D,A,Waiting for QA walk-down
+S000188,VF-01,2026-02-27T21:18:17+00:00,2026-02-27T21:36:42+00:00,DT-OTH,no,N,D,Line clearance
+S000189,UF-01,2026-02-28T02:36:42+00:00,2026-02-28T03:23:40+00:00,DT-OTH,no,N,D,Line clearance
+S000190,AVI-01,2026-02-28T15:15:09+00:00,2026-02-28T15:30:41+00:00,DT-VIS,no,D,C,Camera calibration lost
+S000191,CS-02,2026-03-01T07:36:57+00:00,2026-03-01T07:46:26+00:00,DT-OTH,no,D,C,Restarted
+S000192,SB-01,2026-03-02T08:00:00+00:00,2026-03-02T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000193,SB-02,2026-03-02T08:00:00+00:00,2026-03-02T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000194,WB-01,2026-03-02T08:00:00+00:00,2026-03-02T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000195,WB-02,2026-03-02T08:00:00+00:00,2026-03-02T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000196,MP-01,2026-03-03T08:00:00+00:00,2026-03-03T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000197,WFI-01,2026-03-04T08:00:00+00:00,2026-03-04T14:00:00+00:00,PL-PM,yes,D,C,"Monthly WFI still service: heat exchanger, vent filter, sensors"
+S000198,CIP-01,2026-03-05T08:00:00+00:00,2026-03-05T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000199,WB-01,2026-03-05T12:21:17+00:00,2026-03-05T13:13:16+00:00,DT-CTL,no,D,C,Rocker drive fault
+S000200,CF-01,2026-03-06T08:00:00+00:00,2026-03-06T14:00:00+00:00,PL-PM,yes,D,A,Monthly centrifuge maintenance and vibration check
+S000201,DF-01,2026-03-06T08:00:00+00:00,2026-03-06T11:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000202,AVI-01,2026-03-06T17:38:33+00:00,2026-03-06T17:43:44+00:00,DT-JAM,no,D,A,Vial jam at the infeed
+S000203,BP-01,2026-03-07T08:00:00+00:00,2026-03-07T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000204,CS-01,2026-03-08T08:00:00+00:00,2026-03-08T14:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000205,VT-01,2026-03-08T08:00:00+00:00,2026-03-08T11:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000206,FL-01,2026-03-09T05:08:33+00:00,2026-03-09T05:13:06+00:00,DT-JAM,no,N,B,Vial jam at the infeed star wheel
+S000207,CS-02,2026-03-09T08:00:00+00:00,2026-03-09T14:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000208,UF-01,2026-03-10T08:00:00+00:00,2026-03-10T12:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000209,VF-01,2026-03-10T08:00:00+00:00,2026-03-10T11:00:00+00:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000210,CS-01,2026-03-10T20:21:17+00:00,2026-03-11T08:21:17+00:00,PL-RSN,yes,N,D,Protein A resin replaced at 150 cycles
+S000211,CS-01,2026-03-11T08:21:17+00:00,2026-03-11T08:50:46+00:00,DT-MAT,no,D,A,Buffer lot not released
+S000212,FL-01,2026-03-11T19:13:06+00:00,2026-03-11T19:20:08+00:00,DT-OTH,no,N,B,Line clearance
+S000213,BF-01,2026-03-12T08:00:00+00:00,2026-03-12T11:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000214,CIP-02,2026-03-12T08:00:00+00:00,2026-03-12T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000215,BR-02,2026-03-12T10:23:38+00:00,2026-03-12T10:47:10+00:00,DT-CTL,no,D,A,Valve position feedback fault
+S000216,CIP-02,2026-03-14T00:23:38+00:00,2026-03-14T00:39:00+00:00,DT-OTH,no,N,D,Line clearance
+S000217,CF-01,2026-03-14T00:48:17+00:00,2026-03-14T00:56:37+00:00,DT-OTH,no,N,D,Line clearance
+S000218,FL-01,2026-03-14T08:00:00+00:00,2026-03-14T16:00:00+00:00,PL-PM,yes,D,C,"Monthly filler maintenance: pumps, needles, checkweigher"
+S000219,CP-01,2026-03-14T09:20:08+00:00,2026-03-14T09:27:12+00:00,DT-JAM,no,D,C,Vial fallen at the crimping head
+S000220,LY-01,2026-03-15T08:00:00+00:00,2026-03-15T18:00:00+00:00,PL-PM,yes,D,C,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps"
+S000221,CP-01,2026-03-16T08:00:00+00:00,2026-03-16T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000222,CS-02,2026-03-16T19:36:57+00:00,2026-03-17T01:17:32+00:00,DT-MAT,no,N,B,Waiting for QA release of the pool
+S000223,AVI-01,2026-03-17T08:00:00+00:00,2026-03-17T12:00:00+00:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000224,FL-01,2026-03-25T10:36:57+00:00,2026-03-25T10:46:45+00:00,DT-JAM,no,D,A,Broken vial at the needles: line cleared
+S000225,CF-01,2026-03-26T01:13:16+00:00,2026-03-26T01:25:46+00:00,DT-OTH,no,N,B,Restarted
+S000226,BR-01,2026-03-26T07:25:46+00:00,2026-03-27T19:25:46+00:00,PL-PM,yes,D,A,"Bioreactor maintenance every six batches: seal, valves, probes"
+S000227,CS-02,2026-03-26T22:55:46+00:00,2026-03-27T14:55:46+00:00,PL-COL,yes,N,B,CEX column repacked: asymmetry 2.08
+S000228,BR-02,2026-03-27T14:23:38+00:00,2026-03-29T03:23:38+01:00,PL-PM,yes,D,C,"Bioreactor maintenance every six batches: seal, valves, probes"
+S000229,AVI-01,2026-03-28T03:16:45+00:00,2026-03-28T03:28:06+00:00,DT-VIS,no,N,D,Camera calibration lost
+S000230,BR-02,2026-03-29T03:23:38+01:00,2026-03-29T04:03:01+01:00,DT-CTL,no,N,D,DeltaV controller fault
+S000231,BR-03,2026-03-29T20:13:16+01:00,2026-03-31T08:13:16+01:00,PL-PM,yes,N,D,"Bioreactor maintenance every six batches: seal, valves, probes"
+S000232,SB-01,2026-04-02T08:00:00+01:00,2026-04-02T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000233,SB-02,2026-04-02T08:00:00+01:00,2026-04-02T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000234,WB-01,2026-04-02T08:00:00+01:00,2026-04-02T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000235,WB-02,2026-04-02T12:00:00+01:00,2026-04-02T16:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000236,BR-04,2026-04-03T02:24:00+01:00,2026-04-04T14:24:00+01:00,PL-PM,yes,N,D,"Bioreactor maintenance every six batches: seal, valves, probes"
+S000237,MP-01,2026-04-03T08:00:00+01:00,2026-04-03T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000238,WFI-01,2026-04-04T08:00:00+01:00,2026-04-04T14:00:00+01:00,PL-PM,yes,D,A,"Monthly WFI still service: heat exchanger, vent filter, sensors"
+S000239,CIP-01,2026-04-05T08:00:00+01:00,2026-04-05T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000240,CF-01,2026-04-06T08:00:00+01:00,2026-04-06T14:00:00+01:00,PL-PM,yes,D,C,Monthly centrifuge maintenance and vibration check
+S000241,DF-01,2026-04-06T08:00:00+01:00,2026-04-06T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000242,BP-01,2026-04-07T08:00:00+01:00,2026-04-07T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000243,FL-01,2026-04-07T08:55:46+01:00,2026-04-07T09:07:10+01:00,DT-JAM,no,D,C,Vial jam at the infeed star wheel
+S000244,CS-01,2026-04-08T08:00:00+01:00,2026-04-08T14:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000245,VT-01,2026-04-08T08:00:00+01:00,2026-04-08T11:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000246,CS-02,2026-04-09T08:00:00+01:00,2026-04-09T14:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000247,UF-01,2026-04-10T08:00:00+01:00,2026-04-10T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000248,VF-01,2026-04-10T08:00:00+01:00,2026-04-10T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000249,SB-02,2026-04-11T03:23:38+01:00,2026-04-11T03:54:30+01:00,DT-CTL,no,N,D,Controller lost communication
+S000250,BF-01,2026-04-12T08:00:00+01:00,2026-04-12T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000251,CIP-02,2026-04-12T08:00:00+01:00,2026-04-12T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000252,FL-01,2026-04-12T13:07:10+01:00,2026-04-12T13:21:18+01:00,DT-JAM,no,D,C,Broken vial at the needles: line cleared
+S000253,CF-01,2026-04-13T03:23:38+01:00,2026-04-13T03:40:25+01:00,DT-CTL,no,N,D,Valve fault
+S000254,BR-02,2026-04-13T09:40:25+01:00,2026-04-13T10:51:36+01:00,DT-CTL,no,D,A,DeltaV controller fault
+S000255,CS-02,2026-04-14T01:10:25+01:00,2026-04-14T01:56:15+01:00,DT-CTL,no,N,B,Pump fault
+S000256,FL-01,2026-04-14T08:00:00+01:00,2026-04-14T16:00:00+01:00,PL-PM,yes,D,A,"Monthly filler maintenance: pumps, needles, checkweigher"
+S000257,BP-01,2026-04-15T06:13:16+01:00,2026-04-15T07:00:38+01:00,DT-CTL,no,N,B,Sensor fault
+S000258,LY-01,2026-04-15T08:00:00+01:00,2026-04-15T18:00:00+01:00,PL-PM,yes,D,C,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps"
+S000259,CP-01,2026-04-16T08:00:00+01:00,2026-04-16T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000260,AVI-01,2026-04-17T08:00:00+01:00,2026-04-17T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000261,CF-01,2026-04-20T00:00:00+01:00,2026-04-20T00:21:29+01:00,DT-CTL,no,N,B,Valve fault
+S000262,CS-01,2026-04-20T08:21:29+01:00,2026-04-20T08:35:46+01:00,DT-CTL,no,D,C,Valve fault
+S000263,LY-01,2026-04-21T15:26:28+01:00,2026-04-21T15:54:01+01:00,DT-CTL,no,D,C,Refrigeration compressor tripped
+S000264,FL-01,2026-04-21T15:54:01+01:00,2026-04-21T16:14:46+01:00,DT-JAM,no,D,C,Vial jam at the infeed star wheel
+S000265,FL-01,2026-04-24T06:14:46+01:00,2026-04-24T06:24:48+01:00,DT-JAM,no,N,B,Broken vial at the needles: line cleared
+S000266,BR-01,2026-04-27T14:13:16+01:00,2026-04-27T14:54:47+01:00,DT-OTH,no,D,A,Paperwork
+S000267,CIP-01,2026-04-27T14:54:47+01:00,2026-04-27T15:08:30+01:00,DT-OTH,no,D,A,Restarted
+S000268,BR-01,2026-04-27T22:13:16+01:00,2026-04-27T23:46:25+01:00,DT-CTL,no,N,B,Valve position feedback fault
+S000269,VT-01,2026-04-28T02:43:16+01:00,2026-04-28T03:05:32+01:00,DT-OTH,no,N,B,Line clearance
+S000270,CIP-01,2026-04-28T21:54:30+01:00,2026-04-28T23:16:06+01:00,DT-CTL,no,N,B,Controller fault
+S000271,CS-02,2026-05-01T17:43:16+01:00,2026-05-01T18:06:00+01:00,DT-CTL,no,D,A,Valve fault
+S000272,CP-01,2026-05-02T04:46:18+01:00,2026-05-02T04:51:05+01:00,DT-JAM,no,N,B,Vial fallen at the crimping head
+S000273,SB-01,2026-05-02T08:00:00+01:00,2026-05-02T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000274,SB-02,2026-05-02T08:00:00+01:00,2026-05-02T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000275,WB-02,2026-05-02T08:00:00+01:00,2026-05-02T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000276,WB-01,2026-05-02T12:00:00+01:00,2026-05-02T16:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000277,MP-01,2026-05-03T08:00:00+01:00,2026-05-03T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000278,WFI-01,2026-05-04T08:00:00+01:00,2026-05-04T14:00:00+01:00,PL-PM,yes,D,C,"Monthly WFI still service: heat exchanger, vent filter, sensors"
+S000279,CIP-01,2026-05-05T08:00:00+01:00,2026-05-05T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000280,BP-01,2026-05-05T10:00:00+01:00,2026-05-05T10:11:29+01:00,DT-OTH,no,D,C,Restarted
+S000281,CF-01,2026-05-06T08:00:00+01:00,2026-05-06T14:00:00+01:00,PL-PM,yes,D,A,Monthly centrifuge maintenance and vibration check
+S000282,DF-01,2026-05-06T08:00:00+01:00,2026-05-06T11:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000283,FL-01,2026-05-06T09:05:32+01:00,2026-05-06T09:10:52+01:00,DT-JAM,no,D,A,Broken vial at the needles: line cleared
+S000284,BP-01,2026-05-07T08:00:00+01:00,2026-05-07T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000285,CS-01,2026-05-08T08:00:00+01:00,2026-05-08T14:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000286,VT-01,2026-05-08T08:00:00+01:00,2026-05-08T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000287,FL-01,2026-05-08T23:10:52+01:00,2026-05-08T23:13:52+01:00,DT-JAM,no,N,D,Vial jam at the infeed star wheel
+S000288,CS-02,2026-05-09T08:00:00+01:00,2026-05-09T14:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000289,UF-01,2026-05-10T08:00:00+01:00,2026-05-10T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000290,VF-01,2026-05-10T08:00:00+01:00,2026-05-10T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000291,FL-01,2026-05-11T13:13:52+01:00,2026-05-11T13:31:15+01:00,DT-JAM,no,D,A,Vial jam at the infeed star wheel
+S000292,AVI-01,2026-05-11T15:43:52+01:00,2026-05-11T15:50:54+01:00,DT-VIS,no,D,A,Camera calibration lost
+S000293,BF-01,2026-05-12T08:00:00+01:00,2026-05-12T11:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000294,CIP-02,2026-05-12T08:00:00+01:00,2026-05-12T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000295,FL-01,2026-05-14T08:00:00+01:00,2026-05-14T16:00:00+01:00,PL-PM,yes,D,C,"Monthly filler maintenance: pumps, needles, checkweigher"
+S000296,CS-01,2026-05-14T11:54:30+01:00,2026-05-14T13:38:48+01:00,DT-CTL,no,D,C,Skid controller fault
+S000297,BR-02,2026-05-14T12:54:30+01:00,2026-05-14T13:16:48+01:00,DT-CTL,no,D,C,Load cell fault
+S000298,LY-01,2026-05-15T08:00:00+01:00,2026-05-15T18:00:00+01:00,PL-PM,yes,D,A,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps"
+S000299,CP-01,2026-05-16T08:00:00+01:00,2026-05-16T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000300,AVI-01,2026-05-17T08:00:00+01:00,2026-05-17T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000301,BP-01,2026-05-22T01:05:00+01:00,2026-05-22T14:57:36+01:00,DT-WFI,no,N,B,"WFI out of specification: still's heat exchanger cleaned, loop sanitised"
+S000302,CIP-01,2026-05-22T01:05:00+01:00,2026-05-22T14:57:36+01:00,DT-WFI,no,N,B,"WFI out of specification: still's heat exchanger cleaned, loop sanitised"
+S000303,MP-01,2026-05-22T01:05:00+01:00,2026-05-22T14:57:36+01:00,DT-WFI,no,N,B,"WFI out of specification: still's heat exchanger cleaned, loop sanitised"
+S000304,WFI-01,2026-05-22T01:05:00+01:00,2026-05-22T14:57:36+01:00,DT-WFI,no,N,B,"WFI out of specification: still's heat exchanger cleaned, loop sanitised"
+S000305,CIP-02,2026-05-22T04:30:00+01:00,2026-05-22T14:57:36+01:00,DT-WFI,no,N,B,"WFI out of specification: still's heat exchanger cleaned, loop sanitised"
+S000306,DF-01,2026-05-23T00:00:00+01:00,2026-05-23T00:26:50+01:00,DT-CTL,no,N,D,Controller fault
+S000307,BR-04,2026-05-23T06:00:00+01:00,2026-05-23T07:14:07+01:00,DT-CTL,no,N,D,Valve position feedback fault
+S000308,CS-02,2026-05-23T21:56:50+01:00,2026-05-23T22:20:00+01:00,DT-CTL,no,N,D,Skid controller fault
+S000309,CP-01,2026-05-27T20:52:40+01:00,2026-05-27T21:02:23+01:00,DT-JAM,no,N,D,Vial fallen at the crimping head
+S000310,UF-01,2026-05-31T05:24:30+01:00,2026-05-31T12:53:34+01:00,DT-UF,no,N,B,Water flux below the limit after cleaning: cassettes replaced
+S000311,UF-01,2026-05-31T12:53:34+01:00,2026-05-31T12:57:48+01:00,DT-OTH,no,D,A,Restarted
+S000312,AVI-01,2026-05-31T21:48:15+01:00,2026-05-31T22:02:59+01:00,DT-VIS,no,N,B,False rejects: camera cleaned
+S000313,SB-01,2026-06-02T08:00:00+01:00,2026-06-02T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000314,SB-02,2026-06-02T08:00:00+01:00,2026-06-02T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000315,WB-01,2026-06-02T08:00:00+01:00,2026-06-02T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000316,WB-02,2026-06-02T08:00:00+01:00,2026-06-02T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000317,MP-01,2026-06-03T08:00:00+01:00,2026-06-03T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000318,CP-01,2026-06-03T15:45:17+01:00,2026-06-03T16:05:33+01:00,DT-JAM,no,D,A,Cap feed jammed
+S000319,WFI-01,2026-06-04T08:00:00+01:00,2026-06-04T14:00:00+01:00,PL-PM,yes,D,A,"Monthly WFI still service: heat exchanger, vent filter, sensors"
+S000320,CIP-01,2026-06-05T08:00:00+01:00,2026-06-05T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000321,CS-02,2026-06-05T09:30:00+01:00,2026-06-06T01:30:00+01:00,PL-COL,yes,D,C,CEX column repacked: asymmetry 1.83
+S000322,SB-01,2026-06-05T12:00:00+01:00,2026-06-05T13:05:08+01:00,DT-CTL,no,D,C,Controller lost communication
+S000323,CF-01,2026-06-06T08:00:00+01:00,2026-06-06T14:00:00+01:00,PL-PM,yes,D,C,Monthly centrifuge maintenance and vibration check
+S000324,DF-01,2026-06-06T08:00:00+01:00,2026-06-06T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000325,FL-01,2026-06-06T12:07:58+01:00,2026-06-06T12:17:13+01:00,DT-JAM,no,D,C,Broken vial at the needles: line cleared
+S000326,BP-01,2026-06-07T08:00:00+01:00,2026-06-07T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000327,CS-01,2026-06-08T08:00:00+01:00,2026-06-08T14:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000328,VT-01,2026-06-08T08:00:00+01:00,2026-06-08T11:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000329,AVI-01,2026-06-09T04:47:13+01:00,2026-06-09T04:52:56+01:00,DT-JAM,no,N,B,Vial jam at the infeed
+S000330,CS-02,2026-06-09T08:00:00+01:00,2026-06-09T14:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000331,CS-02,2026-06-09T14:00:00+01:00,2026-06-09T14:20:35+01:00,DT-CTL,no,D,A,Pump fault
+S000332,UF-01,2026-06-10T08:00:00+01:00,2026-06-10T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000333,VF-01,2026-06-10T08:00:00+01:00,2026-06-10T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000334,SB-02,2026-06-10T20:13:16+01:00,2026-06-10T21:17:24+01:00,DT-CTL,no,N,D,Controller lost communication
+S000335,BF-01,2026-06-12T08:00:00+01:00,2026-06-12T11:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000336,CIP-02,2026-06-12T08:00:00+01:00,2026-06-12T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000337,MP-01,2026-06-13T02:13:16+01:00,2026-06-13T02:43:17+01:00,DT-CTL,no,N,B,Controller fault
+S000338,BR-02,2026-06-13T02:54:30+01:00,2026-06-14T08:34:12+01:00,DT-SEAL,no,N,B,Seal barrier fluid alarm: mechanical seal replaced
+S000339,VF-01,2026-06-14T04:43:16+01:00,2026-06-14T04:53:00+01:00,DT-OTH,no,N,B,Restarted
+S000340,FL-01,2026-06-14T08:00:00+01:00,2026-06-14T16:00:00+01:00,PL-PM,yes,D,A,"Monthly filler maintenance: pumps, needles, checkweigher"
+S000341,BR-02,2026-06-14T08:34:12+01:00,2026-06-14T08:48:59+01:00,DT-CTL,no,D,A,DeltaV controller fault
+S000342,LY-01,2026-06-15T08:00:00+01:00,2026-06-15T18:00:00+01:00,PL-PM,yes,D,C,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps"
+S000343,CP-01,2026-06-16T08:00:00+01:00,2026-06-16T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000344,AVI-01,2026-06-17T08:00:00+01:00,2026-06-17T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000345,LY-01,2026-06-21T20:53:00+01:00,2026-06-21T22:03:39+01:00,DT-CTL,no,N,D,Refrigeration compressor tripped
+S000346,CF-01,2026-06-23T00:00:00+01:00,2026-06-23T16:28:53+01:00,DT-CEN,no,N,B,Vibration trip at start-up: spindle bearings replaced
+S000347,AVI-01,2026-06-24T14:33:39+01:00,2026-06-24T14:41:30+01:00,DT-VIS,no,D,C,Camera calibration lost
+S000348,VT-01,2026-06-25T00:58:53+01:00,2026-06-25T01:05:04+01:00,DT-OTH,no,N,D,Line clearance
+S000349,CS-02,2026-06-25T04:28:53+01:00,2026-06-25T04:39:16+01:00,DT-OTH,no,N,D,Line clearance
+S000350,BR-01,2026-06-28T15:17:24+01:00,2026-06-30T03:17:24+01:00,PL-PM,yes,D,A,"Bioreactor maintenance every six batches: seal, valves, probes"
+S000351,SB-01,2026-07-02T08:00:00+01:00,2026-07-02T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000352,SB-02,2026-07-02T08:00:00+01:00,2026-07-02T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000353,WB-02,2026-07-02T08:00:00+01:00,2026-07-02T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000354,WB-01,2026-07-02T12:00:00+01:00,2026-07-02T16:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000355,BR-02,2026-07-03T02:24:00+01:00,2026-07-04T14:24:00+01:00,PL-PM,yes,N,B,"Bioreactor maintenance every six batches: seal, valves, probes"
+S000356,MP-01,2026-07-03T08:00:00+01:00,2026-07-03T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000357,WFI-01,2026-07-04T08:00:00+01:00,2026-07-04T14:00:00+01:00,PL-PM,yes,D,C,"Monthly WFI still service: heat exchanger, vent filter, sensors"
+S000358,CIP-01,2026-07-05T08:00:00+01:00,2026-07-05T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000359,CF-01,2026-07-06T08:00:00+01:00,2026-07-06T14:00:00+01:00,PL-PM,yes,D,A,Monthly centrifuge maintenance and vibration check
+S000360,DF-01,2026-07-06T08:00:00+01:00,2026-07-06T11:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000361,BP-01,2026-07-07T08:00:00+01:00,2026-07-07T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000362,CS-01,2026-07-08T08:00:00+01:00,2026-07-08T14:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000363,VT-01,2026-07-08T08:00:00+01:00,2026-07-08T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000364,BP-01,2026-07-09T00:28:53+01:00,2026-07-09T00:47:52+01:00,DT-OTH,no,N,D,Line clearance
+S000365,CS-02,2026-07-09T08:00:00+01:00,2026-07-09T14:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000366,UF-01,2026-07-10T08:00:00+01:00,2026-07-10T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000367,VF-01,2026-07-10T08:00:00+01:00,2026-07-10T11:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000368,FL-01,2026-07-10T14:28:53+01:00,2026-07-10T16:56:36+01:00,DT-FIL,no,D,A,"Checkweigher rejects: pump piston worn, changed"
+S000369,AVI-01,2026-07-10T16:58:53+01:00,2026-07-10T17:18:07+01:00,DT-VIS,no,D,A,Camera calibration lost
+S000370,BF-01,2026-07-12T08:00:00+01:00,2026-07-12T11:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000371,CIP-02,2026-07-12T08:00:00+01:00,2026-07-12T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000372,AVI-01,2026-07-13T09:26:36+01:00,2026-07-13T09:37:12+01:00,DT-VIS,no,D,C,False rejects: camera cleaned
+S000373,FL-01,2026-07-14T08:00:00+01:00,2026-07-14T16:00:00+01:00,PL-PM,yes,D,C,"Monthly filler maintenance: pumps, needles, checkweigher"
+S000374,LY-01,2026-07-15T08:00:00+01:00,2026-07-15T18:00:00+01:00,PL-PM,yes,D,A,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps"
+S000375,CS-01,2026-07-15T11:17:24+01:00,2026-07-15T11:29:11+01:00,DT-OTH,no,D,A,Restarted
+S000376,CS-02,2026-07-16T00:59:11+01:00,2026-07-17T00:27:32+01:00,DT-COL,no,N,B,Column pressure high and peaks tailing: bed repacked
+S000377,CP-01,2026-07-16T08:00:00+01:00,2026-07-16T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000378,AVI-01,2026-07-17T08:00:00+01:00,2026-07-17T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000379,UF-01,2026-07-17T16:27:32+01:00,2026-07-17T17:23:17+01:00,DT-OTH,no,D,C,Restarted
+S000380,FL-01,2026-07-17T23:39:40+01:00,2026-07-17T23:50:07+01:00,DT-JAM,no,N,D,Broken vial at the needles: line cleared
+S000381,CP-01,2026-07-20T13:50:07+01:00,2026-07-20T13:54:51+01:00,DT-JAM,no,D,A,Cap feed jammed
+S000382,CS-02,2026-07-20T21:30:00+01:00,2026-07-20T21:49:35+01:00,DT-MAT,no,N,B,Waiting for QA release of the pool
+S000383,VF-01,2026-07-21T08:49:35+01:00,2026-07-21T09:04:05+01:00,DT-CTL,no,D,A,Sensor fault
+S000384,FL-01,2026-08-10T07:00:00+01:00,2026-08-10T13:33:38+01:00,DT-FIL,no,D,C,"Checkweigher rejects: pump piston worn, changed"
+S000385,BP-01,2026-08-10T08:00:00+01:00,2026-08-10T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000386,CF-01,2026-08-10T08:00:00+01:00,2026-08-10T14:00:00+01:00,PL-PM,yes,D,C,Monthly centrifuge maintenance and vibration check
+S000387,CIP-01,2026-08-10T08:00:00+01:00,2026-08-10T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000388,CS-01,2026-08-10T08:00:00+01:00,2026-08-10T14:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000389,CS-02,2026-08-10T08:00:00+01:00,2026-08-10T14:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000390,DF-01,2026-08-10T08:00:00+01:00,2026-08-10T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000391,MP-01,2026-08-10T08:00:00+01:00,2026-08-10T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000392,SB-01,2026-08-10T08:00:00+01:00,2026-08-10T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000393,SB-02,2026-08-10T08:00:00+01:00,2026-08-10T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000394,UF-01,2026-08-10T08:00:00+01:00,2026-08-10T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000395,VF-01,2026-08-10T08:00:00+01:00,2026-08-10T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000396,VT-01,2026-08-10T08:00:00+01:00,2026-08-10T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000397,WB-01,2026-08-10T08:00:00+01:00,2026-08-10T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000398,WB-02,2026-08-10T08:00:00+01:00,2026-08-10T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000399,WFI-01,2026-08-10T08:00:00+01:00,2026-08-10T14:00:00+01:00,PL-PM,yes,D,C,"Monthly WFI still service: heat exchanger, vent filter, sensors"
+S000400,BF-01,2026-08-12T08:00:00+01:00,2026-08-12T11:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000401,CIP-02,2026-08-12T08:00:00+01:00,2026-08-12T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000402,FL-01,2026-08-14T08:00:00+01:00,2026-08-14T16:00:00+01:00,PL-PM,yes,D,C,"Monthly filler maintenance: pumps, needles, checkweigher"
+S000403,LY-01,2026-08-15T08:00:00+01:00,2026-08-15T18:00:00+01:00,PL-PM,yes,D,C,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps"
+S000404,CP-01,2026-08-16T08:00:00+01:00,2026-08-16T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000405,AVI-01,2026-08-17T08:00:00+01:00,2026-08-17T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000406,CP-01,2026-08-18T08:00:00+01:00,2026-08-18T08:05:16+01:00,DT-JAM,no,D,A,Vial fallen at the crimping head
+S000407,WB-02,2026-08-27T11:48:00+01:00,2026-08-27T12:54:59+01:00,DT-CTL,no,D,A,Controller lost communication
+S000408,SB-01,2026-09-02T08:00:00+01:00,2026-09-02T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000409,SB-02,2026-09-02T08:00:00+01:00,2026-09-02T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000410,WB-01,2026-09-02T08:00:00+01:00,2026-09-02T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000411,WB-02,2026-09-02T12:00:00+01:00,2026-09-02T16:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000412,BR-03,2026-09-03T02:24:00+01:00,2026-09-04T14:24:00+01:00,PL-PM,yes,N,D,"Bioreactor maintenance every six batches: seal, valves, probes"
+S000413,MP-01,2026-09-03T08:00:00+01:00,2026-09-03T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000414,WFI-01,2026-09-04T08:00:00+01:00,2026-09-04T14:00:00+01:00,PL-PM,yes,D,A,"Monthly WFI still service: heat exchanger, vent filter, sensors"
+S000415,BR-03,2026-09-04T14:24:00+01:00,2026-09-04T17:34:57+01:00,DT-MAT,no,D,A,Media lot not yet released
+S000416,CIP-01,2026-09-05T08:00:00+01:00,2026-09-05T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000417,BR-04,2026-09-06T02:24:00+01:00,2026-09-07T14:24:00+01:00,PL-PM,yes,N,B,"Bioreactor maintenance every six batches: seal, valves, probes"
+S000418,CF-01,2026-09-06T08:00:00+01:00,2026-09-06T14:00:00+01:00,PL-PM,yes,D,A,Monthly centrifuge maintenance and vibration check
+S000419,DF-01,2026-09-06T08:00:00+01:00,2026-09-06T11:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000420,BP-01,2026-09-07T08:00:00+01:00,2026-09-07T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000421,CS-01,2026-09-08T08:00:00+01:00,2026-09-08T14:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000422,VT-01,2026-09-08T08:00:00+01:00,2026-09-08T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000423,CS-02,2026-09-09T08:00:00+01:00,2026-09-09T14:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000424,BR-01,2026-09-10T01:00:00+01:00,2026-09-11T01:00:00+01:00,PL-PM,yes,N,B,Agitator seal replaced at turnaround: barrier fluid loss 5.4 mL/h
+S000425,UF-01,2026-09-10T08:00:00+01:00,2026-09-10T12:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000426,VF-01,2026-09-10T08:00:00+01:00,2026-09-10T11:00:00+01:00,PL-PM,yes,D,A,Monthly planned maintenance
+S000427,CS-02,2026-09-10T16:30:00+01:00,2026-09-11T08:47:10+01:00,DT-COL,no,D,A,Pre-use test failed: CEX column repacked
+S000428,BR-01,2026-09-11T04:00:00+01:00,2026-09-11T05:12:00+01:00,DT-CTL,no,N,B,DeltaV controller fault
+S000429,BF-01,2026-09-12T08:00:00+01:00,2026-09-12T11:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000430,CIP-02,2026-09-12T08:00:00+01:00,2026-09-12T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000431,FL-01,2026-09-14T08:00:00+01:00,2026-09-14T16:00:00+01:00,PL-PM,yes,D,A,"Monthly filler maintenance: pumps, needles, checkweigher"
+S000432,LY-01,2026-09-15T08:00:00+01:00,2026-09-15T18:00:00+01:00,PL-PM,yes,D,A,"Monthly lyophiliser maintenance: door seal, valves, vacuum pumps"
+S000433,CP-01,2026-09-16T08:00:00+01:00,2026-09-16T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000434,AVI-01,2026-09-17T08:00:00+01:00,2026-09-17T12:00:00+01:00,PL-PM,yes,D,C,Monthly planned maintenance
+S000435,SB-02,2026-09-18T00:00:00+01:00,2026-09-18T00:22:46+01:00,DT-CTL,no,N,D,Controller lost communication
+S000436,WB-01,2026-09-18T00:00:00+01:00,2026-09-18T02:29:20+01:00,DT-CTL,no,N,D,Rocker drive fault
+S000437,BR-03,2026-09-20T06:00:00+01:00,2026-09-20T06:31:27+01:00,DT-OTH,no,N,B,Paperwork
+S000438,CIP-01,2026-09-20T06:31:27+01:00,2026-09-20T08:19:18+01:00,DT-CTL,no,N,B,Controller fault
+S000439,WB-02,2026-09-20T17:42:00+01:00,2026-09-20T20:23:36+01:00,DT-CTL,no,D,A,Controller lost communication
+S000440,CS-02,2026-09-20T21:30:00+01:00,2026-09-20T22:06:18+01:00,DT-CTL,no,N,B,Skid controller fault
+S000441,CP-01,2026-09-25T21:14:54+01:00,2026-09-25T21:44:17+01:00,DT-JAM,no,N,D,Cap feed jammed
+S000442,VT-01,2026-09-26T15:42:00+01:00,2026-09-26T16:16:22+01:00,DT-CTL,no,D,C,Sensor fault
+S000443,BR-04,2026-09-28T19:29:20+01:00,2026-09-30T01:10:01+01:00,DT-SEAL,no,N,B,Seal leaking into the vessel: agitator seal changed
+S000444,LY-01,2026-09-29T01:06:18+01:00,2026-09-30T01:38:48+01:00,DT-LYO,no,N,B,Leak rate over 20 µbar·L/s: isolation valve rebuilt

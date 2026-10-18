@@ -1,0 +1,33 @@
+code,description,category,kind,planned
+DT-SEAL,Agitator mechanical seal failed,Bioreactors,downtime,no
+DT-CONT,"Contamination: batch aborted, vessel decontaminated",Bioreactors,downtime,no
+DT-CEN,Centrifuge fault: spindle bearing,Harvest,downtime,no
+DT-COL,Chromatography column repacked: bed compressed,Chromatography,downtime,no
+DT-UF,UF/DF cassettes fouled: replaced,UF/DF,downtime,no
+DT-LYO,Lyophiliser leak test failed: vacuum repaired,Lyophilisation,downtime,no
+DT-FIL,Filler fault: dosing pump,Filling,downtime,no
+DT-HVAC,Room pressure lost: HVAC filters loaded,HVAC,downtime,no
+DT-WFI,WFI out of specification,Utilities,downtime,no
+DT-JAM,Vial jam or broken vial,Filling,downtime,no
+DT-VIS,Inspection camera fault,Inspection,downtime,no
+DT-CTL,Control system fault (DCS or PLC),Automation,downtime,no
+DT-ELE,Electrical fault,Electrical,downtime,no
+DT-MAT,"Material missing: media, buffer, resin, vials or stoppers",Logistics,downtime,no
+DT-OPR,No operator,Organisation,downtime,no
+DT-OTH,Other,Other,downtime,no
+PL-PM,Planned maintenance,Planned,downtime,yes
+PL-RSN,Planned Protein A resin replacement,Planned,downtime,yes
+PL-COL,Planned column repack,Planned,downtime,yes
+PL-UF,Planned cassette replacement,Planned,downtime,yes
+PL-BRG,Planned centrifuge bearing change,Planned,downtime,yes
+PL-FLT,Planned HVAC filter change,Planned,downtime,yes
+PL-SHD,Site shutdown,Planned,downtime,yes
+BATCH-CONT,Batch lost: contamination,Bioreactors,scrap,no
+BATCH-SEAL,"Batch lost: agitator seal failed, sterile boundary breached",Bioreactors,scrap,no
+DS-OOS,Drug substance lot rejected: out of specification,Quality,scrap,no
+FIL-WT,Vial rejected by the checkweigher: fill weight,Filling,scrap,no
+VIS-CAKE,Vial rejected at inspection: collapsed cake,Inspection,scrap,no
+VIS-PART,Vial rejected at inspection: particles,Inspection,scrap,no
+VIS-COS,Vial rejected at inspection: cosmetic defect,Inspection,scrap,no
+VIS-CRIMP,Vial rejected at inspection: crimp defect,Inspection,scrap,no
+LOT-MOIST,Drug product lot rejected: residual moisture,Quality,scrap,no

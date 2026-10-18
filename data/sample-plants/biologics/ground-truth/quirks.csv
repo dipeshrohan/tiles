@@ -1,0 +1,9 @@
+quirk,where,from,to,what
+sensor drift,br02.do,2026-02-02T08:00:00+00:00,2026-02-23T10:00:00+00:00,BR-02's DO probe read 6 points high from its membrane change until its calibration
+wrong unit,ly01.chamber_pressure,2026-03-09T08:00:00+00:00,2026-03-16T08:00:00+00:00,Logged in mTorr (0.75 of the µbar values) after a gauge software update
+historian outage,"cs01.*, cs02.*",2026-04-14T00:00:00+01:00,2026-04-16T06:00:00+01:00,No chromatography skid readings: the collector was down
+clock offset,ly01.*,2026-03-29T03:00:00+01:00,2026-04-05T12:00:00+01:00,The lyophiliser's clock stayed on winter time: its readings are an hour early
+code renamed,mes/stops.csv,2025-10-01T00:00:00+01:00,2026-01-19T00:00:00+00:00,"Lyophiliser leak failures are LYO before the MES update, DT-LYO after"
+duplicate rows,mes/stops.csv,2025-10-01T00:00:00+01:00,2026-10-01T00:00:00+01:00,About 0.4% of stops are logged twice
+no end time,mes/stops.csv,2025-10-01T00:00:00+01:00,2026-10-01T00:00:00+01:00,About 0.3% of unplanned stops have no end time
+model gap,plant/ontology.json,2025-10-01T00:00:00+01:00,2026-10-01T00:00:00+01:00,A retired 500 L bioreactor (BR-05) with no relationships

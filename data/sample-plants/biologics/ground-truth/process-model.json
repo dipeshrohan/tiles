@@ -1,0 +1,18 @@
+{
+  "process": {
+    "protein_a_step_yield_pct": "95.5 - 11 * (resin_cycle / 150) ** 2 + noise(0.6)",
+    "protein_a_column_dp_bar": "1.05 + 0.55 * (resin_cycle / 150) ** 1.5 + noise(0.02)",
+    "harvest_hmw_pct": "2.2 + 0.07 * (100 - harvest_viability) + noise(0.15)",
+    "cex_clearance": "0.70 - 0.45 * bed ** 1.5 + noise(0.02), bed: the CEX column's compression (0 to 1)",
+    "bulk_hmw_pct": "harvest_hmw * (1 - cex_clearance)",
+    "bulk_hcp_ppm": "9 + 0.9 * (100 - harvest_viability) + 0.12 * harvest_hold_hours + noise(2)",
+    "chamber_pressure_ubar": "100 + 2.5 * (leak_rate - 4), leak_rate = 4 + 16 * leak ** 1.5 (µbar·L/s)",
+    "product_temp_max_c": "-35.2 + 0.035 * (chamber_pressure - 100) + 1.6 * edge_vial + shelf_bias + noise(0.6)",
+    "cake": "collapsed when product_temp_max > -32.0 (the formulation's collapse temperature)",
+    "dp_moisture_pct": "0.85 + 0.07 * (chamber_pressure - 100) + noise(0.07)",
+    "fill_weight_g": "10.30 - 0.25 * pump ** 1.5 on the worn needle + noise(0.035 + 0.05 * pump)",
+    "contamination_per_hour": "0.8e-5 + 3.5e-4 * seal ** 2, seal: the agitator seal's wear (0 to 1)",
+    "specifications": "bulk HMW <= 2.0 %, HCP <= 50 ppm, endotoxin <= 0.10 EU/mg; product moisture <= 2.0 %"
+  },
+  "notes": "Each lot's and vial's results from its genealogy (simulate.py)"
+}

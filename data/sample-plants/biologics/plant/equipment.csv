@@ -1,0 +1,37 @@
+asset,label,kind,vendor,model,year,area,plc
+IN-01,Shake flask incubator IN-01,incubator,Kuhner,ISF4-X,2019,Seed train,DCS Upstream
+WB-01,"Rocking bioreactor WB-01, 50 L",rocking-bioreactor,Sartorius,BIOSTAT RM 50,2019,Seed train,DCS Upstream
+WB-02,"Rocking bioreactor WB-02, 50 L",rocking-bioreactor,Sartorius,BIOSTAT RM 50,2019,Seed train,DCS Upstream
+SB-01,"N-1 bioreactor SB-01, 500 L",single-use-bioreactor,Thermo Fisher,HyPerforma S.U.B. 500,2019,Seed train,DCS Upstream
+SB-02,"N-1 bioreactor SB-02, 500 L",single-use-bioreactor,Thermo Fisher,HyPerforma S.U.B. 500,2020,Seed train,DCS Upstream
+BR-01,"Production bioreactor BR-01, 2,000 L",bioreactor,Pierre Guérin,Biostar 2000,2019,Production bioreactors,DCS Upstream
+BR-02,"Production bioreactor BR-02, 2,000 L",bioreactor,Pierre Guérin,Biostar 2000,2019,Production bioreactors,DCS Upstream
+BR-03,"Production bioreactor BR-03, 2,000 L",bioreactor,Pierre Guérin,Biostar 2000,2019,Production bioreactors,DCS Upstream
+BR-04,"Production bioreactor BR-04, 2,000 L",bioreactor,Pierre Guérin,Biostar 2000,2019,Production bioreactors,DCS Upstream
+MP-01,Media preparation MP-01,mixer,Merck Millipore,Mobius MIX 3000,2019,Production bioreactors,DCS Upstream
+CIP-01,CIP skid CIP-01 (upstream),cip-skid,GEA,CIP Hygienic 3,2019,Production bioreactors,DCS Upstream
+CF-01,Harvest centrifuge CF-01,centrifuge,Alfa Laval,BTPX 205,2019,Purification train,DCS Downstream
+DF-01,Depth filtration DF-01,depth-filter,Merck Millipore,Millistak+ Pod,2019,Purification train,DCS Downstream
+HT-01,Harvest hold tank HT-01,tank,Pharmatec,HT 2500,2019,Purification train,DCS Downstream
+BP-01,Buffer preparation BP-01,mixer,Merck Millipore,Mobius MIX 2000,2019,Purification train,DCS Downstream
+CS-01,Chromatography skid CS-01 (Protein A),chromatography-skid,Cytiva,ÄKTAprocess,2019,Purification train,DCS Downstream
+VT-01,Viral inactivation tank VT-01,tank,Pharmatec,VT 800,2019,Purification train,DCS Downstream
+CS-02,Chromatography skid CS-02 (CEX and AEX),chromatography-skid,Cytiva,ÄKTAprocess,2019,Purification train,DCS Downstream
+VF-01,Virus filtration VF-01,virus-filter,Asahi Kasei,Planova 20N skid,2019,Purification train,DCS Downstream
+UF-01,UF/DF skid UF-01,ultrafiltration,Merck Millipore,Pellicon 3 skid,2019,Purification train,DCS Downstream
+BF-01,Bulk fill and freeze BF-01,bulk-fill,Sartorius,Celsius FFT,2020,Purification train,DCS Downstream
+CIP-02,CIP skid CIP-02 (downstream),cip-skid,GEA,CIP Hygienic 3,2019,Purification train,DCS Downstream
+FZ-01,Bulk freezer FZ-01,freezer,Thermo Fisher,TSX -40,2020,Purification train,DCS Downstream
+FR-01,Filling room FR-01 (grade B),cleanroom,Kleanlabs,Grade B suite,2019,Fill-finish line,PLC Fill-finish
+FL-01,Vial filler FL-01,vial-filler,Bausch+Ströbel,VFVM 8100,2019,Fill-finish line,PLC Fill-finish
+LY-01,Lyophiliser LY-01,lyophiliser,GEA,LYOVAC FCM 6,2019,Fill-finish line,PLC Fill-finish
+CP-01,Capping machine CP-01,capper,Bausch+Ströbel,VRK 9100,2019,Fill-finish line,PLC Fill-finish
+AVI-01,Automated visual inspection AVI-01,inspection-machine,Körber,Seidenader V90+,2020,Fill-finish line,PLC Fill-finish
+WFI-01,WFI system WFI-01 (still and loop),wfi-system,Stilmas,VC 3000,2019,Utilities,PLC Utilities
+CSG-01,Clean steam generator CSG-01,clean-steam,Stilmas,CSG 1000,2019,Utilities,PLC Utilities
+AHU-01,Air handling unit AHU-01 (fill-finish),air-handler,Daikin,Professional AHU D-AHU,2019,Utilities,BMS
+CR-01,Cold room CR-01 (2-8 °C),cold-room,Carrier,Cold room 40,2019,Utilities,BMS
+HPLC-01,SEC-HPLC HPLC-01,lab-instrument,Agilent,1260 Infinity II,2021,QC lab,LIMS
+EL-01,HCP ELISA reader EL-01,lab-instrument,Molecular Devices,SpectraMax iD5,2021,QC lab,LIMS
+LAL-01,Endotoxin reader LAL-01,lab-instrument,Charles River,Endosafe nexgen-PTS,2021,QC lab,LIMS
+KF-01,Karl Fischer titrator KF-01,lab-instrument,Metrohm,917 Coulometer,2021,QC lab,LIMS

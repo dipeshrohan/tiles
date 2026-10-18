@@ -1,0 +1,17 @@
+name,email,tiles_role,job,crew
+Siobhán Kelly,siobhan.kelly@example.com,admin,Site director (sponsor),
+Ciarán Doyle,ciaran.doyle@example.com,engineer,Upstream process lead,
+Aoife Byrne,aoife.byrne@example.com,engineer,Downstream process lead,
+Niamh Walsh,niamh.walsh@example.com,engineer,Fill-finish lead,
+Declan Murphy,declan.murphy@example.com,engineer,Maintenance and reliability lead,
+Róisín O'Brien,roisin.obrien@example.com,engineer,Head of quality assurance,
+Eoin Gallagher,eoin.gallagher@example.com,engineer,QC laboratory manager,
+Sinéad Ryan,sinead.ryan@example.com,engineer,Maintenance technician,A
+Pádraig Lynch,padraig.lynch@example.com,engineer,Maintenance technician,B
+Orla Fitzgerald,orla.fitzgerald@example.com,engineer,Maintenance technician,C
+Darragh Nolan,darragh.nolan@example.com,engineer,Maintenance technician,D
+Caoimhe Burke,caoimhe.burke@example.com,viewer,Shift manager,A
+Fionn Quinn,fionn.quinn@example.com,viewer,Shift manager,B
+Grace Moran,grace.moran@example.com,viewer,Shift manager,C
+Rory Kavanagh,rory.kavanagh@example.com,viewer,Shift manager,D
+Meabh Foley,meabh.foley@example.com,admin,IT and OT lead,
