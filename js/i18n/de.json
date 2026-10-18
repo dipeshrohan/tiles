@@ -217,7 +217,7 @@
   "api.warning.not_resolved": "Diese Warnung ist nicht abgeschlossen",
   "api.warning.resolved": "Diese Warnung ist abgeschlossen; öffnen Sie sie zuerst wieder",
   "api.work_order.not_found": "An diesem Standort gibt es keinen Arbeitsauftrag {number}.",
-  "api.work_order.wrong_status": "Arbeitsauftrag {number} ist {status, select, draft {noch ein Entwurf} approved {freigegeben} exported {exportiert} done {erledigt} cancelled {storniert} other {{status}}}, daher geht das jetzt nicht. Aktualisieren Sie, um seinen Stand zu sehen.",
+  "api.work_order.wrong_status": "Arbeitsauftrag {number} ist {status, select, draft {noch ein Entwurf} approved {bereits freigegeben} exported {bereits exportiert} done {bereits abgeschlossen} cancelled {bereits storniert} other {{status}}}, daher geht das jetzt nicht. Aktualisieren Sie, um seinen Stand zu sehen.",
   "api.work_order.own_draft": "Ein Arbeitsauftrag wird von jemand anderem als dem Verfasser freigegeben, oder von einem Admin.",
   "api.work_order.none_approved": "Es gibt keinen freigegebenen Arbeitsauftrag zum Exportieren.",
   "api.work_order.needs_warning": "Nennen Sie die Warnung, aus der der Arbeitsauftrag entworfen wird.",

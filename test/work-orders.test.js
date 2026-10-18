@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { t } from '../js/lib/i18n.ts';
 import { actionsFor, draftHref, priorityLabel, sourceText, statusLabel } from '../js/lib/work-orders.ts';
 
 describe('work orders (T9.02)', () => {
@@ -21,5 +22,11 @@ describe('work orders (T9.02)', () => {
     expect(draftHref('warning', 'w-1', 'Check dc1.friction & tip')).toBe(
       '#/work-orders?from=warning&id=w-1&title=Check+dc1.friction+%26+tip',
     );
+  });
+  it('says where a work order is when a step comes too late', () => {
+    expect(t('api.work_order.wrong_status', { number: 3, status: 'approved' })).toBe(
+      'Work order 3 is already approved, so this can’t be done to it now. Refresh to see where it is.',
+    );
+    expect(t('api.work_order.wrong_status', { number: 3, status: 'archived' })).toContain('is archived,');
   });
 });

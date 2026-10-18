@@ -217,7 +217,7 @@
   "api.warning.not_resolved": "This warning is not resolved",
   "api.warning.resolved": "This warning is resolved; reopen it first",
   "api.work_order.not_found": "There is no work order {number} on this site.",
-  "api.work_order.wrong_status": "Work order {number} is {status, select, draft {still a draft} approved {approved} exported {exported} done {done} cancelled {cancelled} other {{status}}}, so this can’t be done to it now. Refresh to see where it is.",
+  "api.work_order.wrong_status": "Work order {number} is {status, select, draft {still a draft} approved {already approved} exported {already exported} done {already closed} cancelled {already cancelled} other {{status}}}, so this can’t be done to it now. Refresh to see where it is.",
   "api.work_order.own_draft": "Someone other than its drafter approves a work order, or an admin.",
   "api.work_order.none_approved": "There is no approved work order to export.",
   "api.work_order.needs_warning": "Name the warning the work order is drafted from.",
