@@ -5157,10 +5157,15 @@ test('remaining life: each component’s time to its wear limit on a line and a 
   assert.match(rows[2], /Not at this pace/);
   assert.equal(await a.page.locator('[data-life] tbody tr:first-child td.text-bad').count(), 1); // within a week
   assert.deepEqual(fake.lifeQueries(), ['line-a']);
+  // A component heading for its limit drafts a work order (T9.02); a stable one doesn't.
+  const draft = await a.page.getAttribute('[data-life] tbody tr:first-child a', 'href');
+  assert.match(draft, /^#\/work-orders\?from=component&id=id-w1\.tip&title=Replace\+Tip\+power\+on\+Welder\+1/);
+  assert.equal(await a.page.locator('[data-life] tbody tr:nth-child(3) a').count(), 0);
   // On the machine's own page, without the machine column; Refresh asks again.
   await a.page.evaluate(() => (location.hash = '#/plant/w1'));
   await a.page.waitForSelector('.page-head h1:has-text("Welder 1")');
-  await a.page.waitForFunction(() => document.querySelectorAll('[data-life] thead th').length === 4);
+  // Without the machine column; with the engineer's column of draft links (T9.02).
+  await a.page.waitForFunction(() => document.querySelectorAll('[data-life] thead th').length === 5);
   assert.deepEqual(fake.lifeQueries(), ['line-a', 'w1']);
   await a.page.click('[data-plant-refresh]');
   await a.page.waitForFunction(() => document.querySelector('[data-life] table'));
