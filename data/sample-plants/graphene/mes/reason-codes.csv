@@ -19,6 +19,7 @@ DT-OTH,Other,Other,downtime,no
 PL-PM,Planned maintenance,Planned,downtime,yes
 PL-BAK,Planned tube bake-out,Planned,downtime,yes
 PL-BTH,Planned etch bath change,Planned,downtime,yes
+PL-EXH,Planned scrubber check: CVD hall stopped,Planned,downtime,yes
 PL-SHD,Plant shutdown,Planned,downtime,yes
 CVD-WRK,Run scrapped: foil wrinkled or broken in the furnace,CVD,scrap,no
 CVD-ABT,Run scrapped: aborted when the CVD hall stopped,CVD,scrap,no

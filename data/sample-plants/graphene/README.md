@@ -79,7 +79,7 @@ large files are made with `--all` (below).
 | [cmms/work-orders.csv](cmms/work-orders.csv) | The CMMS's year: corrective, preventive and condition-based work orders, with hours, parts and costs | |
 | [lab/raman.csv](lab/raman.csv), [lab/four-point-probe.csv](lab/four-point-probe.csv), [lab/foil-roughness.csv](lab/foil-roughness.csv) | The lab's tests | Also the `lab.*` signals |
 | [documents/](documents/) | SOPs, lessons-learned reports on the year's worst breakdowns, monthly maintenance reports | Document search |
-| [copilot/questions.csv](copilot/questions.csv) | 112 questions with the facts their answers must state ([below](#asking-the-copilots-questions)) | The copilot's evaluation |
+| [copilot/questions.csv](copilot/questions.csv) | 110 questions with the facts their answers must state ([below](#asking-the-copilots-questions)) | The copilot's evaluation |
 | [ground-truth/](ground-truth/) | What really happened: each degradation, each run's hidden values (the true growth temperature and methane flow, grain size, bilayer, copper left), the quality model, the known gaps | |
 | [manifest.json](manifest.json) | Each file's rows; for the large files, rows and the SHA-256 of their text; the batch tables | |
 
@@ -137,14 +137,15 @@ maintenance or by a check.
 | Tube seal leak | CVD-01 to CVD-04 | DT-VAC: the base pressure too high to start | `oxygen` up, `base_pressure` up; Raman D/G and sheet resistance up | 11 to 22 working days |
 | Heater element ageing | CVD-01 to CVD-04 | DT-HTR, or found at maintenance | `heater_power` up, then `zone2_temp` down; sheet resistance up | 20 to 40 days |
 | Dry pump wear | CVD-02 | DT-PMP | `pump_current` up, `base_pressure` up | 6 to 16 days |
-| Methane controller drift | CVD-01 to CVD-03 | DT-MFC, found by the transmittance check (SOP-CVD-03) | `in01.transmittance` down, Raman 2D/G down; not `ch4_flow` | 5 to 13 days |
+| Methane controller drift | CVD-01 to CVD-03 | Found at the monthly calibration, or DT-MFC by the transmittance check (SOP-CVD-03) | `in01.transmittance` down, Raman 2D/G down; not `ch4_flow` | 5 to 13 days |
 | Rectifier ripple | EP-01 | DT-EPL | `current_ripple` up; the foil's roughness up | 6.5 to 11 days |
 | Laminator roll wear | TL-01, TL-02 | DT-LAM | `roll_temp_spread` up; defects and tears | 3 to 9 days |
 | Etch pump wear | TL-02 | DT-ETC | `etch_flow` down, `etch_rate` down; transmittance down | 7 days |
-| Scrubber packing fouling | SC-01 | DT-EXH at 14 mbar, stopping the CVD hall and aborting its runs | `differential_pressure` up, `exhaust_flow` down | 15.5 to 19 days |
+| Scrubber packing fouling | SC-01 | DT-EXH at 14 mbar, stopping the CVD hall and aborting its runs, or found at its monthly check | `differential_pressure` up, `exhaust_flow` down | 15.5 to 19 days |
 
 Besides these, the machines stop for foil breaks, gas alarms, web breaks, vision, electrical and
-other faults that nothing foretells. A run's foil can wrinkle in the furnace (CVD-WRK), and the film
+other faults that nothing foretells, and the scrubber's monthly check stops the hall for 4 hours
+(PL-EXH), planned for. A run's foil can wrinkle in the furnace (CVD-WRK), and the film
 can tear at transfer (TL-TEAR). Each etch bath gathers about 3.9 g/L of copper a run. Its change is
 planned at 45 g/L for the next shift and done before 55 g/L; past that, a weak pump leaves copper
 behind.
@@ -171,8 +172,8 @@ uv run tiles-sample-plant generate graphene --all
 This writes `generated/` (about 45 MB, not in Git) in a few minutes:
 
 - `historian/<month>/<stream>.csv.gz`: the historian export, one row per reading (timestamp in UTC,
-  tag, value, quality): about 11.3 million readings.
-- `tables/rolls-<month>.csv.gz`: every roll inspected that month (8,172 in the year) with its
+  tag, value, quality): about 11.2 million readings.
+- `tables/rolls-<month>.csv.gz`: every roll inspected that month (8,064 in the year) with its
   genealogy, process values, inspection results, grade and scrap code.
 
 The manifest's `generated` section gives each file's rows and the SHA-256 of its text, so a run can
@@ -252,6 +253,6 @@ uv run tiles-evaluate --cases ../data/sample-plants/graphene/copilot/questions.c
   - a controller that reads its set point.
 - **Remaining life (T9.01) and work orders (T9.02, T9.03):** slow wear with limits, and weekends and
   planned stops to fit the work into.
-- **The copilot's evaluation (T4.05, T4.06):** 112 questions, answerable from the data.
+- **The copilot's evaluation (T4.05, T4.06):** 110 questions, answerable from the data.
 - **The process model (T11.01):** the rolls' grades from a known model and their genealogy.
 - **The ROI report (T6.01, T12.01):** costs, stops and scrap, by machine and by mode, in GBP.

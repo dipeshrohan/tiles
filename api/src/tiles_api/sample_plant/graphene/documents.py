@@ -49,7 +49,7 @@ The monthly maintenance includes a leak test and the methane controller's calibr
         """Applies to the reactors' mass flow controllers. Owner: process engineering, CVD.
 
 A drifting methane mass flow controller still reads its set point while it lets more methane through:
-the graphene grows bilayer patches, Raman 2D/G falls below 2 and the film's transmittance falls. If
+the graphene grows bilayer patches, Raman 2D/G falls towards 2 and the film's transmittance falls. If
 transmittance stays below 97.2 % on two runs of one reactor, recalibrate its methane controller
 (DT-MFC). The controllers are calibrated at every monthly maintenance.
 """,
@@ -109,8 +109,8 @@ defects (holes, tears, bubbles) as it passes at 3 m/min. SP-01 slits each run's 
 | NG | otherwise | | |
 
 A roll needs at most 350 Ω/sq, at least 97.0 % and at most 3 defects a m² for grade A.
-An NG roll is rejected for its worst fault: sheet resistance (QC-RS), transmittance (QC-T) or defects
-(QC-DEF). A rejected roll costs about 420 GBP, a scrapped run about 2,600 GBP.
+An NG roll is rejected for the first limit it fails, in this order: sheet resistance (QC-RS),
+transmittance (QC-T), defects (QC-DEF). A rejected roll costs about 420 GBP, a scrapped run about 2,600 GBP.
 
 The lab takes a sample of each run: Raman D/G (normally 0.04; above 0.10 the graphene has defects)
 and 2D/G (above 2 is monolayer), and a four-point probe's sheet resistance to check IN-01's.
@@ -122,7 +122,8 @@ and 2D/G (above 2 is monolayer), and a four-point probe's sheet resistance to ch
         """Applies to the exhaust scrubber SC-01 and the CVD hall. Owner: EHS and maintenance.
 
 The scrubber takes the reactors' exhaust. Its pressure drop over the packing is normally 6 mbar;
-clean the packing at 12 mbar; 14 mbar is its limit. If the scrubber trips, the CVD hall stops: every
+clean the packing at 12 mbar; 14 mbar is its limit. Its monthly check stops the CVD hall for 4 hours
+(PL-EXH), planned for. If the scrubber trips, the CVD hall stops: every
 reactor is purged with argon and its heaters switched off, and the runs in progress are lost
 (CVD-ABT, DT-EXH).
 """,
@@ -267,7 +268,7 @@ def lessons(year: sim.Year, stats: Stats) -> dict[str, str]:
         s = first_stop[e.id]
         machine = BY_ASSET[s.asset]
         tag = FIRST[e.mode] if "." in FIRST[e.mode] else f"{machine.key}.{FIRST[e.mode]}"
-        before, last = _mean(stats, tag, (e.failed_at or 0) - 8 * 86400), _mean(stats, tag, (e.failed_at or 0) - 86400)
+        before, last = _mean(stats, tag, (e.failed_at or 0) - 7 * 86400), _mean(stats, tag, (e.failed_at or 0) - 86400)
         signal = (
             f"`{tag}` averaged {before:.1f} a week before and {last:.1f} the day before."
             if before is not None and last is not None

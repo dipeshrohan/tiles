@@ -382,6 +382,11 @@ class Plant:
         part = values[max(0, i) : min(len(values), j)]
         return sum(part) / len(part) if part else values[-1]
 
+    def in_work(self, t: float) -> float:
+        """t, or the start of the next working time if t is outside it (the lab works shifts too)."""
+        i = self.w.index(t)
+        return max(t, self.w.intervals[i][0]) if i < len(self.w.intervals) else t
+
     def _next_shift(self, t: float) -> float:
         """Half an hour into the next shift after t."""
         i = bisect.bisect_right(self.shift_starts, t)
@@ -425,6 +430,10 @@ class Plant:
             planned=monthly_pm(self.shifts, 2, 4, "Monthly scrubber check: packing, nozzles, pumps"),
         )
         m = SCRUBBER_MODES[0]
+        # Its monthly check stops the CVD hall too: the reactors plan around it.
+        self.scrubber_checks = [
+            (a, b, "PL-EXH", "Monthly scrubber check: CVD hall stopped") for a, b, _, _ in sc.planned
+        ]
         t = self.t0
         down_until = 0.0
         while t < self.t1:
@@ -443,6 +452,7 @@ class Plant:
                 a, b, code, text = sc.planned[sc.pi]
                 sc.pi += 1
                 sc._planned_job(a, b, code, text)
+                down_until = max(down_until, b)
             hot = self.w.working(t)
             down = t < down_until
             if down:
@@ -514,7 +524,7 @@ class Plant:
             foil = Foil(f"F-{n:05d}", lot, (start, end), ra)
             self._polish_minutes(foil, r)
             if lot.rolls == 1:
-                lot.ra_measured, lot.measured_at = round(ra, 1), end + HOUR
+                lot.ra_measured, lot.measured_at = round(ra, 1), self.in_work(end + HOUR)
                 self.year.lab.append((lot.measured_at, "lab.foil_roughness", lot.ra_measured))
             self.year.foils.append(foil)
             return foil
@@ -534,10 +544,11 @@ class Plant:
     def _cvd_grid(self, st: Station, g: float, mode: str) -> None:
         r = self.rng
         key = st.asset.lower().replace("-", "")
-        if mode == "run" and self.in_exhaust_stop(g):
-            mode = "stop"
-        # Running, waiting and baking out the furnace is hot; stopped for a repair or off, it cools.
+        # Running, waiting and baking out the furnace is hot; stopped for a repair, in a stop of the
+        # CVD hall (the scrubber out, or its check) or off, it cools.
         hot = mode in ("run", "idle") or (mode == "stop" and bool(st.stops) and st.stops[-1].code == "PL-BAK")
+        if self.in_exhaust_stop(g):
+            hot = False
         heater = st.sev("heater", g)
         leak = st.sev("leak", g)
         pump = st.sev("pump", g)
@@ -560,12 +571,26 @@ class Plant:
                     random_stops=CVD_STOPS,
                     modes=CVD_MODES,
                     planned=monthly_pm(self.shifts, 4 + 3 * i, 8, "Monthly maintenance: leak test, MFC calibration")
-                    + weekly(self.shifts, 0, 6, 3, "PL-BAK", "Weekly tube bake-out, as the week starts"),
+                    + weekly(self.shifts, 0, 6, 3, "PL-BAK", "Weekly tube bake-out, as the week starts")
+                    + self.scrubber_checks,
                     external=list(self.exhaust),
                     grid=self._cvd_grid,
+                    on_planned=self._cvd_planned,
                 )
             )
         return out
+
+    def _cvd_planned(self, st: Station, code: str, start: float, end: float) -> None:
+        """Every monthly maintenance calibrates the methane controller (SOP-CVD-02): a drift is found
+        however small."""
+        if code != "PL-PM":
+            return
+        m = st.modes["mfc"]
+        for ep in st.episodes:
+            if ep.mode == "mfc" and ep.resolved_at is None and ep.onset <= start:
+                ep.resolved_at, ep.peak = start, st.sev("mfc", start)
+                ep.outcome = "Found and fixed at planned maintenance"
+                st.maintenance.append(Maintenance(st.asset, start, end, "INSP", m.component, m.code, m.find, ep.id))
 
     def grow(self, cvd: Station, foil: Foil, r: random.Random, n: int) -> Run | None:
         start, end = cvd.run(foil.polished[1] + HOUR, RUN_H * HOUR)
@@ -577,7 +602,8 @@ class Plant:
         run.growth = (g0, g1)
         leak, pump = cvd.sev("leak", start), cvd.sev("pump", start)
         heater, mfc = cvd.sev("heater", g0), cvd.sev("mfc", g0)
-        run.base_pressure = 0.002 * (1 + 4.0 * leak**2) + 0.001 * pump**2 + abs(r.gauss(0, 0.0002))
+        # 0.010 mbar, the SOP's limit to start, is reached as the leak fails.
+        run.base_pressure = 0.002 + 0.0074 * leak**2 + 0.0004 * pump**2 + abs(r.gauss(0, 0.00005))
         run.oxygen = 0.8 + 24.0 * leak**1.5
         drift = (
             TC_DRIFT[1] if cvd.asset == TC_DRIFT[0] and TC_DRIFT[2].timestamp() <= g0 < TC_DRIFT[3].timestamp() else 0
@@ -598,7 +624,9 @@ class Plant:
             cvd.xi += 1
             cvd.stops.append(Stop(cvd.asset, a, b, code, False, f"{text}: run {run.id} aborted"))
             run.scrap, run.scrap_at, cut = "CVD-ABT", a, min(g1, a)
-            cvd.t = max(cvd.t, b)  # it can't start again before the scrubber is back
+            # Purged and unloaded once the scrubber is back, the reactor takes its next run.
+            run.job = (start, b + HOUR)
+            cvd.t = b + HOUR
         elif r.random() < 0.012:
             run.scrap, run.scrap_at = "CVD-WRK", g1
         self._growth_minutes(k, run, cut, r)
@@ -680,7 +708,7 @@ class Plant:
         if r.random() < 0.004 + 0.25 * lam**2.5:
             run.scrap, run.scrap_at = "TL-TEAR", end
         else:
-            run.lab_at = end + 2 * HOUR + (600 if tl.asset == "TL-02" else 0)  # a sample a line, in turn
+            run.lab_at = self.in_work(end + 2 * HOUR) + (600 if tl.asset == "TL-02" else 0)  # a line each in turn
             run.rs_4pp = round(run.rs_film * (1 + r.gauss(0, 0.03)), 0)
             self.year.lab.append((run.lab_at, "lab.d_g_ratio", round(run.d_g, 3)))
             self.year.lab.append((run.lab_at + 60, "lab.2d_g_ratio", round(run.two_d_g, 2)))

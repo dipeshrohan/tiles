@@ -554,7 +554,7 @@ DECLINES = (
         "Nobody can give a date: the wear check gives a time to a limit at the present pace",
     ),
     ("customer", "Which customer got yesterday's grade A rolls?", "Shipments are not in the data"),
-    ("energy", "How much electricity did CVD-04 use in January?", "Energy is not logged"),
+    ("energy", "What was the site's electricity bill in January?", "Bills are not in the data"),
 )
 
 

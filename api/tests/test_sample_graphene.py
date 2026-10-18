@@ -62,8 +62,23 @@ def test_the_year_runs_like_a_cvd_film_plant(built: Built) -> None:
     failed = {e.mode for st in year.stations.values() for e in st.episodes if e.failed_at}
     assert failed >= {"leak", "heater", "pump", "rectifier", "laminator", "etch-pump", "packing"}
     # A drifting methane controller is mostly found by the transmittance check (SOP-CVD-03).
+    # Its monthly calibration finds it however small (SOP-CVD-02).
     mfc = Counter(e.outcome for st in year.stations.values() for e in st.episodes if e.mode == "mfc")
-    assert mfc["Found by the transmittance check: MFC recalibrated"] >= 2, mfc
+    assert (
+        set(mfc)
+        <= {
+            "Found by the transmittance check: MFC recalibrated",
+            "Found and fixed at planned maintenance",
+            "Still building up at the end of the year",
+        }
+        and mfc["Found by the transmittance check: MFC recalibrated"] >= 1
+    ), mfc
+    # The scrubber's monthly check stops the hall: no run is in progress during it.
+    checks = [(s.start, s.end) for s in year.stations["SC-01"].stops if s.planned]
+    assert checks and not [r.id for r in year.runs for a, b in checks if r.job[0] < b and r.job[1] > a]
+    # A run starts only below the SOP's 0.010 mbar, and lab samples are taken in working time.
+    assert max(r.base_pressure for r in year.runs) <= 0.0101
+    assert all(year.working.working(r.lab_at) for r in year.runs if r.lab_at)
     for asset in (*REACTORS, *TRANSFERS, "EP-01"):
         stops = sorted((s.start, s.end) for s in year.stations[asset].stops)
         assert all(b[0] >= a[1] - 1e-6 for a, b in itertools.pairwise(stops)), asset  # no overlap
@@ -72,7 +87,8 @@ def test_the_year_runs_like_a_cvd_film_plant(built: Built) -> None:
     for run in year.runs:
         i = year.working.index(run.job[0])
         assert run.job[1] <= ends[i] + 1, run.id
-        assert abs(run.job[1] - run.job[0] - RUN_H * 3600) < 1
+        if run.scrap != "CVD-ABT":  # an aborted run gives its reactor back once the scrubber is back
+            assert abs(run.job[1] - run.job[0] - RUN_H * 3600) < 1
     for asset in REACTORS:
         stops = sorted((s.start, s.end) for s in year.stations[asset].stops)
         starts = [a for a, _ in stops]
@@ -90,7 +106,7 @@ def test_the_year_runs_like_a_cvd_film_plant(built: Built) -> None:
 
 
 def test_causes_upstream_show_in_the_film(built: Built) -> None:
-    _, year, _, _ = built
+    _, year, stats, _ = built
 
     def rejected(rolls: list[sim.FilmRoll], code: str) -> float:
         return sum(1 for x in rolls if x.scrap == code) / max(1, len(rolls))
@@ -105,13 +121,20 @@ def test_causes_upstream_show_in_the_film(built: Built) -> None:
     rough = [x.rs for x in year.rolls if x.run.foil.ra > 95 and x.run.oxygen < 2]
     smooth = [x.rs for x in year.rolls if x.run.foil.ra < 70 and x.run.oxygen < 2]
     assert rough and statistics.mean(rough) > statistics.mean(smooth) * 1.03
-    # CVD-02's thermocouple read high: the furnace grew cooler than the historian shows.
-    drift = [
-        r
-        for r in year.runs
-        if r.reactor == "CVD-02" and sim.TC_DRIFT[2].timestamp() <= r.growth[0] < sim.TC_DRIFT[3].timestamp()
+    # CVD-02's thermocouple read high: the historian shows the set point while its runs grew cooler,
+    # with smaller grains, than its others.
+    a, b = sim.TC_DRIFT[2].timestamp(), sim.TC_DRIFT[3].timestamp()
+    drift = [r for r in year.runs if r.reactor == "CVD-02" and a <= r.growth[0] < b]
+    other = [r for r in year.runs if r.reactor == "CVD-02" and not a <= r.growth[0] < b]
+    assert drift and statistics.mean(r.zone2 for r in drift) < statistics.mean(r.zone2 for r in other) - 6
+    assert statistics.median(r.domain for r in drift) < 0.85 * statistics.median(r.domain for r in other)
+    logged = [
+        d[1]
+        for (tag, day), d in stats.days.items()
+        if tag == "cvd02.zone2_temp"
+        and a + 86400 < datetime.fromisoformat(day).replace(tzinfo=ZONE).timestamp() < b - 86400
     ]
-    assert drift and all(abs(generate.logged_zone2(r) - r.zone2 - 8.0) < 1e-9 for r in drift)
+    assert logged and abs(statistics.median(logged) - 1035) < 3
 
 
 def _day(stats: common.Stats, tag: str, t: float) -> list[float] | None:

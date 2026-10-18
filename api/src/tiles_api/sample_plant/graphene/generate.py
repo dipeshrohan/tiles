@@ -610,8 +610,10 @@ def baseline(year: sim.Year) -> str:
         st = year.stations.get(m.asset)
         if not st or not m.downtime_cost_gbp_h:
             continue
-        stops = [s for s in st.stops if not s.planned and not s.comment.endswith("(continued)")]
-        hours = sum(s.end - s.start for s in st.stops if not s.planned) / 3600
+        # The scrubber's trips stop every reactor; their cost is the scrubber's (it stops the hall).
+        own = [s for s in st.stops if not s.planned and (s.code != "DT-EXH" or m.asset == "SC-01")]
+        stops = [s for s in own if not s.comment.endswith("(continued)")]
+        hours = sum(s.end - s.start for s in own) / 3600
         rows.append(
             f"| {m.asset} | {len(stops):,} | {len(stops) / months:.1f} | {hours:,.0f}"
             f" | {hours * m.downtime_cost_gbp_h:,.0f} |"
@@ -627,7 +629,8 @@ def baseline(year: sim.Year) -> str:
         "# Baseline metrics\n\n"
         "Made by `tiles-sample-plant generate graphene` from the simulated year: each machine's unplanned\n"
         "stops (a stop continued into the next shift counts once; its hours in full) and their cost at\n"
-        "controlling's figures (plant/costs.csv), and the film's yield.\n\n"
+        "controlling's figures (plant/costs.csv), and the film's yield. The scrubber's trips stop the CVD\n"
+        "hall (DT-EXH on each reactor in the MES); they are costed once, on SC-01.\n\n"
         "## Stops\n\n| Machine | Unplanned stops | A month | Hours | Cost of the hours (GBP) |\n"
         "| --- | --- | --- | --- | --- |\n"
         + "\n".join(rows)

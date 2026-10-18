@@ -1381,7 +1381,7 @@
     {
       "id": "doc-ll-2026-02",
       "type": "Document",
-      "label": "Lessons learned: zone 2 heating element on CVD-01, 27 March 2026",
+      "label": "Lessons learned: quartz tube seals on CVD-03, 23 March 2026",
       "props": {
         "number": "LL-2026-02"
       }
@@ -1389,7 +1389,7 @@
     {
       "id": "doc-ll-2026-03",
       "type": "Document",
-      "label": "Lessons learned: quartz tube seals on CVD-01, 27 April 2026",
+      "label": "Lessons learned: zone 2 heating element on CVD-01, 27 March 2026",
       "props": {
         "number": "LL-2026-03"
       }
@@ -1397,7 +1397,7 @@
     {
       "id": "doc-ll-2026-04",
       "type": "Document",
-      "label": "Lessons learned: zone 2 heating element on CVD-02, 09 June 2026",
+      "label": "Lessons learned: dry vacuum pump on CVD-02, 07 April 2026",
       "props": {
         "number": "LL-2026-04"
       }
@@ -1405,7 +1405,7 @@
     {
       "id": "doc-ll-2026-05",
       "type": "Document",
-      "label": "Lessons learned: zone 2 heating element on CVD-03, 10 July 2026",
+      "label": "Lessons learned: quartz tube seals on CVD-01, 27 April 2026",
       "props": {
         "number": "LL-2026-05"
       }
@@ -1413,7 +1413,7 @@
     {
       "id": "doc-ll-2026-06",
       "type": "Document",
-      "label": "Lessons learned: quartz tube seals on CVD-02, 29 July 2026",
+      "label": "Lessons learned: zone 2 heating element on CVD-02, 09 June 2026",
       "props": {
         "number": "LL-2026-06"
       }
@@ -1421,7 +1421,7 @@
     {
       "id": "doc-ll-2026-07",
       "type": "Document",
-      "label": "Lessons learned: quartz tube seals on CVD-04, 21 September 2026",
+      "label": "Lessons learned: zone 2 heating element on CVD-03, 10 July 2026",
       "props": {
         "number": "LL-2026-07"
       }
@@ -2659,10 +2659,10 @@
       "to": "cvd-04"
     },
     {
-      "id": "doc-ll-2026-02-describes-cvd-01",
+      "id": "doc-ll-2026-02-describes-cvd-03",
       "from": "doc-ll-2026-02",
       "rel": "describes",
-      "to": "cvd-01"
+      "to": "cvd-03"
     },
     {
       "id": "doc-ll-2026-03-describes-cvd-01",
@@ -2677,10 +2677,10 @@
       "to": "cvd-02"
     },
     {
-      "id": "doc-ll-2026-05-describes-cvd-03",
+      "id": "doc-ll-2026-05-describes-cvd-01",
       "from": "doc-ll-2026-05",
       "rel": "describes",
-      "to": "cvd-03"
+      "to": "cvd-01"
     },
     {
       "id": "doc-ll-2026-06-describes-cvd-02",
@@ -2689,10 +2689,10 @@
       "to": "cvd-02"
     },
     {
-      "id": "doc-ll-2026-07-describes-cvd-04",
+      "id": "doc-ll-2026-07-describes-cvd-03",
       "from": "doc-ll-2026-07",
       "rel": "describes",
-      "to": "cvd-04"
+      "to": "cvd-03"
     },
     {
       "id": "doc-mr-2025-10-describes-ashcombe",

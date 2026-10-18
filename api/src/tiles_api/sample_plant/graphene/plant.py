@@ -74,6 +74,7 @@ DOWNTIME_CODES = (
     Code("PL-PM", "Planned maintenance", "Planned", True),
     Code("PL-BAK", "Planned tube bake-out", "Planned", True),
     Code("PL-BTH", "Planned etch bath change", "Planned", True),
+    Code("PL-EXH", "Planned scrubber check: CVD hall stopped", "Planned", True),
     Code("PL-SHD", "Plant shutdown", "Planned", True),
 )
 SCRAP_CODES = (
