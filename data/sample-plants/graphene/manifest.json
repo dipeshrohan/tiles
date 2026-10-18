@@ -1,0 +1,231 @@
+{
+  "plant": "Sorrel Carbon, Ashcombe film plant (made up)",
+  "from": "2025-10-01T00:00:00+01:00",
+  "to": "2026-10-01T00:00:00+01:00",
+  "seed": "sorrel-ashcombe-2026",
+  "committed": {
+    "baseline.md": 1,
+    "calendar/planned-stops.csv": 462,
+    "calendar/shifts.csv": 719,
+    "cmms/work-orders.csv": 755,
+    "copilot/questions.csv": 108,
+    "documents": 31,
+    "ground-truth/episodes.csv": 32,
+    "ground-truth/quality-model.json": 8,
+    "ground-truth/quirks.csv": 9,
+    "ground-truth/runs.csv": 1410,
+    "lab/foil-roughness.csv": 40,
+    "lab/four-point-probe.csv": 1378,
+    "lab/raman.csv": 1378,
+    "mes/foil-lots.csv": 40,
+    "mes/production.csv": 719,
+    "mes/reason-codes.csv": 27,
+    "mes/rolls.csv": 8268,
+    "mes/runs.csv": 1410,
+    "mes/scrap.csv": 410,
+    "mes/stops.csv": 1004,
+    "plant/costs.csv": 22,
+    "plant/equipment.csv": 17,
+    "plant/ontology.json": 163,
+    "plant/people.csv": 12,
+    "plant/products.csv": 1,
+    "plant/tags.csv": 103
+  },
+  "generated": {},
+  "tables": {
+    "generated/tables/rolls-2025-10.csv.gz": {
+      "name": "Film rolls 2025-10",
+      "description": "Every SG-300 roll inspected in 2025-10: its genealogy (CVD run, reactor, foil and lot, transfer line), process values and inspection results",
+      "text": [
+        "roll_id",
+        "inspected",
+        "cvd_run",
+        "reactor",
+        "foil_roll",
+        "foil_lot",
+        "supplier",
+        "transfer_line",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/rolls-2025-11.csv.gz": {
+      "name": "Film rolls 2025-11",
+      "description": "Every SG-300 roll inspected in 2025-11: its genealogy (CVD run, reactor, foil and lot, transfer line), process values and inspection results",
+      "text": [
+        "roll_id",
+        "inspected",
+        "cvd_run",
+        "reactor",
+        "foil_roll",
+        "foil_lot",
+        "supplier",
+        "transfer_line",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/rolls-2025-12.csv.gz": {
+      "name": "Film rolls 2025-12",
+      "description": "Every SG-300 roll inspected in 2025-12: its genealogy (CVD run, reactor, foil and lot, transfer line), process values and inspection results",
+      "text": [
+        "roll_id",
+        "inspected",
+        "cvd_run",
+        "reactor",
+        "foil_roll",
+        "foil_lot",
+        "supplier",
+        "transfer_line",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/rolls-2026-01.csv.gz": {
+      "name": "Film rolls 2026-01",
+      "description": "Every SG-300 roll inspected in 2026-01: its genealogy (CVD run, reactor, foil and lot, transfer line), process values and inspection results",
+      "text": [
+        "roll_id",
+        "inspected",
+        "cvd_run",
+        "reactor",
+        "foil_roll",
+        "foil_lot",
+        "supplier",
+        "transfer_line",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/rolls-2026-02.csv.gz": {
+      "name": "Film rolls 2026-02",
+      "description": "Every SG-300 roll inspected in 2026-02: its genealogy (CVD run, reactor, foil and lot, transfer line), process values and inspection results",
+      "text": [
+        "roll_id",
+        "inspected",
+        "cvd_run",
+        "reactor",
+        "foil_roll",
+        "foil_lot",
+        "supplier",
+        "transfer_line",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/rolls-2026-03.csv.gz": {
+      "name": "Film rolls 2026-03",
+      "description": "Every SG-300 roll inspected in 2026-03: its genealogy (CVD run, reactor, foil and lot, transfer line), process values and inspection results",
+      "text": [
+        "roll_id",
+        "inspected",
+        "cvd_run",
+        "reactor",
+        "foil_roll",
+        "foil_lot",
+        "supplier",
+        "transfer_line",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/rolls-2026-04.csv.gz": {
+      "name": "Film rolls 2026-04",
+      "description": "Every SG-300 roll inspected in 2026-04: its genealogy (CVD run, reactor, foil and lot, transfer line), process values and inspection results",
+      "text": [
+        "roll_id",
+        "inspected",
+        "cvd_run",
+        "reactor",
+        "foil_roll",
+        "foil_lot",
+        "supplier",
+        "transfer_line",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/rolls-2026-05.csv.gz": {
+      "name": "Film rolls 2026-05",
+      "description": "Every SG-300 roll inspected in 2026-05: its genealogy (CVD run, reactor, foil and lot, transfer line), process values and inspection results",
+      "text": [
+        "roll_id",
+        "inspected",
+        "cvd_run",
+        "reactor",
+        "foil_roll",
+        "foil_lot",
+        "supplier",
+        "transfer_line",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/rolls-2026-06.csv.gz": {
+      "name": "Film rolls 2026-06",
+      "description": "Every SG-300 roll inspected in 2026-06: its genealogy (CVD run, reactor, foil and lot, transfer line), process values and inspection results",
+      "text": [
+        "roll_id",
+        "inspected",
+        "cvd_run",
+        "reactor",
+        "foil_roll",
+        "foil_lot",
+        "supplier",
+        "transfer_line",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/rolls-2026-07.csv.gz": {
+      "name": "Film rolls 2026-07",
+      "description": "Every SG-300 roll inspected in 2026-07: its genealogy (CVD run, reactor, foil and lot, transfer line), process values and inspection results",
+      "text": [
+        "roll_id",
+        "inspected",
+        "cvd_run",
+        "reactor",
+        "foil_roll",
+        "foil_lot",
+        "supplier",
+        "transfer_line",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/rolls-2026-08.csv.gz": {
+      "name": "Film rolls 2026-08",
+      "description": "Every SG-300 roll inspected in 2026-08: its genealogy (CVD run, reactor, foil and lot, transfer line), process values and inspection results",
+      "text": [
+        "roll_id",
+        "inspected",
+        "cvd_run",
+        "reactor",
+        "foil_roll",
+        "foil_lot",
+        "supplier",
+        "transfer_line",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/rolls-2026-09.csv.gz": {
+      "name": "Film rolls 2026-09",
+      "description": "Every SG-300 roll inspected in 2026-09: its genealogy (CVD run, reactor, foil and lot, transfer line), process values and inspection results",
+      "text": [
+        "roll_id",
+        "inspected",
+        "cvd_run",
+        "reactor",
+        "foil_roll",
+        "foil_lot",
+        "supplier",
+        "transfer_line",
+        "grade",
+        "scrap"
+      ]
+    }
+  },
+  "runs": 1410,
+  "rolls": 8268
+}

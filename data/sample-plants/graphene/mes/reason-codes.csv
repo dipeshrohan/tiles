@@ -1,0 +1,28 @@
+code,description,category,kind,planned
+DT-VAC,Vacuum leak: tube seals,CVD,downtime,no
+DT-HTR,Furnace heater fault,CVD,downtime,no
+DT-PMP,Vacuum pump fault,CVD,downtime,no
+DT-MFC,Gas flow fault: mass flow controller,CVD,downtime,no
+DT-FOL,Foil break or wrinkle in the furnace,CVD,downtime,no
+DT-GAS,Process gas supply alarm,CVD,downtime,no
+DT-EXH,Exhaust scrubber out: CVD hall stopped,Exhaust,downtime,no
+DT-EPL,Electropolishing fault: rectifier,Foil preparation,downtime,no
+DT-LAM,Laminator fault: roll,Transfer,downtime,no
+DT-ETC,Etchant circulation fault,Transfer,downtime,no
+DT-WEB,Web break,Web handling,downtime,no
+DT-VIS,Inspection system fault,Automation,downtime,no
+DT-ELE,Electrical or control fault,Electrical,downtime,no
+DT-MAT,"Material missing: foil, PET or etchant",Logistics,downtime,no
+DT-OPR,No operator,Organisation,downtime,no
+DT-QH,Quality hold,Quality,downtime,no
+DT-OTH,Other,Other,downtime,no
+PL-PM,Planned maintenance,Planned,downtime,yes
+PL-BAK,Planned tube bake-out,Planned,downtime,yes
+PL-BTH,Planned etch bath change,Planned,downtime,yes
+PL-SHD,Plant shutdown,Planned,downtime,yes
+CVD-WRK,Run scrapped: foil wrinkled or broken in the furnace,CVD,scrap,no
+CVD-ABT,Run scrapped: aborted when the CVD hall stopped,CVD,scrap,no
+TL-TEAR,Film torn at transfer,Transfer,scrap,no
+QC-RS,Roll rejected: sheet resistance,Inspection,scrap,no
+QC-T,Roll rejected: transmittance,Inspection,scrap,no
+QC-DEF,Roll rejected: defects,Inspection,scrap,no

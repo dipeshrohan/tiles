@@ -1,0 +1,13 @@
+{
+  "film": {
+    "d_g_ratio": "0.035 + 0.55 * leak ** 1.6 + noise(0.006): oxygen from a leaking tube makes defects",
+    "domain_um": "20 * (70 / foil_ra_nm) ** 0.8 * exp(-(1035 - zone2_temp) / 30)",
+    "bilayer": "0.03 + 0.32 * mfc_drift ** 1.4: too much methane grows a second layer",
+    "sheet_resistance_ohm_sq": "190 * (1 + 3 * d_g) * (1 + 6 / domain_um) * (1 - 0.35 * bilayer) * (1 + 0.15 * laminator_wear) * (1 - 0.3 * residual_copper), then each roll * noise(2.5 %)",
+    "residual_copper": "max(0, 1 - 1.6 * (1 - bath_copper / 150) * (1 - 0.55 * etch_pump_wear ** 1.5))",
+    "transmittance_pct": "97.65 - 2.3 * bilayer - 0.4 * d_g - 30 * residual_copper + noise(0.08)",
+    "defects_m2": "0.5 + 9 * laminator_wear ** 1.6 + 0.6 * particles / 4000 + 4 * residual_copper",
+    "grade": "A: Rs <= 350, T >= 97.0, defects <= 3; B: Rs <= 450, T >= 96.0, defects <= 8; else NG"
+  },
+  "notes": "The film's inspection results from its genealogy (simulate.py)"
+}

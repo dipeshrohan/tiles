@@ -498,18 +498,26 @@ class Station:
         if self.on_planned:
             self.on_planned(self, code, start, end)
 
-    def run(self, ready: float, duration: float) -> tuple[float, float]:
+    def run(self, ready: float, duration: float, fit: bool = False) -> tuple[float, float]:
         """Runs a job that may start at `ready`, taking `duration`; its start and end (the year's
-        end, if no working time is left)."""
+        end, if no working time is left). With `fit`, a job that would run past the end of its
+        working time, or into a planned stop, waits for it (a furnace run isn't started on a Friday
+        night, nor hours before its maintenance)."""
         while True:
             t = max(ready, self.t)
             i = self.w.index(t)
             if i >= len(self.w.intervals) or t >= self.end:
                 self.t = self.end
                 return self.end, self.end
-            a = self.w.intervals[i][0]
+            a, b = self.w.intervals[i]
             if t < a:
                 t = a
+            if fit and t + duration > b and duration < b - a:
+                ready = b
+                continue
+            if fit and self.pi < len(self.planned) and t < self.planned[self.pi][0] < t + duration:
+                ready = self.planned[self.pi][0]
+                continue
             # Planned and imposed stops that began while it waited, or begin now.
             if self.pi < len(self.planned) and self.planned[self.pi][0] <= t:
                 start, end, code, text = self.planned[self.pi]

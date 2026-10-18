@@ -1,0 +1,33 @@
+episode,asset,mode,code,onset,failed_at,resolved_at,outcome,peak_severity,ramp_working_days,precursors
+EP-SC-01-packing-1,SC-01,packing,DT-EXH,2025-10-08T05:06:37+01:00,2025-10-29T18:20:00+00:00,2025-10-30T02:03:08+00:00,Failed: the scrubber tripped and stopped the CVD hall,1.0,15.55,sc01.differential_pressure; sc01.exhaust_flow
+EP-TL-01-laminator-1,TL-01,laminator,DT-LAM,2025-10-16T11:46:43+01:00,2025-10-29T06:20:00+00:00,2025-10-29T11:16:42+00:00,Failed: the machine stopped,1.0,8.59,tl01.roll_temp_spread; in01.defects
+EP-CVD-03-leak-1,CVD-03,leak,DT-VAC,2025-10-16T21:40:02+01:00,2025-11-03T09:00:00+00:00,2025-11-03T15:40:55+00:00,Failed: the machine stopped,1.0,11.16,cvd03.oxygen; cvd03.base_pressure; lab.d_g_ratio
+EP-CVD-01-heater-1,CVD-01,heater,DT-HTR,2025-10-28T06:03:25+00:00,,2025-12-04T07:00:00+00:00,Found and fixed at planned maintenance,0.48,39.18,cvd01.heater_power; cvd01.zone2_temp (late); in01.sheet_resistance
+EP-CVD-01-leak-1,CVD-01,leak,DT-VAC,2025-11-24T16:18:49+00:00,2025-12-17T17:18:44+00:00,2025-12-17T21:19:54+00:00,Failed: the machine stopped,1.0,16.69,cvd01.oxygen; cvd01.base_pressure; lab.d_g_ratio
+EP-CVD-04-leak-1,CVD-04,leak,DT-VAC,2025-12-01T22:04:08+00:00,2025-12-16T19:00:00+00:00,2025-12-17T01:58:44+00:00,Failed: the machine stopped,1.0,10.69,cvd04.oxygen; cvd04.base_pressure; lab.d_g_ratio
+EP-TL-02-laminator-1,TL-02,laminator,DT-LAM,2025-12-03T02:34:40+00:00,2025-12-08T06:00:00+00:00,2025-12-08T10:17:44+00:00,Failed: the machine stopped,1.0,3.02,tl02.roll_temp_spread; in01.defects
+EP-EP-01-rectifier-1,EP-01,rectifier,DT-EPL,2025-12-18T20:53:04+00:00,2026-01-16T11:46:51+00:00,2026-01-16T15:14:11+00:00,Failed: the machine stopped,1.0,9.5,ep01.current_ripple; lab.foil_roughness
+EP-SC-01-packing-3,SC-01,packing,DT-EXH,2026-01-13T01:44:39+00:00,,2026-02-02T07:00:00+00:00,Found and fixed at planned maintenance,0.59,19.33,sc01.differential_pressure; sc01.exhaust_flow
+EP-CVD-04-heater-1,CVD-04,heater,DT-HTR,2026-01-27T23:23:05+00:00,2026-03-04T06:34:41+00:00,2026-03-04T15:21:58+00:00,Failed: the machine stopped,1.0,24.72,cvd04.heater_power; cvd04.zone2_temp (late); in01.sheet_resistance
+EP-CVD-01-heater-2,CVD-01,heater,DT-HTR,2026-02-18T05:25:48+00:00,2026-03-27T13:08:32+00:00,2026-03-27T22:43:55+00:00,Failed: the machine stopped,1.0,26.75,cvd01.heater_power; cvd01.zone2_temp (late); in01.sheet_resistance
+EP-SC-01-packing-4,SC-01,packing,DT-EXH,2026-02-26T22:31:22+00:00,2026-03-23T06:10:00+00:00,2026-03-23T10:47:32+00:00,Failed: the scrubber tripped and stopped the CVD hall,1.0,16.32,sc01.differential_pressure; sc01.exhaust_flow
+EP-CVD-02-leak-1,CVD-02,leak,DT-VAC,2026-02-27T01:17:55+00:00,2026-03-25T23:59:34+00:00,2026-03-26T02:29:25+00:00,Failed: the machine stopped,1.0,18.81,cvd02.oxygen; cvd02.base_pressure; lab.d_g_ratio
+EP-CVD-03-leak-2,CVD-03,leak,DT-VAC,2026-03-04T07:12:50+00:00,2026-03-23T10:47:32+00:00,2026-03-23T16:47:37+00:00,Failed: the machine stopped,1.0,12.3,cvd03.oxygen; cvd03.base_pressure; lab.d_g_ratio
+EP-CVD-02-pump-1,CVD-02,pump,DT-PMP,2026-03-12T01:47:45+00:00,2026-04-07T15:00:00+01:00,2026-04-07T18:35:17+01:00,Failed: the machine stopped,1.0,16.43,cvd02.pump_current; cvd02.base_pressure
+EP-EP-01-rectifier-2,EP-01,rectifier,DT-EPL,2026-03-13T22:55:15+00:00,2026-03-24T13:27:32+00:00,2026-03-24T17:19:34+00:00,Failed: the machine stopped,1.0,6.54,ep01.current_ripple; lab.foil_roughness
+EP-CVD-01-leak-2,CVD-01,leak,DT-VAC,2026-03-23T07:41:54+00:00,2026-04-27T09:00:00+01:00,2026-04-27T17:47:10+01:00,Failed: the machine stopped,1.0,22.35,cvd01.oxygen; cvd01.base_pressure; lab.d_g_ratio
+EP-CVD-02-heater-1,CVD-02,heater,DT-HTR,2026-04-10T01:23:49+01:00,2026-06-09T05:14:49+01:00,2026-06-09T14:27:05+01:00,Failed: the machine stopped,1.0,40.1,cvd02.heater_power; cvd02.zone2_temp (late); in01.sheet_resistance
+EP-TL-02-laminator-2,TL-02,laminator,DT-LAM,2026-04-10T20:29:29+01:00,2026-04-17T17:00:00+01:00,2026-04-17T21:52:41+01:00,Failed: the machine stopped,1.0,4.51,tl02.roll_temp_spread; in01.defects
+EP-CVD-03-mfc-1,CVD-03,mfc,DT-MFC,2026-05-09T05:06:59+01:00,2026-05-29T07:05:50+01:00,2026-05-29T09:58:40+01:00,Failed: the machine stopped,1.0,12.71,in01.transmittance; lab.2d_g_ratio (the flow reads its set point)
+EP-EP-01-rectifier-3,EP-01,rectifier,DT-EPL,2026-05-18T08:07:14+01:00,2026-06-03T17:24:45+01:00,2026-06-03T22:06:58+01:00,Failed: the machine stopped,1.0,11.36,ep01.current_ripple; lab.foil_roughness
+EP-CVD-03-heater-1,CVD-03,heater,DT-HTR,2026-06-12T00:33:57+01:00,2026-07-10T15:00:00+01:00,2026-07-11T01:26:31+01:00,Failed: the machine stopped,1.0,20.3,cvd03.heater_power; cvd03.zone2_temp (late); in01.sheet_resistance
+EP-TL-02-laminator-4,TL-02,laminator,DT-LAM,2026-06-17T21:56:40+01:00,2026-06-26T06:00:00+01:00,2026-06-26T10:44:42+01:00,Failed: the machine stopped,1.0,6.16,tl02.roll_temp_spread; in01.defects
+EP-CVD-02-pump-2,CVD-02,pump,DT-PMP,2026-06-29T08:40:09+01:00,2026-07-07T15:00:00+01:00,2026-07-07T22:15:45+01:00,Failed: the machine stopped,1.0,6.15,cvd02.pump_current; cvd02.base_pressure
+EP-CVD-02-leak-2,CVD-02,leak,DT-VAC,2026-07-10T10:15:14+01:00,2026-07-29T04:20:00+01:00,2026-07-29T09:51:25+01:00,Failed: the machine stopped,1.0,12.62,cvd02.oxygen; cvd02.base_pressure; lab.d_g_ratio
+EP-CVD-02-mfc-1,CVD-02,mfc,DT-MFC,2026-07-30T12:37:15+01:00,2026-08-14T06:57:54+01:00,2026-08-14T13:33:13+01:00,Failed: the machine stopped,1.0,5.16,in01.transmittance; lab.2d_g_ratio (the flow reads its set point)
+EP-CVD-01-mfc-1,CVD-01,mfc,DT-MFC,2026-08-14T10:39:29+01:00,2026-08-28T11:27:08+01:00,2026-08-28T13:57:36+01:00,Failed: the machine stopped,1.0,9.94,in01.transmittance; lab.2d_g_ratio (the flow reads its set point)
+EP-TL-02-etch-pump-1,TL-02,etch-pump,DT-ETC,2026-08-20T13:06:03+01:00,2026-09-01T22:00:00+01:00,2026-09-02T01:53:40+01:00,Failed: the machine stopped,1.0,7.02,tl02.etch_flow; tl02.etch_rate; in01.transmittance
+EP-CVD-04-leak-2,CVD-04,leak,DT-VAC,2026-08-25T16:10:34+01:00,2026-09-21T09:00:00+01:00,2026-09-21T12:04:30+01:00,Failed: the machine stopped,1.0,16.57,cvd04.oxygen; cvd04.base_pressure; lab.d_g_ratio
+EP-TL-01-laminator-2,TL-01,laminator,DT-LAM,2026-09-03T11:22:55+01:00,2026-09-15T01:00:00+01:00,2026-09-15T03:51:03+01:00,Failed: the machine stopped,1.0,7.07,tl01.roll_temp_spread; in01.defects
+EP-TL-02-laminator-5,TL-02,laminator,DT-LAM,2026-09-15T09:31:29+01:00,2026-09-25T14:24:10+01:00,2026-09-25T18:43:20+01:00,Failed: the machine stopped,1.0,8.01,tl02.roll_temp_spread; in01.defects
+EP-CVD-03-mfc-2,CVD-03,mfc,DT-MFC,2026-09-17T13:12:15+01:00,2026-09-28T09:00:00+01:00,2026-09-28T11:31:45+01:00,Failed: the machine stopped,1.0,6.14,in01.transmittance; lab.2d_g_ratio (the flow reads its set point)

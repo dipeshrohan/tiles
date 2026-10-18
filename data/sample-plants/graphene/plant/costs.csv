@@ -1,0 +1,23 @@
+item,of,value,unit
+downtime,EP-01,600.0,GBP/h
+downtime,CVD-01,1500.0,GBP/h
+downtime,CVD-02,1500.0,GBP/h
+downtime,CVD-03,1500.0,GBP/h
+downtime,CVD-04,1500.0,GBP/h
+downtime,SC-01,6000.0,GBP/h
+downtime,TL-01,900.0,GBP/h
+downtime,TL-02,900.0,GBP/h
+downtime,IN-01,400.0,GBP/h
+downtime,SP-01,300.0,GBP/h
+scrap,SG-300 roll,420.0,GBP/roll
+scrap,SG-300 run,2600.0,GBP/run
+labour,maintenance technician,58.0,GBP/h
+part,quartz tube seal kit,650.0,GBP
+part,zone 2 heating element,4800.0,GBP
+part,dry vacuum pump exchange,7500.0,GBP
+part,mass flow controller recalibration,450.0,GBP
+part,rectifier control board,2200.0,GBP
+part,laminator roll,3900.0,GBP
+part,etch pump impeller,800.0,GBP
+part,scrubber packing cleaning service,2800.0,GBP
+part,etch bath change (etchant),1100.0,GBP

@@ -10,7 +10,11 @@ from pathlib import Path
 from types import ModuleType
 
 DATA = Path(__file__).resolve().parents[4] / "data" / "sample-plants"
-PLANTS = {"die-casting": "tiles_api.sample_plant.die_casting", "battery": "tiles_api.sample_plant.battery"}
+PLANTS = {
+    "die-casting": "tiles_api.sample_plant.die_casting",
+    "battery": "tiles_api.sample_plant.battery",
+    "graphene": "tiles_api.sample_plant.graphene",
+}
 
 
 def plant(name: str) -> ModuleType:
