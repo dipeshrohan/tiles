@@ -3,7 +3,7 @@
 // one (a sweep of a design model over the machine's state), approve someone else's, reject one
 // and say when the line applied it by hand. Tiles never writes to a PLC. The limits per parameter
 // (T11.04) are set here too; the API refuses anything outside them.
-import type { ModelInfo, Recommendation, RecommendationLimit, SignalInfo } from '../lib/api.ts';
+import type { ModelInfo, Recommendation, RecommendationLimit, RecommendationOutcome, SignalInfo } from '../lib/api.ts';
 import { esc, onAction, onAll, onNavigate, onSubmit, routeOf } from '../lib/dom.ts';
 import { dateTime, number, percent, significant } from '../lib/format.ts';
 import { showErrors, type FieldError } from '../lib/forms.ts';
@@ -29,6 +29,7 @@ interface MachineState {
   model: string | null; // the model chosen
   limits: Loaded<RecommendationLimit[]>;
   recs: Loaded<Recommendation[]>;
+  outcomes: Map<number, RecommendationOutcome | 'failed'>; // the applied ones' (T11.03)
 }
 
 let shown: MachineState | null = null;
@@ -48,7 +49,14 @@ async function loadAll(ctx: Context, site: string, asset: string): Promise<void>
   if (!api) return;
   const mine = ++asked;
   const key = keyOf(site, asset);
-  shown = { key, models: null, model: shown?.key === key ? shown.model : null, limits: null, recs: null };
+  shown = {
+    key,
+    models: null,
+    model: shown?.key === key ? shown.model : null,
+    limits: null,
+    recs: null,
+    outcomes: new Map(),
+  };
   const [models, recs] = await Promise.all([
     api.models(site).then(recommendable, () => 'failed' as const), // the client showed why
     api.recommendations(site, asset).then(ordered, () => 'failed' as const),
@@ -60,7 +68,27 @@ async function loadAll(ctx: Context, site: string, asset: string): Promise<void>
       : (models.find((m) => m.key === shown?.model) ?? models.find((m) => m.key === PREFERRED) ?? models[0] ?? null);
   shown = { ...shown, models, recs, model: chosen?.key ?? null };
   ctx.rerender();
+  if (recs !== 'failed') void loadOutcomes(ctx, site, key, recs);
   if (chosen) await loadLimits(ctx, site, chosen.key, mine);
+}
+
+// What followed each applied recommendation (T11.03), asked once the list is in.
+async function loadOutcomes(ctx: Context, site: string, key: string, recs: Recommendation[]): Promise<void> {
+  const api = ctx.api;
+  if (!api) return;
+  const applied = recs.filter((r) => r.status === 'applied');
+  if (!applied.length) return;
+  const got = await Promise.all(
+    applied.map((r) =>
+      api.recommendationOutcome(site, r.number).then(
+        (o): [number, RecommendationOutcome | 'failed'] => [r.number, o],
+        (): [number, 'failed'] => [r.number, 'failed'], // the client showed why
+      ),
+    ),
+  );
+  if (shown?.key !== key) return;
+  shown = { ...shown, outcomes: new Map(got) };
+  ctx.rerender();
 }
 
 async function loadLimits(ctx: Context, site: string, model: string, mine = ++asked): Promise<void> {
@@ -85,6 +113,43 @@ const value = (x: number | null, unit: string): string =>
 
 const outcome = (output: string, x: number | null | undefined): string =>
   x === null || x === undefined ? '–' : isChance(output) ? percent(x, 1) : significant(x, 3);
+
+const share = (x: number | null): string => (x === null ? '–' : percent(x, 0));
+const mean = (m: { mean: number | null } | null): string => (m?.mean == null ? '–' : significant(m.mean, 3));
+
+// What followed an applied recommendation against what the model expected.
+function outcomeHtml(o: RecommendationOutcome | 'failed' | undefined): string {
+  if (o === undefined) return `<p class="small soft" data-rec-outcome>${esc(t('plant.recs.outcome.loading'))}</p>`;
+  if (o === 'failed') return `<p class="small soft" data-rec-outcome>${esc(t('plant.recs.outcome.failed'))}</p>`;
+  const lines = [
+    t(o.state === 'complete' ? 'plant.recs.outcome.complete' : 'plant.recs.outcome.collecting', { days: o.days }),
+    t('plant.recs.outcome.expected', {
+      output: o.objective,
+      now: outcome(o.objective, o.expected_now),
+      proposed: outcome(o.objective, o.expected_proposed),
+      change: share(o.expected_change),
+    }),
+  ];
+  if (o.signal_tag)
+    lines.push(
+      t('plant.recs.outcome.measured', {
+        tag: o.signal_tag,
+        before: mean(o.before),
+        after: mean(o.after),
+        change: share(o.measured_change),
+      }),
+    );
+  if (o.events_before && o.events_after)
+    lines.push(
+      t('plant.recs.outcome.events', {
+        scrapBefore: number(o.events_before.scrap, 1),
+        scrapAfter: number(o.events_after.scrap, 1),
+        stopsBefore: number(o.events_before.downtime, 1),
+        stopsAfter: number(o.events_after.downtime, 1),
+      }),
+    );
+  return `<ul class="plain small" data-rec-outcome>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`;
+}
 
 const STATUS: Record<Recommendation['status'], [string, () => string]> = {
   proposed: ['warn', () => t('plant.recs.status.proposed')],
@@ -142,7 +207,9 @@ function recRow(ctx: Context, rec: Recommendation, model: ModelInfo | null): str
   return `<tr data-key="${rec.number}" data-rec="${rec.number}">
       <td>${esc(t('plant.recs.number', { number: rec.number }))}</td>
       <td>${badge(label(), tone as '')}</td>
-      <td><ul class="plain">${what}</ul><p class="small soft">${expected}</p></td>
+      <td><ul class="plain">${what}</ul><p class="small soft">${expected}</p>${
+        rec.status === 'applied' ? outcomeHtml(shown?.outcomes.get(rec.number)) : ''
+      }</td>
       <td class="small">${esc(who)}${note ? `<br><span class="soft">${esc(note)}</span>` : ''}</td>
       ${canEdit(ctx) ? `<td class="no-print"><div class="row gap-1 wrap">${actions}</div></td>` : ''}
     </tr>`;
@@ -243,6 +310,10 @@ function recommendForm(model: ModelInfo, limits: RecommendationLimit[], signals:
         <fieldset class="mt-2" data-api="settable"><legend>${esc(t('plant.recs.settable', { most: MAX_SETTABLE }))}</legend><div class="row gap-3 wrap">${boxes}</div></fieldset>
         <p class="small soft mt-2">${esc(t('plant.recs.stateLead'))}</p>
         ${table({ headers: [t('plant.recs.param'), t('plant.recs.value'), ...(signals.length ? [t('plant.recs.signal')] : [])], rowsHtml: stateRows })}
+        <div class="row gap-3 wrap mt-2">
+          ${signals.length ? field(t('plant.recs.outcomeSignal'), select('outcome_signal', [['', t('plant.recs.outcomeNone')], ...signals.map((s): [string, string] => [s.id, s.tag])], ''), { hint: t('plant.recs.outcomeHint') }) : ''}
+          ${field(t('plant.recs.outcomeDays'), input({ name: 'outcome_days', type: 'number', value: '7', attrs: { min: '1', max: '90', step: '1', required: true } }))}
+        </div>
         <div class="mt-2">${button(t('plant.recs.recommend'), { type: 'submit', variant: 'primary' })}</div>
       </form>
     </details>`;
@@ -386,6 +457,8 @@ export function bindRecs(root: ParentNode, ctx: Context): void {
         state: read.state,
         signals: read.signals,
         asset,
+        outcome_days: Number(data.get('outcome_days') ?? 7),
+        ...(data.get('outcome_signal') ? { outcome_signal: String(data.get('outcome_signal')) } : {}),
       })
       .then(
         (rec) => {

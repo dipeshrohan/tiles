@@ -5353,6 +5353,24 @@ test('a setpoint recommendation is asked for within its limits, approved by some
     /Applied by demo/.test(document.querySelector('[data-recs] tr[data-rec="1"]')?.textContent ?? ''),
   );
   assert.equal(rec.status, 'applied');
+  assert.equal(rec.request.outcome_days, 7);
+  // What followed (T11.03): what was expected, what the outcome signal and the machine's events measured.
+  Object.assign(rec, {
+    outcome_state: 'complete',
+    outcome_signal_tag: 'dc01.porosity',
+    outcome_before: { mean: 0.9, readings: 168 },
+    outcome_after: { mean: 0.72, readings: 168 },
+    outcome_change: -0.2,
+    events_before: { scrap: 2, downtime: 0.5, days: 7 },
+    events_after: { scrap: 1, downtime: 0, days: 7 },
+  });
+  await a.page.click('[data-plant-refresh]');
+  await a.page.waitForSelector('[data-recs] tr[data-rec="1"] [data-rec-outcome] li');
+  const followed = await a.page.innerText('[data-recs] tr[data-rec="1"] [data-rec-outcome]');
+  assert.match(followed, /What followed, 7 days either side:/);
+  assert.match(followed, /Expected scrap_chance: 2\.0% to 0\.4% \(-80%\)/);
+  assert.match(followed, /Measured dc01\.porosity: mean 0\.9 before, 0\.72 after \(-20%\)/);
+  assert.match(followed, /Scrap a day: 2\.0 before, 1\.0 after\. Unplanned stops a day: 0\.5 before, 0\.0 after\./);
   assert.deepEqual(a.errors, []);
 
   // A viewer sees the recommendations and limits, not the actions or the form.

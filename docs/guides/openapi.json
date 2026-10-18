@@ -3260,6 +3260,29 @@
         "title": "EventOut",
         "type": "object"
       },
+      "EventRates": {
+        "properties": {
+          "days": {
+            "title": "Days",
+            "type": "number"
+          },
+          "downtime": {
+            "title": "Downtime",
+            "type": "number"
+          },
+          "scrap": {
+            "title": "Scrap",
+            "type": "number"
+          }
+        },
+        "required": [
+          "scrap",
+          "downtime",
+          "days"
+        ],
+        "title": "EventRates",
+        "type": "object"
+      },
       "EventRow": {
         "properties": {
           "asset": {
@@ -5242,6 +5265,31 @@
         "title": "Me",
         "type": "object"
       },
+      "Measured": {
+        "properties": {
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "readings": {
+            "title": "Readings",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mean",
+          "readings"
+        ],
+        "title": "Measured",
+        "type": "object"
+      },
       "Member": {
         "properties": {
           "email": {
@@ -5819,6 +5867,204 @@
           "dashboard"
         ],
         "title": "Onboarding",
+        "type": "object"
+      },
+      "Outcome": {
+        "properties": {
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Measured"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "asset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Measured"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "events_after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventRates"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "events_before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventRates"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expected_change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Change"
+          },
+          "expected_now": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Now"
+          },
+          "expected_proposed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Proposed"
+          },
+          "measured_change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measured Change"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "objective": {
+            "title": "Objective",
+            "type": "string"
+          },
+          "signal_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal Tag"
+          },
+          "state": {
+            "enum": [
+              "not_applied",
+              "collecting",
+              "complete"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "proposed",
+              "approved",
+              "rejected",
+              "applied"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "status",
+          "applied_at",
+          "days",
+          "state",
+          "objective",
+          "expected_now",
+          "expected_proposed",
+          "expected_change",
+          "signal_tag",
+          "before",
+          "after",
+          "measured_change",
+          "asset",
+          "events_before",
+          "events_after"
+        ],
+        "title": "Outcome",
+        "type": "object"
+      },
+      "OutcomeIn": {
+        "properties": {
+          "days": {
+            "default": 7,
+            "maximum": 90.0,
+            "minimum": 1.0,
+            "title": "Days",
+            "type": "integer"
+          },
+          "signal_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal Id"
+          }
+        },
+        "title": "OutcomeIn",
         "type": "object"
       },
       "OutputChange": {
@@ -6796,6 +7042,25 @@
             "title": "Objective",
             "type": "string"
           },
+          "outcome_days": {
+            "default": 7,
+            "maximum": 90.0,
+            "minimum": 1.0,
+            "title": "Outcome Days",
+            "type": "integer"
+          },
+          "outcome_signal": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Signal"
+          },
           "settable": {
             "items": {
               "maxLength": 63,
@@ -6979,6 +7244,33 @@
             "title": "Objective",
             "type": "string"
           },
+          "outcome_days": {
+            "title": "Outcome Days",
+            "type": "integer"
+          },
+          "outcome_signal_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Signal Id"
+          },
+          "outcome_signal_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Signal Tag"
+          },
           "proposal": {
             "additionalProperties": {
               "type": "number"
@@ -7044,6 +7336,9 @@
           "applied_by",
           "applied_at",
           "applied_note",
+          "outcome_signal_id",
+          "outcome_signal_tag",
+          "outcome_days",
           "mine"
         ],
         "title": "Recommendation",
@@ -21511,6 +21806,120 @@
           }
         },
         "summary": "Approve",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/sites/{site_id}/recommendations/{number}/outcome": {
+      "get": {
+        "description": "What followed an applied recommendation against what the model expected: its outcome\nsignal's mean, and the machine's scrap events and unplanned stops a day, over the days before it\nwas applied and the days after (up to now: `collecting` until they have all passed).",
+        "operationId": "outcome_sites__site_id__recommendations__number__outcome_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Outcome"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Outcome",
+        "tags": [
+          "recommendations"
+        ]
+      },
+      "put": {
+        "description": "Sets the signal that measures a recommendation's outcome, and the days to judge it over\n(engineers), at any step. Audited.",
+        "operationId": "set_outcome_sites__site_id__recommendations__number__outcome_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutcomeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recommendation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Outcome",
         "tags": [
           "recommendations"
         ]

@@ -807,6 +807,26 @@ export interface RecommendIn {
   at?: string;
   steps?: number;
   asset?: string;
+  outcome_signal?: string; // what measures the outcome (T11.03)
+  outcome_days?: number;
+}
+export interface RecommendationOutcome {
+  number: number;
+  status: RecommendationStatus;
+  applied_at: string | null;
+  days: number;
+  state: 'not_applied' | 'collecting' | 'complete';
+  objective: string;
+  expected_now: number | null;
+  expected_proposed: number | null;
+  expected_change: number | null; // relative: (proposed - now) / now
+  signal_tag: string | null;
+  before: { mean: number | null; readings: number } | null;
+  after: { mean: number | null; readings: number } | null;
+  measured_change: number | null;
+  asset: string | null;
+  events_before: { scrap: number; downtime: number; days: number } | null;
+  events_after: { scrap: number; downtime: number; days: number } | null;
 }
 export interface Recommendation {
   number: number;
@@ -828,6 +848,9 @@ export interface Recommendation {
   applied_by: string | null;
   applied_at: string | null;
   applied_note: string;
+  outcome_signal_id: string | null;
+  outcome_signal_tag: string | null;
+  outcome_days: number;
   mine: boolean;
 }
 export interface DetectorTemplateIn {
@@ -1823,6 +1846,8 @@ export function createApiClient(options: ApiOptions) {
       request<Recommendation>('POST', `/sites/${encodeURIComponent(siteId)}/recommendations/${number}/${decision}`, {
         note,
       }),
+    recommendationOutcome: (siteId: string, number: number) =>
+      request<RecommendationOutcome>('GET', `/sites/${encodeURIComponent(siteId)}/recommendations/${number}/outcome`),
     recommendationApplied: (siteId: string, number: number, note = '') =>
       request<Recommendation>('POST', `/sites/${encodeURIComponent(siteId)}/recommendations/${number}/applied`, {
         note,

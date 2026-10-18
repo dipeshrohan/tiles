@@ -1630,6 +1630,30 @@ Approves a proposed recommendation for the line to apply (engineers; not its pro
 
 **Body:** tiles_api__api_recommendations__DecisionIn (see [openapi.json](openapi.json)).
 
+### `GET /sites/{site_id}/recommendations/{number}/outcome`
+
+**Who:** site member. **Answers:** 200, 422.
+
+What followed an applied recommendation against what the model expected: its outcome signal's mean, and the machine's scrap events and unplanned stops a day, over the days before it was applied and the days after (up to now: `collecting` until they have all passed).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+### `PUT /sites/{site_id}/recommendations/{number}/outcome`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Sets the signal that measures a recommendation's outcome, and the days to judge it over (engineers), at any step. Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+**Body:** OutcomeIn (see [openapi.json](openapi.json)).
+
 ### `POST /sites/{site_id}/recommendations/{number}/reject`
 
 **Who:** engineer. **Answers:** 200, 422.

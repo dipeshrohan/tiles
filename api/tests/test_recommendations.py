@@ -3,6 +3,7 @@ parameter; a sweep of the process model over the line's live state proposes a ch
 someone else approves it, against the limits as they are then; the line applies it by hand. No
 recommendation outside a limit is ever kept or approved, and every step is in the audit log."""
 
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -213,3 +214,76 @@ def test_the_sweep_refuses_what_it_cant_take() -> None:
     with pytest.raises(ModelError, match="points"):
         two = {"vacuum": recommend.Limit(0, 100), "hydrogen": recommend.Limit(0, 0.4)}
         recommend.sweep(DiePorosity(), STATE, two, "porosity", steps=41)
+
+
+# ---- outcomes (T11.03) ----------------------------------------------------------------------
+
+
+def test_an_applied_recommendation_shows_its_expected_and_measured_outcome(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    call(api, "GET", f"/sites/{site}/me", who=ENG2)
+    ids = live_line(api, site)
+    limit(api, site, "die_temp_set", 222, 242)
+    limit(api, site, "intensification_set", 880, 920)
+    # A week of the cell's porosity and scrap either side of when it is applied: it falls by a fifth.
+    applied = datetime(2026, 6, 1, 6, 0, tzinfo=UTC)
+    imp = call(api, "POST", f"/sites/{site}/imports", status=201, name="the outcome")
+    samples = []
+    for h in range(7 * 24):
+        samples.append({"signal": "dc01.porosity", "at": (applied - timedelta(hours=h + 1)).isoformat(), "value": 0.9})
+        samples.append({"signal": "dc01.porosity", "at": (applied + timedelta(hours=h)).isoformat(), "value": 0.72})
+    for d in range(7):  # two scrapped parts a day before, one after
+        for k in (1, 2):
+            at = applied - timedelta(days=d, hours=k * 3)
+            samples.append({"signal": "mes.dc01.scrap", "at": at.isoformat(), "value": 1})
+        samples.append(
+            {"signal": "mes.dc01.scrap", "at": (applied + timedelta(days=d, hours=3)).isoformat(), "value": 1}
+        )
+    call(api, "POST", f"/sites/{site}/imports/{imp['id']}/samples", samples=samples)
+    call(api, "POST", f"/sites/{site}/imports/{imp['id']}/finish")
+    signals = {s["tag"]: s["id"] for s in call(api, "GET", f"/sites/{site}/signals?limit=50")["signals"]}
+    call(api, "PATCH", f"/sites/{site}/signals/{signals['mes.dc01.scrap']}", event_kind="scrap", asset="DC-01")
+    rec = propose(api, site, ids, outcome_signal=signals["dc01.porosity"], outcome_days=7)
+    assert (rec["outcome_signal_tag"], rec["outcome_days"]) == ("dc01.porosity", 7)
+    # Not applied yet: only what was expected.
+    early = call(api, "GET", f"/sites/{site}/recommendations/1/outcome", who=VIEWER)
+    assert early["state"] == "not_applied" and early["before"] is None
+    assert early["expected_change"] is not None and early["expected_change"] < 0
+    call(api, "POST", f"/sites/{site}/recommendations/1/approve", who=ENG2)
+    call(api, "POST", f"/sites/{site}/recommendations/1/applied")
+    with psycopg.connect(database_url) as conn:  # as if decided and applied on 1 June
+        conn.execute(
+            "UPDATE recommendations SET decided_at = %s, applied_at = %s WHERE site_id = %s AND number = 1",
+            [applied - timedelta(hours=1), applied, site],
+        )
+    out = call(api, "GET", f"/sites/{site}/recommendations/1/outcome", who=VIEWER)
+    assert (out["state"], out["days"], out["signal_tag"]) == ("complete", 7, "dc01.porosity")
+    assert out["before"] == {"mean": pytest.approx(0.9), "readings": 168}
+    assert out["after"] == {"mean": pytest.approx(0.72), "readings": 168}
+    assert out["measured_change"] == pytest.approx(-0.2)
+    assert out["events_before"] == {"scrap": pytest.approx(2.0), "downtime": 0, "days": 7}
+    assert out["events_after"] == {"scrap": pytest.approx(1.0), "downtime": 0, "days": 7}
+    # Judged over three days instead: the windows follow; the change is audited.
+    changed = call(api, "PUT", f"/sites/{site}/recommendations/1/outcome", signal_id=signals["dc01.porosity"], days=3)
+    assert changed["outcome_days"] == 3
+    out = call(api, "GET", f"/sites/{site}/recommendations/1/outcome")
+    assert out["before"]["readings"] == 72 and out["events_after"]["scrap"] == pytest.approx(1.0)
+    assert call(api, "PUT", f"/sites/{site}/recommendations/1/outcome", who=VIEWER, status=403, days=3)
+    other = call(api, "PUT", f"/sites/{site}/recommendations/1/outcome", status=422, signal_id=str(uuid.uuid4()))
+    assert other["code"] == "signal.not_on_site"
+    with psycopg.connect(database_url) as conn:
+        audited = conn.execute(
+            "SELECT count(*) FROM audit_log WHERE site_id = %s AND action = 'recommendation.outcome'", [site]
+        ).fetchone()
+    assert audited is not None and audited[0] == 1
+
+
+def test_relative_change_needs_both_values_and_a_base() -> None:
+    from tiles_api.api_recommendations import relative
+
+    assert relative(0.9, 0.72) == pytest.approx(-0.2)
+    assert relative(None, 1) is None and relative(1, None) is None and relative(0, 1) is None
+    assert relative(-2, -1) == pytest.approx(0.5)

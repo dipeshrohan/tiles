@@ -604,6 +604,7 @@ On a machine's page (API mode), **Setpoint recommendations** suggests settings t
    - **Recommend**. Tiles tries values across each setting's limits and proposes the one that lowers it most, changing nothing that doesn't help. If nothing inside the limits does better, it says so.
 3. **Approve** (another engineer) or **Reject**; the engineer who asked for it can **Withdraw** it. A limit tightened or removed after the recommendation was made refuses approving one outside it.
 4. Once the line has set it, **Mark as applied**.
+5. An applied recommendation shows **what followed**: what the model expected, the mean of the signal chosen in **Outcome measured by** before and after, and the machine's scrap and unplanned stops a day before and after, over the days in **Judged over** either side (7 by default). It says **still collecting** until those days have passed.
 
 Each recommendation shows what it changes (from, to, and the limit it was made within), what the model expected now and with it, and who did each step. Every step is in the audit log.
 
