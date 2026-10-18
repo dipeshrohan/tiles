@@ -63,6 +63,7 @@ from tiles_api.api_ux import router as ux_router
 from tiles_api.api_views import router as views_router
 from tiles_api.api_warnings import router as warnings_router
 from tiles_api.api_wear import router as wear_router
+from tiles_api.api_work_orders import router as work_orders_router
 from tiles_api.logging import configure_logging, new_request_id, request_id_var
 from tiles_api.org_sign_in import router as org_sign_in_router
 from tiles_api.scim import ScimError, error_response
@@ -280,6 +281,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(remaining_life_router)
     app.include_router(timeline_router)
     app.include_router(similar_router)
+    app.include_router(work_orders_router)
     app.include_router(insights_router)
     app.include_router(runs_router)
     app.include_router(sweeps_router)

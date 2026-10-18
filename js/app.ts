@@ -83,6 +83,7 @@ import plant from './views/plant.ts';
 import onboarding from './views/onboarding.ts';
 import styleguide from './views/styleguide.ts';
 import performance from './views/performance.ts';
+import workOrders from './views/work-orders.ts';
 import correlate from './views/correlate.ts';
 import insights from './views/insights.ts';
 import apps from './views/apps.ts';
@@ -152,6 +153,7 @@ const VIEWS: View[] = [
   shopfloor,
   plant,
   performance,
+  workOrders,
   quality,
   physics,
   design,
@@ -173,7 +175,10 @@ const VIEWS: View[] = [
 // A group's id keeps each person's folded groups; its name is shown (`app.nav.<id>`).
 const NAV: { group?: 'operations' | 'data' | 'design' | ''; items: View[] }[] = [
   { items: [home, chat] },
-  { group: 'operations', items: [shopfloor, plant, ontology, reviews, warnings, performance, quality, physics] },
+  {
+    group: 'operations',
+    items: [shopfloor, plant, ontology, reviews, warnings, performance, workOrders, quality, physics],
+  },
   { group: 'data', items: [signals, explorer, correlate, insights, apps, documents, imports] },
   { group: 'design', items: [design] },
   { group: '', items: [onboarding, settings, preferencesView, help] },

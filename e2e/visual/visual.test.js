@@ -34,6 +34,7 @@ const PAGES = [
   'reviews',
   'warnings',
   'performance',
+  'work-orders',
   'quality',
   'physics',
   'design',

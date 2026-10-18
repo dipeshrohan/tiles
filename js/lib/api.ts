@@ -369,6 +369,44 @@ export interface RemainingLife {
   more: boolean;
 }
 
+// Work orders out (T9.02): drafted from a warning or a component, approved, exported for the CMMS.
+export type WorkOrderStatus = 'draft' | 'approved' | 'exported' | 'done' | 'cancelled';
+export interface WorkOrder {
+  number: number;
+  source: 'warning' | 'remaining_life' | 'manual';
+  warning_id: string | null;
+  warning_tag: string | null;
+  warning_started_at: string | null;
+  signal_id: string | null;
+  signal_tag: string | null;
+  asset: string | null;
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high';
+  due_at: string | null;
+  status: WorkOrderStatus;
+  drafted_by: string;
+  drafted_at: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  exported_at: string | null;
+  export_ref: string | null;
+  outcome: 'done' | 'not_needed' | null;
+  outcome_note: string;
+  closed_at: string | null;
+  mine: boolean; // drafted by me: someone else approves it (or an admin)
+}
+export interface WorkOrderIn {
+  source: WorkOrder['source'];
+  warning_id?: string | null;
+  signal_id?: string | null;
+  asset?: string | null;
+  title: string;
+  description?: string;
+  priority?: WorkOrder['priority'];
+  due_at?: string | null;
+}
+
 // Similar past warnings (T10.02): the earlier warnings most like one, and batch tables to correlate.
 export interface SimilarWarning {
   id: string;
@@ -1653,6 +1691,28 @@ export function createApiClient(options: ApiOptions) {
         'GET',
         `/sites/${encodeURIComponent(siteId)}/remaining-life?place=${encodeURIComponent(place)}`,
       ),
+    workOrders: {
+      list: (siteId: string, show = 'open') =>
+        request<WorkOrder[]>(
+          'GET',
+          `/sites/${encodeURIComponent(siteId)}/work-orders?show=${encodeURIComponent(show)}`,
+        ),
+      draft: (siteId: string, body: WorkOrderIn) =>
+        request<WorkOrder>('POST', `/sites/${encodeURIComponent(siteId)}/work-orders`, body),
+      approve: (siteId: string, n: number) =>
+        request<WorkOrder>('POST', `/sites/${encodeURIComponent(siteId)}/work-orders/${n}/approve`, { note: '' }),
+      cancel: (siteId: string, n: number, note = '') =>
+        request<WorkOrder>('POST', `/sites/${encodeURIComponent(siteId)}/work-orders/${n}/cancel`, { note }),
+      outcome: (siteId: string, n: number, outcome: 'done' | 'not_needed', note = '') =>
+        request<WorkOrder>('POST', `/sites/${encodeURIComponent(siteId)}/work-orders/${n}/outcome`, { outcome, note }),
+      // Every approved one, or `again` an earlier export's file once more.
+      export: (siteId: string, again?: string) =>
+        request<{ name: string; numbers: number[]; csv: string }>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/work-orders/export`,
+          again ? { again } : {},
+        ),
+    },
     timeline: (siteId: string, machine: string, from: string, to: string) =>
       request<MachineTimeline>(
         'GET',

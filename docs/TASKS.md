@@ -389,7 +389,7 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
 
 - [x] `T9.01` [#342](https://github.com/dipeshrohan/tiles/issues/342) **Remaining life per component** · ML+FE · 4d
   *Done when:* each watched component shows its time to its limit, with an interval.
-- [ ] `T9.02` [#343](https://github.com/dipeshrohan/tiles/issues/343) **Work orders out** · BE · 5d
+- [x] `T9.02` [#343](https://github.com/dipeshrohan/tiles/issues/343) **Work orders out** · BE · 5d · CSV export; an SAP PM or Maximo API connection once the partner's IT allows one
   *Done when:* an approved warning creates a work-order draft in the CMMS or as CSV, and the step is audited.
 - [x] `T9.03` [#344](https://github.com/dipeshrohan/tiles/issues/344) **Next maintenance window** · BE+FE · 2d · T7.03, T9.01
   *Done when:* a predicted limit shows the planned stop before it, or says there is none in time.

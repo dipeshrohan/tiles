@@ -20,6 +20,7 @@ export const PAGE_HELP = {
   reviews: 'change-reviews',
   warnings: 'warnings',
   performance: 'warning-performance',
+  'work-orders': 'work-orders',
   quality: 'factory-physics-and-process--quality-demo-pages',
   physics: 'factory-physics-and-process--quality-demo-pages',
   signals: 'signals-and-data-quality',

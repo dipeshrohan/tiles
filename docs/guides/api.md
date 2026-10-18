@@ -42,7 +42,7 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[Feedback](#feedback) · [Home](#home) · [Notifications](#notifications) · [Preferences](#preferences) · [Saved views](#saved-views) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+[Feedback](#feedback) · [Home](#home) · [Notifications](#notifications) · [Preferences](#preferences) · [Saved views](#saved-views) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings) · [work orders](#work-orders)
 
 ## Feedback
 
@@ -2121,3 +2121,90 @@ The earlier warnings most like this one (same signal, detector or asset; how far
 | `warning_id` | path | uuid | yes |
 | `site_id` | path | uuid | yes |
 | `limit` | query | integer | no |
+
+## work orders
+
+### `GET /sites/{site_id}/work-orders`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The site's work orders, newest first: those still open (draft, approved or exported) by default, all of them, or those with one status.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `show` | query | `open` \| `all` \| `draft` \| `approved` \| `exported` \| `done` \| `cancelled` | no |
+
+### `POST /sites/{site_id}/work-orders`
+
+**Who:** engineer. **Answers:** 201, 422.
+
+Drafts a work order from a warning, a component's remaining life or by hand (engineers and admins); someone else approves it. Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** WorkOrderIn (see [openapi.json](openapi.json)).
+
+### `POST /sites/{site_id}/work-orders/export`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Every approved work order as one CSV file for the CMMS, each then marked exported with the file's name (engineers and admins); or, with `again`, an earlier export's file once more (its work orders as they were sent, whatever they are now, but cancelled ones). Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** WorkOrderExportIn (see [openapi.json](openapi.json)).
+
+### `GET /sites/{site_id}/work-orders/{number}`
+
+**Who:** site member. **Answers:** 200, 422.
+
+One work order.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+### `POST /sites/{site_id}/work-orders/{number}/approve`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Approves a draft for export (engineers and admins; not its drafter). Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+**Body:** WorkOrderNote (see [openapi.json](openapi.json)).
+
+### `POST /sites/{site_id}/work-orders/{number}/cancel`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Cancels an open work order (engineers and admins), with why. Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+**Body:** WorkOrderNote (see [openapi.json](openapi.json)).
+
+### `POST /sites/{site_id}/work-orders/{number}/outcome`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Closes an approved or exported work order with its outcome: done, or not needed once looked at (engineers and admins). Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+**Body:** WorkOrderOutcome (see [openapi.json](openapi.json)).

@@ -34,6 +34,7 @@ LATER = [
         "0037_inbox_reads",
         "0039_planned_stops",
         "0040_detector_templates",
+        "0042_work_orders",
     )
 ]
 SITE_TABLES = {*RLS.SITE_TABLES, *(t for m in LATER for t in m.SITE_TABLES)}

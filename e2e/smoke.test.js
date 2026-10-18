@@ -3726,6 +3726,52 @@ test('a warning shows its similar past warnings, how they ended and what followe
   );
 });
 
+test('a warning drafts a work order that someone else approves, exports as CSV and closes (T9.02)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { out } = raiseFrictionWarnings(fake);
+  const a = await openAs(t, apiUrl, null, 'warnings');
+  await a.page.evaluate((id) => (location.hash = `#/warnings?show=all&warning=${id}`), out);
+  await a.page.click('[data-draft-work-order]');
+  await a.page.waitForSelector('#work-order-form');
+  assert.match(a.page.url(), /#\/work-orders\?from=warning&id=/);
+  assert.equal(
+    await a.page.inputValue('#work-order-form [name=title]'),
+    'Check dc1.friction (dc1-friction-detector warned)',
+  );
+  await a.page.fill('#work-order-form [name=description]', 'Friction up; check the plunger tip');
+  await a.page.selectOption('#work-order-form [name=priority]', 'high');
+  await a.page.click('#work-order-form button[type=submit]');
+  await a.page.waitForSelector('[data-work-orders] tbody tr[data-key="1"]');
+  assert.equal(await a.page.locator('#work-order-form').count(), 0);
+  const row = await a.page.locator('[data-work-orders] tbody tr').innerText();
+  assert.match(row, /Check dc1\.friction[\s\S]*From a warning on dc1\.friction[\s\S]*High[\s\S]*Draft/);
+  assert.match(row, /You drafted it: someone else approves it\./);
+  assert.equal(await a.page.locator('[data-work-order-act=approve]').count(), 0); // not its drafter
+  assert.deepEqual(
+    [fake.workOrders[0].source, fake.workOrders[0].warning_id, fake.workOrders[0].priority],
+    ['warning', out, 'high'],
+  );
+  // Another engineer approves it, exports it and closes it.
+  const b = await openAs(t, apiUrl, 'eng2@example.com', 'work-orders');
+  await b.page.click('[data-work-order-act=approve]');
+  await b.page.waitForSelector('[data-work-orders] tbody tr:has-text("Approved by eng2")');
+  const [file] = await Promise.all([b.page.waitForEvent('download'), b.page.click('[data-work-orders-export]')]);
+  assert.equal(file.suggestedFilename(), 'tiles-work-orders-1.csv');
+  await b.page.waitForSelector('[data-work-orders] tbody tr:has-text("In tiles-work-orders-1.csv")');
+  // A lost download comes again.
+  const [again] = await Promise.all([b.page.waitForEvent('download'), b.page.click('[data-work-orders-again]')]);
+  assert.equal(again.suggestedFilename(), 'tiles-work-orders-1.csv');
+  assert.equal(await b.page.getAttribute('[data-work-order-act=done]', 'aria-label'), 'Mark work order 1 done');
+  await b.page.click('[data-work-order-act=done]');
+  await b.page.waitForSelector('[data-work-orders]:has-text("No work orders here")');
+  await b.page.click('[data-work-orders-show=done]');
+  await b.page.waitForSelector('[data-work-orders] tbody tr:has-text("Closed")');
+  assert.equal(fake.workOrders[0].outcome, 'done');
+  assert.deepEqual([...a.errors, ...b.errors], []);
+});
+
 test('the notification centre: a review asked of me reaches my bell within a minute, then is read (U5.07)', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
@@ -5111,10 +5157,15 @@ test('remaining life: each component’s time to its wear limit on a line and a 
   assert.match(rows[2], /Not at this pace/);
   assert.equal(await a.page.locator('[data-life] tbody tr:first-child td.text-bad').count(), 1); // within a week
   assert.deepEqual(fake.lifeQueries(), ['line-a']);
+  // A component heading for its limit drafts a work order (T9.02); a stable one doesn't.
+  const draft = await a.page.getAttribute('[data-life] tbody tr:first-child a', 'href');
+  assert.match(draft, /^#\/work-orders\?from=component&id=id-w1\.tip&title=Replace\+Tip\+power\+on\+Welder\+1/);
+  assert.equal(await a.page.locator('[data-life] tbody tr:nth-child(3) a').count(), 0);
   // On the machine's own page, without the machine column; Refresh asks again.
   await a.page.evaluate(() => (location.hash = '#/plant/w1'));
   await a.page.waitForSelector('.page-head h1:has-text("Welder 1")');
-  await a.page.waitForFunction(() => document.querySelectorAll('[data-life] thead th').length === 4);
+  // Without the machine column; with the engineer's column of draft links (T9.02).
+  await a.page.waitForFunction(() => document.querySelectorAll('[data-life] thead th').length === 5);
   assert.deepEqual(fake.lifeQueries(), ['line-a', 'w1']);
   await a.page.click('[data-plant-refresh]');
   await a.page.waitForFunction(() => document.querySelector('[data-life] table'));

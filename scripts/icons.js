@@ -27,6 +27,7 @@ export const NAMES = [
   'file-text',
   'upload',
   'rocket',
+  'clipboard-list',
   'settings',
   'palette',
   'book-a',
