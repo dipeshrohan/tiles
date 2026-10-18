@@ -45,12 +45,24 @@ function windows() {
   return made;
 }
 
+// Equal, or for numbers within 1e-12: Math.pow's last bit differs between Node versions.
+function near(saved, fresh, path = '') {
+  if (typeof saved === 'number' && typeof fresh === 'number') {
+    const ok = Math.abs(saved - fresh) <= 1e-12 * Math.max(1, Math.abs(saved));
+    assert.ok(ok, `${path}: ${saved} is not ${fresh}`);
+  } else if (saved && typeof saved === 'object') {
+    assert.ok(fresh && typeof fresh === 'object', `${path}: not an object`);
+    assert.deepEqual(Object.keys(saved), Object.keys(fresh), path);
+    for (const k of Object.keys(saved)) near(saved[k], fresh[k], `${path}.${k}`);
+  } else assert.equal(saved, fresh, path);
+}
+
 test('the failure-model fixture matches these models', () => {
   const fresh = windows();
   // Only rewritten on request: a missing fixture fails, rather than being made to match.
   if (process.env.UPDATE_FIXTURES === '1') writeFileSync(file, `${JSON.stringify({ windows: fresh }, null, 2)}\n`);
   const saved = JSON.parse(readFileSync(file, 'utf8'));
-  assert.deepEqual(saved.windows, fresh);
+  near(saved.windows, JSON.parse(JSON.stringify(fresh)));
 });
 
 test('each model reads its failure from the readings', () => {
