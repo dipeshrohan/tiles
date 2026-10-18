@@ -19,6 +19,7 @@ score anything.
 - [The three](#the-three)
 - [The models](#the-models)
 - [Targets and results](#targets-and-results)
+- [Going live](#going-live)
 - [Running the backtests again](#running-the-backtests-again)
 - [If a model misses its target](#if-a-model-misses-its-target)
 
@@ -120,8 +121,27 @@ on April to September, which it never saw. The reports are in
 All three beat their targets. The one stop missed, DC-04's on 5 January, was warned of on
 22 December, just before the Christmas shutdown, a little over 14 days before it: in time, but past the
 horizon. The furnace's 4 stops and the held-out halves are few; the partner's year will judge them
-again. The chosen settings, which T8.05 binds, are in
+again. The chosen settings are in
 [summary.json](../data/sample-plants/die-casting/backtests/summary.json).
+
+## Going live
+
+T8.05 ([#341](https://github.com/dipeshrohan/tiles/issues/341)) binds the models on the line as
+their backtests ran them. [bindings.json](../data/sample-plants/die-casting/backtests/bindings.json),
+written with the reports, names each binding: a model on a cell (`dc01-accumulator-charge` …), its
+inputs by tag, hourly windows and inputs joined within 5 minutes, and the detector on the output it
+watched, with the chosen setting and the cell's asset (so Warning performance matches its warnings to
+the cell's stops). Loading the plant (`tiles-sample-plant load die-casting`) binds every model whose
+input signals the site has, runs it over the history loaded, makes the detector and runs it: the
+warnings land in the warnings inbox, raised, for the workflow (acknowledge, assign, resolve). After
+that the scheduled jobs (`tiles-run-models`, then `tiles-detect`) keep them current. A binding or
+detector the site already has is left alone, so loading again changes nothing.
+
+On the partner's line the same file is the checklist: one binding and one detector per model and
+cell, made through the API (`POST …/model-bindings`, then `POST …/detectors`), with these settings until the
+partner's own backtest replaces them. The plant's test loads DC-04's accumulator readings from April
+to its stop on 13 May and checks the warning is in the inbox before the stop and takes the
+workflow's first step.
 
 ## Running the backtests again
 
@@ -133,7 +153,7 @@ uv run tiles-sample-plant backtest die-casting
 This simulates Line 2's year again (about a minute; it needs none of the large files under
 `generated/`), runs each model as a binding would (`sample_plant/die_casting/failure_backtest.py`:
 the runner's join and hourly windows, then the backtest's replay and scoring) and writes the reports.
-It exits with 1 if a model misses its target. The plant's test (`tests/test_sample_die_casting.py`, CI's
+It also writes `bindings.json`, and exits with 1 if a model misses its target. The plant's test (`tests/test_sample_die_casting.py`, CI's
 Sample plants job) checks the reports are current and that every model beats its target.
 
 ## If a model misses its target

@@ -108,8 +108,8 @@ def tags_for(plan: Plan, cell: Cell) -> list[str]:
     return [t.format(k=cell.key, n=f"{cell.number:02d}") for t in plan.inputs]
 
 
-def readings(wanted: set[str]) -> Readings:
-    """The pilot cells' readings of `wanted` tags for the year, as the historian holds them."""
+def readings(wanted: set[str], cells: Sequence[Cell] = PILOT) -> Readings:
+    """The cells' readings of `wanted` tags for the year, as the historian holds them."""
     shifts = cal.shifts()
     working = sim.Working(cal.working_intervals(shifts))
     site = sim.site_series(working, shifts)
@@ -124,7 +124,7 @@ def readings(wanted: set[str]) -> Readings:
             out[tag][0].append(t)
             out[tag][1].append(v)
 
-    for c in PILOT:
+    for c in cells:
         sim.CellSim(c, working, shifts, site, mf, reading, lambda *a: None, None, None).run()
     return out
 
@@ -338,7 +338,7 @@ def report(r: Result) -> str:
 
 
 def summary(results: Sequence[Result]) -> dict[str, Any]:
-    """Each model's chosen setting and its year: backtests/summary.json, what T8.05 binds."""
+    """Each model's chosen setting and its year: backtests/summary.json."""
     out: dict[str, Any] = {}
     for r in results:
         out[r.plan.key] = {
@@ -355,10 +355,34 @@ def summary(results: Sequence[Result]) -> dict[str, Any]:
     return out
 
 
+def bindings(results: Sequence[Result]) -> list[dict[str, Any]]:
+    """What goes live (T8.05): each model bound on each pilot cell as its backtest ran it, and a
+    detector on the window output it watched, with the setting chosen. backtests/bindings.json,
+    which the loader binds on a site (`Loader.failure_models`)."""
+    out = []
+    for r in results:
+        spec = r.plan.model.spec
+        for c in PILOT:
+            name = f"{c.key}-{r.plan.key}"
+            out.append(
+                {
+                    "name": name,
+                    "model": spec.key,
+                    "version": spec.version,
+                    "inputs": dict(zip((p.name for p in spec.inputs), tags_for(r.plan, c), strict=True)),
+                    "window": {"kind": "fixed", "seconds": WINDOW_S},
+                    "align_seconds": r.plan.align_s,
+                    "detector": {"signal": f"{name}.{r.plan.output}", "asset": c.asset, **r.chosen.as_json()},
+                }
+            )
+    return out
+
+
 def files(results: Sequence[Result]) -> dict[str, str]:
-    """The backtests' files by name: a report per model and the summary."""
+    """The backtests' files by name: a report per model, the summary and the bindings."""
     made = {f"{r.plan.key}.md": report(r) for r in results}
     made["summary.json"] = json.dumps(summary(results), indent=2) + "\n"
+    made["bindings.json"] = json.dumps(bindings(results), indent=2) + "\n"
     return made
 
 
