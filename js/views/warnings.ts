@@ -453,7 +453,7 @@ function similarCard(w: WarningDetail): string {
     ? `<ul class="small m-0">${shown.datasets
         .map(
           (d) =>
-            `<li><a href="#/correlate?dataset=${encodeURIComponent(d.id)}">${esc(t('similar.openDataset', { name: d.name }))}</a> <span class="soft">${esc(whyText(d, shown.asset, w.signal_tag))}</span></li>`,
+            `<li><a href="#/correlate?dataset=${encodeURIComponent(d.id)}">${esc(t('similar.openDataset', { name: d.name }))}</a> <span class="soft">${esc(whyText(d))}</span></li>`,
         )
         .join('')}</ul>`
     : `<p class="small soft">${esc(t('similar.noDataset', { name: shown.asset ?? w.signal_tag }))} <a href="#/correlate">${esc(t('similar.correlate'))}</a></p>`;
@@ -853,6 +853,7 @@ const view: View = {
       detail = null;
       detailFailed = null;
       series = null;
+      similar = null;
       ctx.rerender();
     });
     onAll(root, '[data-more-warnings]', 'click', () => void fetchMore(ctx));

@@ -3693,14 +3693,18 @@ test('a warning shows its similar past warnings, how they ended and what followe
   });
   fake.setSimilar({
     followed: { [before]: { kind: 'downtime', code: 'DT-SEIZURE', at: new Date().toISOString(), hours_after: 2.5 } },
-    datasets: [{ id: 'ds-1', name: 'DC-01 batches', why: 'name' }],
+    datasets: [{ id: 'ds-1', name: 'DC-01 batches', why: 'name', matched: 'DC-01' }],
   });
+  fake.failNext('GET', /\/warnings\/[^/]+\/similar$/, 503, 'Tiles is restarting');
   const { page, errors } = await openAs(t, apiUrl, null, 'warnings');
   await page.evaluate((id) => (location.hash = `#/warnings?show=all&warning=${id}`), out);
+  // A failed look-up says so, and Refresh asks again.
+  await page.waitForSelector('[data-similar] p:has-text("couldn’t be loaded")');
+  await page.click('[data-refresh-warnings]');
   await page.waitForSelector('[data-similar] table');
   assert.match(
     await page.locator('[data-similar] > p').first().innerText(),
-    /The most similar: 1 true, 0 false, 0 open or unknown; an event followed 1\./,
+    /The most similar warning: 1 true alarm, 0 false alarms, 0 open or unknown; an event followed one\./,
   );
   const row = await page.locator('[data-similar] tbody tr').innerText();
   assert.match(
@@ -3716,7 +3720,10 @@ test('a warning shows its similar past warnings, how they ended and what followe
   await page.click('[data-similar] tbody a');
   await page.waitForSelector('[data-similar] p:has-text("No earlier warning on this signal, detector or machine.")');
   assert.match(await page.locator('[data-similar]').innerText(), /No batch table names dc1\.friction yet\./);
-  assert.deepEqual(errors, []);
+  assert.deepEqual(
+    errors.filter((e) => !/status of 503/.test(e)), // the browser logs the failed request
+    [],
+  );
 });
 
 test('the notification centre: a review asked of me reaches my bell within a minute, then is read (U5.07)', async (t) => {

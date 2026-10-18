@@ -6,9 +6,11 @@ The candidates are the site's warnings that started before it on the same signal
 detector or for the same asset (the latest MAX_CANDIDATES). What followed a past warning is the first
 event of its asset (downtime, scrap, other; planned downtime left out, T7.03) in the FOLLOW hours
 after it started. A batch table is suggested when its name or description names the warning's
-asset or tag, a column is named as the tag, or a row has the asset as a value. Everyone reads it.
+asset or tag as a whole word, a column is named as the tag, or one of its first rows has the asset as
+a value. Everyone reads it.
 """
 
+import re
 import uuid
 from datetime import datetime, timedelta
 from typing import Annotated, Any, Literal
@@ -25,6 +27,7 @@ router = APIRouter(tags=["warnings"])
 MAX_CANDIDATES = 1000
 FOLLOW = timedelta(hours=24)
 MAX_DATASETS = 5
+ROWS_CHECKED = 2000  # of each batch table, for the asset as a value
 
 
 class Followed(BaseModel):
@@ -56,6 +59,7 @@ class SuggestedDataset(BaseModel):
     id: uuid.UUID
     name: str
     why: Literal["name", "column", "value"]
+    matched: str  # the asset or tag it names
 
 
 class Similar(BaseModel):
@@ -177,24 +181,44 @@ def _followed(ctx: Ctx, asset: str | None, start: datetime) -> dict[str, Any] | 
 
 
 def _datasets(ctx: Ctx, asset: str | None, tag: str) -> list[dict[str, Any]]:
-    """The batch tables that name the asset or tag (name, description), have a column named as the
-    tag, or a row with the asset as a value; in that order, then by name."""
+    """The batch tables that name the asset or tag as a whole word in their name or description
+    (any case), have a column named as the tag (any case), or a row with the asset as a value
+    (exactly, among its first ROWS_CHECKED rows, so a warning opens quickly however big the tables);
+    in that order, then by name, each with the word that matched."""
     words = [w for w in (asset, tag) if w]
-    rows = ctx.conn.execute(
-        """
-        SELECT d.id, d.name,
-               CASE WHEN EXISTS (SELECT 1 FROM unnest(%(words)s::text[]) w
-                                 WHERE strpos(lower(d.name || ' ' || d.description), lower(w)) > 0) THEN 'name'
-                    WHEN EXISTS (SELECT 1 FROM jsonb_array_elements(d.columns) c
-                                 WHERE lower(c->>'name') = lower(%(tag)s)) THEN 'column'
-                    WHEN %(asset)s::text IS NOT NULL AND EXISTS (
-                        SELECT 1 FROM dataset_rows r WHERE r.dataset_id = d.id
-                          AND jsonb_path_exists(r.row, '$.* ? (@ == $a)', jsonb_build_object('a', %(asset)s::text)))
-                    THEN 'value' END AS why
-        FROM datasets d WHERE d.site_id = %(site)s
-        """,
-        {"site": ctx.site_id, "words": words, "tag": tag, "asset": asset},
-    ).fetchall()
+    found: list[dict[str, Any]] = []
+    unmatched: list[dict[str, Any]] = []
+    for d in ctx.conn.execute(
+        "SELECT id, name, description, columns FROM datasets WHERE site_id = %s ORDER BY lower(name), id", [ctx.site_id]
+    ):
+        text = f"{d['name']} {d['description']}"
+        named = next((w for w in words if _word(w).search(text)), None)
+        if named:
+            found.append({"id": d["id"], "name": d["name"], "why": "name", "matched": named})
+        elif any(str(c.get("name", "")).lower() == tag.lower() for c in d["columns"]):
+            found.append({"id": d["id"], "name": d["name"], "why": "column", "matched": tag})
+        else:
+            unmatched.append(d)
+    if asset and unmatched:
+        rows = ctx.conn.execute(
+            """
+            SELECT d.id FROM unnest(%(ids)s::uuid[]) AS d(id)
+            WHERE EXISTS (
+                SELECT 1 FROM (SELECT r.row FROM dataset_rows r WHERE r.dataset_id = d.id
+                               ORDER BY r.i LIMIT %(rows)s) r
+                WHERE jsonb_path_exists(r.row, '$.* ? (@ == $a)', jsonb_build_object('a', %(asset)s::text)))
+            """,
+            {"ids": [d["id"] for d in unmatched], "rows": ROWS_CHECKED, "asset": asset},
+        ).fetchall()
+        hit = {r["id"] for r in rows}
+        found += [
+            {"id": d["id"], "name": d["name"], "why": "value", "matched": asset} for d in unmatched if d["id"] in hit
+        ]
     order = {"name": 0, "column": 1, "value": 2}
-    found = sorted((r for r in rows if r["why"]), key=lambda r: (order[r["why"]], r["name"].lower()))
+    found.sort(key=lambda d: (order[d["why"]], d["name"].lower()))
     return found[:MAX_DATASETS]
+
+
+def _word(w: str) -> re.Pattern[str]:
+    """`w` as a whole word: DC-1 isn't in "DC-10 batches"."""
+    return re.compile(rf"(?<![\w-]){re.escape(w)}(?![\w-])", re.IGNORECASE)

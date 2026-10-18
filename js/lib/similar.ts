@@ -38,5 +38,5 @@ const WHY: Record<SimilarWarnings['datasets'][number]['why'], MessageKey> = {
   column: 'similar.why.column',
   value: 'similar.why.value',
 };
-export const whyText = (d: SimilarWarnings['datasets'][number], asset: string | null, tag: string): string =>
-  t(WHY[d.why], { asset: asset ?? tag, tag });
+export const whyText = (d: SimilarWarnings['datasets'][number]): string =>
+  t(WHY[d.why], { asset: d.matched, tag: d.matched });

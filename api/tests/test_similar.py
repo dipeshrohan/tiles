@@ -99,10 +99,23 @@ def test_batch_tables_that_name_its_machine_or_tag_are_suggested(api: TestClient
     dataset("Spare parts", ["machine"], [{"machine": "DC-02"}])  # another machine's
     dataset("Friction batches", ["dc1.friction", "ok"], [{"dc1.friction": "12", "ok": "no"}])  # its tag
     dataset("Batches", ["id"], [{"id": "1"}], description="Batches cast on dc-01")  # named
+    dataset("DC-010 batches", ["id"], [{"id": "1"}])  # another machine: DC-01 isn't a word of it
     out = found(api, site, latest["id"])["datasets"]
-    assert [(d["name"], d["why"]) for d in out] == [
-        ("Batches", "name"),
-        ("Friction batches", "column"),
-        ("Shift log", "value"),
+    assert [(d["name"], d["why"], d["matched"]) for d in out] == [
+        ("Batches", "name", "DC-01"),
+        ("Friction batches", "column", "dc1.friction"),
+        ("Shift log", "value", "DC-01"),
     ]
     assert len(out) <= api_similar.MAX_DATASETS
+
+
+def test_a_batch_tables_first_rows_are_looked_through(api: TestClient, site: str, monkeypatch: Any) -> None:  # noqa: F811
+    plant(api, site)
+    latest = api.get(f"/sites/{site}/warnings", params={"state": "all"}, headers=VIEWER).json()[0]
+    body = {"name": "Log", "columns": [{"name": "machine", "kind": "text"}]}
+    dataset = api.post(f"/sites/{site}/datasets", json=body, headers=ENG).json()["id"]
+    rows = [{"machine": "DC-02"}, {"machine": "DC-02"}, {"machine": "DC-01"}]
+    assert api.post(f"/sites/{site}/datasets/{dataset}/rows", json={"rows": rows}, headers=ENG).status_code == 200
+    assert [d["name"] for d in found(api, site, latest["id"])["datasets"]] == ["Log"]
+    monkeypatch.setattr(api_similar, "ROWS_CHECKED", 2)
+    assert found(api, site, latest["id"])["datasets"] == []

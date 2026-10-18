@@ -2513,7 +2513,7 @@
   "similar.loading": "Looking for similar warnings",
   "similar.failed": "Similar warnings couldn’t be loaded. Refresh to try again.",
   "similar.none": "{count, plural, =0 {No earlier warning on this signal, detector or machine.} one {The one earlier warning on this signal, detector or machine isn’t like this one.} other {None of the # earlier warnings on this signal, detector or machine is like this one.}}",
-  "similar.summary": "{count, plural, one {The most similar: {trueAlarms} true, {falseAlarms} false, {open} open or unknown; an event followed {followed}.} other {The # most similar: {trueAlarms} true alarms, {falseAlarms} false alarms, {open} open or unknown; an event followed {followed} of them.}}",
+  "similar.summary": "{count, plural, one {The most similar warning} other {The # most similar}}: {trueAlarms, plural, one {# true alarm} other {# true alarms}}, {falseAlarms, plural, one {# false alarm} other {# false alarms}}, {open} open or unknown; {followed, plural, =0 {no event followed any} one {an event followed one} other {an event followed #}}.",
   "similar.started": "Started",
   "similar.warning": "Warning",
   "similar.match": "Match",

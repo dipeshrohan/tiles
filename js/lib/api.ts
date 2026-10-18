@@ -396,7 +396,7 @@ export interface SimilarWarnings {
   similar: SimilarWarning[];
   outcomes: { true_alarm: number; false_alarm: number; unknown: number; open: number };
   followed: number;
-  datasets: { id: string; name: string; why: 'name' | 'column' | 'value' }[];
+  datasets: { id: string; name: string; why: 'name' | 'column' | 'value'; matched: string }[];
 }
 
 // A machine's timeline (T10.01): its warnings, events, planned stops, changes and readings over one range.
