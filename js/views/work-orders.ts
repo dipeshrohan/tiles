@@ -53,6 +53,8 @@ interface Draft {
 let listing: { key: string; items: WorkOrder[] | null | 'failed' } | null = null;
 let asked = 0; // only the latest request's answer is shown
 let draft: Draft | null = null;
+// Whether Tiles drafts work orders for components nearing their wear limit (per site).
+let policy: { site: string; leadDays: number | null | undefined } | null = null;
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const listKey = (ctx: Context): string => `${siteId(ctx) ?? ''}|${uiState(ctx).show}`;
@@ -62,6 +64,7 @@ const canEdit = (ctx: Context): boolean => ctx.ontology.role === 'engineer' || c
 onNavigate((hash) => {
   if (routeOf(hash) !== 'work-orders') {
     listing = null;
+    policy = null;
     draft = null;
   }
 });
@@ -155,6 +158,38 @@ function statusCell(o: WorkOrder, canEditNow: boolean): string {
       ? `<div class="no-print">${button(t('workOrders.again'), { size: 'sm', variant: 'ghost', attrs: { 'data-work-orders-again': o.export_ref, 'aria-label': t('workOrders.againNamed', { file: o.export_ref }) } })}</div>`
       : '';
   return `${badge(statusLabel(o.status), tone)}${who ? `<div class="small soft">${esc(who)}</div>` : ''}${note}${again}`;
+}
+
+async function loadPolicy(ctx: Context): Promise<void> {
+  const site = siteId(ctx);
+  if (!ctx.api || !site) return;
+  policy = { site, leadDays: undefined };
+  let leadDays: number | null | undefined;
+  try {
+    leadDays = (await ctx.api.workOrders.policy(site)).lead_days;
+  } catch {
+    leadDays = undefined; // the client showed why; the card says nothing
+  }
+  if (policy?.site !== site) return;
+  policy = { site, leadDays };
+  ctx.rerender();
+}
+
+// Drafting by Tiles: admins set how many days before a component's predicted wear limit.
+function policyCard(ctx: Context): string {
+  const shown = policy?.site === siteId(ctx) ? policy.leadDays : undefined;
+  if (shown === undefined) return '';
+  const now = shown === null ? t('workOrders.auto.off') : t('workOrders.auto.on', { count: shown });
+  if (ctx.ontology.role !== 'admin')
+    return card(`<p class="small soft m-0">${esc(now)}</p>`, { attrs: { 'data-auto-drafts': '' } });
+  return card(
+    `<form id="auto-drafts" class="row gap-3 wrap items-end">
+      ${field(t('workOrders.auto.label'), input({ name: 'leadDays', type: 'number', value: shown === null ? '' : String(shown), attrs: { min: '1', max: '365', step: '1' } }), { hint: t('workOrders.auto.hint') })}
+      ${button(t('workOrders.auto.save'), { type: 'submit', size: 'sm' })}
+      <p class="small soft m-0 grow">${esc(now)}</p>
+    </form>`,
+    { attrs: { 'data-auto-drafts': '' } },
+  );
 }
 
 function listCard(ctx: Context): string {
@@ -289,11 +324,26 @@ const view: View = {
     if (o.status === 'loading') return `${head}${card(skeleton.table(3, 5))}`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
-    return `${head}<div class="stack gap-4">${draftCard(ctx)}${listCard(ctx)}</div>`;
+    return `${head}<div class="stack gap-4">${draftCard(ctx)}${policyCard(ctx)}${listCard(ctx)}</div>`;
   },
   bind(root, ctx) {
     if (!ctx.api || ctx.ontology.status !== 'ready') return;
     if (listing?.key !== listKey(ctx)) void load(ctx);
+    if (policy?.site !== siteId(ctx)) void loadPolicy(ctx);
+    onSubmit(root, '#auto-drafts', (form) => {
+      const site = siteId(ctx);
+      if (!site || !ctx.api) return;
+      const raw = String(new FormData(form).get('leadDays') ?? '').trim();
+      const leadDays = raw === '' ? null : Number(raw);
+      return ctx.api.workOrders.setPolicy(site, leadDays).then(
+        (saved) => {
+          policy = { site, leadDays: saved.lead_days };
+          ctx.toast(t('workOrders.auto.saved'));
+          ctx.rerender();
+        },
+        () => undefined, // the client showed why
+      );
+    });
     onAll(root, '[data-work-orders-show]', 'click', (el) => {
       uiState(ctx).show = (el.dataset.workOrdersShow as Show | undefined) ?? 'open';
       ctx.rerender();

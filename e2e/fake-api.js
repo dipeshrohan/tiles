@@ -360,6 +360,7 @@ export function createFakeApi({
   // Work orders (T9.02), as the API keeps them, and the exports made.
   const workOrders = [];
   const workOrderExports = [];
+  let workOrderLeadDays = null; // drafting by Tiles: off
   // The machine timeline (T10.01): what a test sets, and what the page asked for.
   let timeline = null;
   const timelineQueries = [];
@@ -1643,6 +1644,12 @@ export function createFakeApi({
       if (url.pathname.startsWith(`/sites/${site.id}/work-orders`)) {
         const rest = url.pathname.slice(`/sites/${site.id}/work-orders`.length);
         const shownOrder = (o) => ({ ...o, mine: o.drafted_by_id === user });
+        if (rest === '/policy' && req.method === 'GET') return send(200, { lead_days: workOrderLeadDays });
+        if (rest === '/policy' && req.method === 'PUT') {
+          if (role !== 'admin') return send(403, { detail: 'This needs admin', code: 'role.too_low', params: {} });
+          workOrderLeadDays = (await body(req)).lead_days ?? null;
+          return send(200, { lead_days: workOrderLeadDays });
+        }
         if (rest === '' && req.method === 'GET') {
           const show = url.searchParams.get('show') ?? 'open';
           const open = ['draft', 'approved', 'exported'];
@@ -2732,6 +2739,7 @@ export function createFakeApi({
     },
     lifeQueries: () => [...lifeQueries],
     workOrders, // as stored (T9.02)
+    workOrderLeadDays: () => workOrderLeadDays,
     workOrderExports,
     // Lets a test set what followed past warnings (by id) and the batch tables suggested (T10.02).
     setSimilar({ followed = {}, datasets = [] }) {

@@ -82,7 +82,7 @@ tests:
           - exp_labels: { severity: warning, command: tiles-notify }
             exp_annotations:
               summary: Scheduled job tiles-notify has not run for 1h 10m 0s
-              description: Its CronJob is suspended, or its runs never start (image, Secret). Its work (models, detectors, notifications) waits.
+              description: Its CronJob is suspended, or its runs never start (image, Secret). Its work (models, detectors, notifications, work orders) waits.
       - eval_time: 25m
         alertname: TilesNotificationsGivenUp
         exp_alerts: []

@@ -23,7 +23,7 @@ from fastapi import APIRouter, Query, status
 from pydantic import BaseModel
 
 from tiles_api import coverage, ontology_store
-from tiles_api.api_ontology import Ctx
+from tiles_api.api_ontology import Ctx, SiteContext
 from tiles_api.api_wear import WearIn, run_check
 from tiles_api.errors import Problem
 from tiles_api.ontology import Graph
@@ -73,6 +73,13 @@ class RemainingLife(BaseModel):
 def remaining_life(ctx: Ctx, place: Annotated[str | None, Query(max_length=200)] = None) -> dict[str, Any]:
     """The time until each component at or under `place` (the whole site without one) reaches its
     wear limit, with its interval, soonest first."""
+    components, more = assess(ctx, place, MAX_COMPONENTS)
+    return {"place": place, "components": components, "more": more}
+
+
+def assess(ctx: SiteContext, place: str | None, most: int | None) -> tuple[list[dict[str, Any]], bool]:
+    """Each component at or under `place` (the first `most` by tag; all without), soonest first, and
+    whether there were more (tiles-draft-work-orders asks for all of them)."""
     graph = ontology_store.load_head(ctx.conn, ctx.site_id)
     index = coverage.Index(graph)
     try:
@@ -87,7 +94,7 @@ def remaining_life(ctx: Ctx, place: Annotated[str | None, Query(max_length=200)]
         " WHERE site_id = %s AND wear_limit IS NOT NULL AND node_id = ANY(%s) ORDER BY tag",
         [ctx.site_id, list(owner)],
     ).fetchall()
-    shown = rows[:MAX_COMPONENTS]
+    shown = rows if most is None else rows[:most]
     # Each one's latest reading, in one statement (run_check would ask once per signal).
     latest = {
         r["signal_id"]: r["at"]
@@ -131,10 +138,10 @@ def remaining_life(ctx: Ctx, place: Annotated[str | None, Query(max_length=200)]
 
     _windows(ctx, graph, out, now)
     out.sort(key=order)
-    return {"place": place, "components": out, "more": len(rows) > MAX_COMPONENTS}
+    return out, len(shown) < len(rows)
 
 
-def _windows(ctx: Ctx, graph: Graph, components: list[dict[str, Any]], now: datetime) -> None:
+def _windows(ctx: SiteContext, graph: Graph, components: list[dict[str, Any]], now: datetime) -> None:
     """Sets each heading component's next planned stop before its predicted limit (T9.03)."""
     heading = [c for c in components if c["hours_to_limit"]]  # not None, not there already
     if not heading:

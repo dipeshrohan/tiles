@@ -3772,6 +3772,29 @@ test('a warning drafts a work order that someone else approves, exports as CSV a
   assert.deepEqual([...a.errors, ...b.errors], []);
 });
 
+test('an admin has Tiles draft work orders for components nearing their wear limit; others read it (T9.02)', async (t) => {
+  const fake = createFakeApi({ roles: { 'admin@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const a = await openAs(t, apiUrl, 'admin@example.com', 'work-orders');
+  await a.page.waitForSelector('#auto-drafts');
+  assert.match(await a.page.locator('#auto-drafts').innerText(), /Tiles doesn’t draft work orders by itself\./);
+  await a.page.fill('#auto-drafts [name=leadDays]', '7');
+  await a.page.click('#auto-drafts button[type=submit]');
+  await a.page.waitForSelector('#auto-drafts:has-text("within 7 days")');
+  assert.equal(fake.workOrderLeadDays(), 7);
+  // An engineer reads it, without the form.
+  const e = await openAs(t, apiUrl, null, 'work-orders');
+  await e.page.waitForSelector('[data-auto-drafts]:has-text("within 7 days")');
+  assert.equal(await e.page.locator('#auto-drafts').count(), 0);
+  // Emptied, it is off again.
+  await a.page.fill('#auto-drafts [name=leadDays]', '');
+  await a.page.click('#auto-drafts button[type=submit]');
+  await a.page.waitForSelector('#auto-drafts:has-text("by itself")');
+  assert.equal(fake.workOrderLeadDays(), null);
+  assert.deepEqual([...a.errors, ...e.errors], []);
+});
+
 test('the notification centre: a review asked of me reaches my bell within a minute, then is read (U5.07)', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

@@ -35,6 +35,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - time to cause on Warning performance: per month, the median time from a stop to its warning resolved as a true alarm;
   - a machine's timeline on the Plant page: its warnings, stops, planned stops and changes over its readings, on one time axis;
   - work orders: drafted from a warning or a component's remaining life, approved by someone else, exported as CSV for the plant's maintenance system and closed with their outcome;
+  - Tiles drafts work orders itself for components nearing their wear limit, when an admin sets how many days ahead;
   - similar past warnings on a warning: how they were resolved and what followed them, and the batch tables to open in the correlation finder;
   - the copilot answers why a machine stopped from its timeline, with the leads before the stop and a link to it;
   - remaining life on the Plant page: each component's time to its wear limit, with a 95% interval, from a wear limit set on its signal, and the next planned stop before it (or that there is none in time);

@@ -2159,6 +2159,28 @@ Every approved work order as one CSV file for the CMMS, each then marked exporte
 
 **Body:** WorkOrderExportIn (see [openapi.json](openapi.json)).
 
+### `GET /sites/{site_id}/work-orders/policy`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Whether Tiles drafts work orders for components nearing their wear limit, and how early.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+### `PUT /sites/{site_id}/work-orders/policy`
+
+**Who:** admin. **Answers:** 200, 422.
+
+Sets how many days before a component's predicted wear limit Tiles drafts a work order for it, or turns that off (admins). Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** WorkOrderPolicy (see [openapi.json](openapi.json)).
+
 ### `GET /sites/{site_id}/work-orders/{number}`
 
 **Who:** site member. **Answers:** 200, 422.

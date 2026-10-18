@@ -57,7 +57,7 @@ groups:
           severity: warning
         annotations:
           summary: 'Scheduled job {{ $labels.command }} has not run for {{ $value | humanizeDuration }}'
-          description: Its CronJob is suspended, or its runs never start (image, Secret). Its work (models, detectors, notifications) waits.
+          description: Its CronJob is suspended, or its runs never start (image, Secret). Its work (models, detectors, notifications, work orders) waits.
       - alert: TilesNotificationsGivenUp
         expr: max by (site) (tiles_notifications_given_up_last_hour) > 0
         labels:
