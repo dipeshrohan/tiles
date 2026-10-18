@@ -357,6 +357,9 @@ export function createFakeApi({
   // Remaining life (T9.01): what a test sets, and the places the page asked about.
   let remainingLife = null;
   const lifeQueries = [];
+  // Work orders (T9.02), as the API keeps them, and the exports made.
+  const workOrders = [];
+  const workOrderExports = [];
   // The machine timeline (T10.01): what a test sets, and what the page asked for.
   let timeline = null;
   const timelineQueries = [];
@@ -673,6 +676,7 @@ export function createFakeApi({
         url.pathname !== `/sites/${site.id}/coverage` &&
         url.pathname !== `/sites/${site.id}/remaining-life` &&
         url.pathname !== `/sites/${site.id}/timeline` &&
+        !url.pathname.startsWith(`/sites/${site.id}/work-orders`) &&
         !url.pathname.startsWith(`/sites/${site.id}/planned-`) &&
         !url.pathname.startsWith(`/sites/${site.id}/detector-templates`) &&
         !/^\/sites\/[^/]+\/detectors\/[^/]+\/backtest$/.test(url.pathname) &&
@@ -1635,6 +1639,99 @@ export function createFakeApi({
       if (url.pathname === `/sites/${site.id}/remaining-life`) {
         lifeQueries.push(url.searchParams.get('place'));
         return send(200, remainingLife ?? { place: url.searchParams.get('place'), components: [], more: false });
+      }
+      if (url.pathname.startsWith(`/sites/${site.id}/work-orders`)) {
+        const rest = url.pathname.slice(`/sites/${site.id}/work-orders`.length);
+        const shownOrder = (o) => ({ ...o, mine: o.drafted_by_id === user });
+        if (rest === '' && req.method === 'GET') {
+          const show = url.searchParams.get('show') ?? 'open';
+          const open = ['draft', 'approved', 'exported'];
+          const list = workOrders.filter((o) =>
+            show === 'all' ? true : show === 'open' ? open.includes(o.status) : o.status === show,
+          );
+          return send(200, list.map(shownOrder).reverse());
+        }
+        if (role === 'viewer')
+          return send(403, {
+            detail: 'Your role on this site is viewer; this needs engineer or above',
+            code: 'role.too_low',
+          });
+        if (rest === '' && req.method === 'POST') {
+          const b = await body(req);
+          const warning = b.warning_id ? warnings.find((w) => w.id === b.warning_id) : null;
+          const signal = b.signal_id ? signals.find((x) => x.id === b.signal_id) : null;
+          const o = {
+            number: workOrders.length + 1,
+            source: b.source,
+            warning_id: b.warning_id ?? null,
+            warning_tag: warning?.signal_tag ?? null,
+            warning_started_at: warning?.started_at ?? null,
+            signal_id: b.signal_id ?? null,
+            signal_tag: signal?.tag ?? null,
+            asset: b.asset ?? null,
+            title: b.title,
+            description: b.description ?? '',
+            priority: b.priority ?? 'medium',
+            due_at: b.due_at ?? null,
+            status: 'draft',
+            drafted_by_id: user,
+            drafted_by: user.split('@')[0],
+            drafted_at: new Date().toISOString(),
+            approved_by: null,
+            approved_at: null,
+            exported_at: null,
+            export_ref: null,
+            outcome: null,
+            outcome_note: '',
+            closed_at: null,
+          };
+          workOrders.push(o);
+          return send(201, shownOrder(o));
+        }
+        if (rest === '/export' && req.method === 'POST') {
+          const approved = workOrders.filter((o) => o.status === 'approved');
+          if (!approved.length)
+            return send(409, {
+              detail: 'No approved work order to export',
+              code: 'work_order.none_approved',
+              params: {},
+            });
+          const name = `tiles-work-orders-${workOrderExports.length + 1}.csv`;
+          const csv = ['number,asset,title', ...approved.map((o) => `${o.number},${o.asset ?? ''},${o.title}`)].join(
+            '\r\n',
+          );
+          for (const o of approved)
+            Object.assign(o, { status: 'exported', export_ref: name, exported_at: new Date().toISOString() });
+          workOrderExports.push({ name, numbers: approved.map((o) => o.number), csv });
+          return send(200, workOrderExports.at(-1));
+        }
+        const step = rest.match(/^\/(\d+)\/(approve|cancel|outcome)$/);
+        const o = step && workOrders.find((x) => x.number === Number(step[1]));
+        if (!o) return send(404, { detail: 'No such work order', code: 'work_order.not_found', params: {} });
+        const b = await body(req);
+        if (step[2] === 'approve') {
+          if (o.drafted_by_id === user && role !== 'admin')
+            return send(403, {
+              detail: 'Someone other than its drafter approves it',
+              code: 'work_order.own_draft',
+              params: {},
+            });
+          Object.assign(o, {
+            status: 'approved',
+            approved_by: user.split('@')[0],
+            approved_at: new Date().toISOString(),
+          });
+        } else if (step[2] === 'cancel') {
+          Object.assign(o, { status: 'cancelled', outcome_note: b.note ?? '', closed_at: new Date().toISOString() });
+        } else {
+          Object.assign(o, {
+            status: 'done',
+            outcome: b.outcome,
+            outcome_note: b.note ?? '',
+            closed_at: new Date().toISOString(),
+          });
+        }
+        return send(200, shownOrder(o));
       }
       if (url.pathname === `/sites/${site.id}/timeline`) {
         const q = Object.fromEntries(url.searchParams);
@@ -2627,6 +2724,8 @@ export function createFakeApi({
       remainingLife = out;
     },
     lifeQueries: () => [...lifeQueries],
+    workOrders, // as stored (T9.02)
+    workOrderExports,
     // Lets a test set what followed past warnings (by id) and the batch tables suggested (T10.02).
     setSimilar({ followed = {}, datasets = [] }) {
       similarFollowed = followed;

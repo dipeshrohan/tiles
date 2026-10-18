@@ -4,7 +4,8 @@ import type { ComponentLife, RemainingLife } from '../lib/api.ts';
 import { esc, onNavigate, routeOf } from '../lib/dom.ts';
 import { dateTime, duration, number } from '../lib/format.ts';
 import { t } from '../lib/i18n.ts';
-import { card, loadFailed, skeleton, table } from '../lib/ui.ts';
+import { card, linkButton, loadFailed, skeleton, table } from '../lib/ui.ts';
+import { draftHref } from '../lib/work-orders.ts';
 import type { Context } from './types.ts';
 
 let life: { key: string; data: RemainingLife | null | 'failed' } | null = null;
@@ -84,6 +85,24 @@ export function lifeCard(ctx: Context, place: string, onMachine = false): string
   if (shown === 'failed') return card(`${head}${loadFailed(t('plant.life.title'), 3)}`, attrs);
   if (!shown) return card(`${head}${skeleton.table(2, 4, t('plant.life.loading'))}`, attrs);
   if (!shown.components.length) return card(`${head}<p class="small soft">${esc(t('plant.life.none'))}</p>`, attrs);
+  const canEdit = ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
+  // Engineers draft a work order for a component heading for its limit (T9.02).
+  const draftCell = (c: ComponentLife): string =>
+    canEdit
+      ? `<td class="no-print">${
+          c.window_needed
+            ? linkButton(
+                t('workOrders.draftLink'),
+                draftHref(
+                  'component',
+                  c.signal_id,
+                  t('workOrders.titleFor.component', { component: c.component, machine: c.machine_label }),
+                ),
+                { size: 'sm', variant: 'ghost' },
+              )
+            : ''
+        }</td>`
+      : '';
   const rows = shown.components
     .map((c) => {
       const soon = c.hours_to_limit !== null && c.hours_to_limit <= 7 * 24;
@@ -93,6 +112,7 @@ export function lifeCard(ctx: Context, place: string, onMachine = false): string
           <td>${esc(value(c.level, c.unit))} / ${esc(value(c.limit, c.unit))}</td>
           <td${soon ? ' class="text-bad"' : c.verdict === 'not_enough_data' ? ' class="soft"' : ''}>${esc(timeLeft(c))}</td>
           ${windowCell(c)}
+          ${draftCell(c)}
         </tr>`;
     })
     .join('');
@@ -106,6 +126,7 @@ export function lifeCard(ctx: Context, place: string, onMachine = false): string
           t('plant.life.level'),
           t('plant.life.left'),
           t('plant.life.windowHead'),
+          ...(canEdit ? [{ label: t('workOrders.col.actions'), srOnly: true }] : []),
         ],
         rowsHtml: rows,
       })}

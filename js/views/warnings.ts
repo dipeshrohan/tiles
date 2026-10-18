@@ -29,6 +29,7 @@ import {
 } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
 import { followedText, match, summary, whyText } from '../lib/similar.ts';
+import { draftHref } from '../lib/work-orders.ts';
 import { bindFilterBar, filterBar, type BarOptions } from '../lib/filter-bar.ts';
 import { listKeys, rowTarget, split } from '../lib/split.ts';
 import { withQuery } from '../lib/url-state.ts';
@@ -45,6 +46,7 @@ import {
   select,
   tabs,
   table,
+  linkButton,
   skeleton,
   apiUnreachable,
   term,
@@ -501,6 +503,11 @@ function detailCard(ctx: Context, ui: Ui): string {
       ${resolved}
       ${chartCard(w)}
       ${similarCard(w)}
+      ${
+        ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin'
+          ? `<p class="row gap-2 mt-3 no-print">${linkButton(t('workOrders.draftLink'), draftHref('warning', w.id, t('workOrders.titleFor.warning', { detector: w.detector, tag: w.signal_tag })), { size: 'sm', icon: 'clipboard-list', attrs: { 'data-draft-work-order': '' } })}</p>`
+          : ''
+      }
       <h3 class="mt-4 mb-1_5 m-0">${esc(t('warnings.detail.activity'))}</h3>
       <div class="thread">${activity}</div>
       ${readOnly}
