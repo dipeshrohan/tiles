@@ -49,6 +49,7 @@ import type { Context, View } from './types.ts';
 import { pageHead } from '../lib/ui.ts';
 import { keyAttr, typing } from '../lib/shortcuts.ts';
 import { currentLocale, t, tHtml, type MessageKey } from '../lib/i18n.ts';
+import { formatLocale } from '../lib/format.ts';
 
 interface OntologyUi {
   tab: 'canvas' | 'history' | 'health';
@@ -245,9 +246,10 @@ function nodeOptions(graph: Graph): string {
 const nodeNames = new Map<string, string>();
 let namesIn = '';
 function nodeName(n: { type: string; label: string }, fold: number): string {
-  if (namesIn !== currentLocale()) {
+  const writtenIn = `${currentLocale()}|${formatLocale()}`; // the words and the numbers' format
+  if (namesIn !== writtenIn) {
     nodeNames.clear();
-    namesIn = currentLocale();
+    namesIn = writtenIn;
   }
   const key = `${n.type}\u0000${n.label}\u0000${fold}`;
   let name = nodeNames.get(key);
