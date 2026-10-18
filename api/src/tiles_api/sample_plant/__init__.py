@@ -1,7 +1,8 @@
 """Sample plants: a year of a made-up plant in each of four industries, complete as a partner would
 hand it over (data/sample-plants/README.md). `tiles-sample-plant generate <plant>` writes a plant's
 files; `tiles-sample-plant load <plant>` loads them into a Tiles site through the API;
-`tiles-sample-plant backtest die-casting` backtests the failure-mode models on its year (T8.02).
+`tiles-sample-plant backtest die-casting` backtests the failure-mode models on its year (T8.02);
+`tiles-sample-plant fit die-casting` fits the process model to its X-ray table (T11.01).
 """
 
 import argparse
@@ -46,7 +47,16 @@ def main(argv: list[str] | None = None) -> None:
     ld.add_argument("--no-readings", action="store_true", help="leave out the large files")
     bt = sub.add_parser("backtest", help="backtest a plant's failure-mode models on its year")
     bt.add_argument("plant", choices=["die-casting"], help="which plant")
+    ft = sub.add_parser("fit", help="fit a plant's process model to its history and judge it on held-out shots")
+    ft.add_argument("plant", choices=["die-casting"], help="which plant")
     args = parser.parse_args(argv)
+    if args.command == "fit":
+        from tiles_api.sample_plant.die_casting import process_fit
+
+        fitted = process_fit.fit(process_fit.shots())
+        process_fit.write(DATA / args.plant, fitted)
+        print(f"die-porosity: {'meets' if fitted.passed else 'MISSES'} its target on held-out shots")
+        sys.exit(0 if fitted.passed else 1)
     if args.command == "backtest":
         from tiles_api.sample_plant.die_casting import failure_backtest
 

@@ -22,7 +22,7 @@ from test_agents import ENG, api, site  # noqa: F401 - api and site are fixtures
 from tiles_api import evaluation, ontology, ontology_io
 from tiles_api.models.plunger import PlungerFriction
 from tiles_api.sample_plant import common
-from tiles_api.sample_plant.die_casting import failure_backtest, generate, questions, simulate
+from tiles_api.sample_plant.die_casting import failure_backtest, generate, process_fit, questions, simulate
 from tiles_api.sample_plant.die_casting.plant import PILOT, ZONE
 from tiles_api.sample_plant.load import historian_readings
 
@@ -43,7 +43,7 @@ def test_the_committed_files_are_what_the_generator_makes(built: tuple[Path, gen
         p.relative_to(DATA)
         for p in DATA.rglob("*")
         if p.is_file()
-        and p.parts[len(DATA.parts)] not in ("generated", "backtests")
+        and p.parts[len(DATA.parts)] not in ("generated", "backtests", "process-model")
         and p.name not in ("manifest.json", "README.md")
     )
     assert made == kept, (
@@ -64,6 +64,17 @@ def test_the_failure_mode_models_beat_their_targets_and_their_reports_are_curren
         assert r.year.events >= 4 and r.held_out.events >= 1  # enough stops to judge it by
     stale = [n for n, text in failure_backtest.files(results).items() if (DATA / "backtests" / n).read_text() != text]
     assert stale == [], "run `uv run tiles-sample-plant backtest die-casting` and commit data/sample-plants/die-casting"
+
+
+def test_the_process_model_meets_its_error_on_held_out_shots_and_its_files_are_current() -> None:
+    # T11.01: fitted on October to March, judged on April to September, as `tiles-sample-plant fit
+    # die-casting` writes it to process-model/ (models/process.py carries fit.json's numbers).
+    fitted = process_fit.fit(process_fit.shots())
+    assert fitted.passed, process_fit.report(fitted)
+    assert all(e.meets(process_fit.TARGET) for e in fitted.by_cell.values())  # on every cell too
+    assert fitted.held_out.shots > 300_000
+    stale = [n for n, text in process_fit.files(fitted).items() if (DATA / "process-model" / n).read_text() != text]
+    assert stale == [], "run `uv run tiles-sample-plant fit die-casting` and commit data/sample-plants/die-casting"
 
 
 def test_the_year_runs_like_a_die_casting_plant(built: tuple[Path, generate.Year]) -> None:

@@ -1,0 +1,31 @@
+{
+  "vacuum_level": 50.0,
+  "buildup_level": 25.0,
+  "coefficients": {
+    "base": 0.19302,
+    "vacuum": 0.002,
+    "intensification": 0.00426,
+    "hydrogen": 2.49836,
+    "die_temp": 0.00401,
+    "speed": 0.10856,
+    "buildup": 0.00398
+  },
+  "residual_sd": 0.09032,
+  "target": {
+    "mae": 0.08,
+    "rmse": 0.12
+  },
+  "fitting": {
+    "shots": 431089,
+    "mae": 0.06053,
+    "rmse": 0.09032,
+    "r2": 0.5168
+  },
+  "held_out": {
+    "shots": 414436,
+    "mae": 0.06035,
+    "rmse": 0.08987,
+    "r2": 0.4772
+  },
+  "passed": true
+}

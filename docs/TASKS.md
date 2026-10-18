@@ -405,7 +405,7 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
   *Done when:* Warning performance shows the median time from a stop to its recorded cause, per month.
 ### Month 11: Recommendations the line acts on (Sep 2027)
 
-- [ ] `T11.01` [#349](https://github.com/dipeshrohan/tiles/issues/349) **Process model for recommendations** · ML · 5d · T8.01
+- [x] `T11.01` [#349](https://github.com/dipeshrohan/tiles/issues/349) **Process model for recommendations** · ML · 5d · T8.01
   *Done when:* the model predicts the quality driver within its stated error on held-out history.
 - [ ] `T11.02` [#350](https://github.com/dipeshrohan/tiles/issues/350) **Setpoint recommendations** · BE+FE · 5d · T11.01
   *Done when:* an engineer can approve a recommendation, and none is ever outside its limits.

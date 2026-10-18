@@ -19,5 +19,8 @@
   },
   "die-cooling": {
     "1.0.0": "b05a2951943f8f69ad47deb2576c74dd7c04528e0d6542912802b9d286d55d99"
+  },
+  "die-porosity": {
+    "1.0.0": "8ec837640a63089a86e7effe8fe83c7a5952a60e5dc7717f4e7f373a3e1ad2c3"
   }
 }
