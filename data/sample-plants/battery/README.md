@@ -27,12 +27,12 @@ truth says what happened. The same seed gives the same year on every run.
 
 ## The plant
 
-KX60 prismatic cells for car makers: NMC811 cathode, graphite anode, 60 Ah, about 1,900 a day. The
+KX60 prismatic cells for car makers: NMC811 cathode, graphite anode, 60 Ah, about 2,000 a day. The
 overview is [documents/PLANT-OVERVIEW.md](documents/PLANT-OVERVIEW.md).
 
 | Area | What | Data |
 | --- | --- | --- |
-| Cathode and anode lines | A mixer, coater, calender, slitter and vacuum oven each (MX, CT, CL, SL, VD); a spare oven VD-C2 | Each slurry batch's viscosity and solid content; the coaters' and calenders' values every minute while running, and every 5 minutes; each coil's coating weight, streaks and peel; each roll's burrs; MES stops and scrap |
+| Cathode and anode lines | A mixer, coater, calender, slitter and vacuum oven each (MX, CT, CL, SL, VD); a spare oven VD-C2 | Each slurry batch's viscosity and solid content; the coaters' and calenders' values every minute while running, and every 5 minutes; each coil's coating weight, streaks and peel; each roll's burrs; the lab's moisture of each roll (dried again above 250 ppm); MES stops and scrap |
 | Assembly, in the dry room | Dry room DR-01 and its dehumidifier DH-01, notchers NT-C1 and NT-A1, stackers ST-01 and ST-02, tab welder UW-01, electrolyte filler EF-01 | The dew point and the desiccant wheel every 5 minutes; each cell's overhang, separator tension, weld energy and fill weight; MES stops and scrap |
 | Formation and aging | Formation racks FM-01 to FM-04 (512 channels each), aging room AG-01, end-of-line tester EOL-01 | Rack temperature and contact resistance every 5 minutes; each cell's capacity, resistance (DCIR) and self-discharge (K-value) |
 | Utilities, quality lab | NMP recovery, chiller, compressor; Karl Fischer titrator and peel tester | Utility values every 5 minutes; the lab's electrode moisture, peel and weld-pull tests |
@@ -79,8 +79,11 @@ As the assessment's [map](../../../docs/pilot/assessment.md#data-landscape-map) 
 
 | Source | System and version | Machines | Signals (count, examples) | Rate | History | Access path | Owner | Tiles connector |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Electrode line PLCs | Siemens S7-1500, OPC UA | Coaters, calenders | 14 (line speed, coating weight and its variation, slot die pressure, roll force, thickness and its spread) | Every minute while running | 1 year | OPC UA, from the OT DMZ | OT lead | OPC UA |
-| Plant PLCs | Siemens S7-1500, OPC UA | Every machine with signals | 38 (dryer temperatures and fan current, bearing vibration, dew point, wheel pressure drop, oven vacuum, rack temperature and contact resistance, utilities) | 5 minutes | 1 year | OPC UA | OT lead | OPC UA |
+| Electrode line PLCs | Siemens S7-1500, OPC UA | Mixers, coaters, calenders, slitters, ovens | 34: 14 while running (line speed, coating weight and its variation, slot die pressure, roll force, thickness and its spread), 20 on the grid (dryer temperatures and fan current, residual solvent, roll temperature, bearing vibration, blade km, oven temperature and vacuum) | Every minute while running; 5 minutes | 1 year | OPC UA, from the OT DMZ | OT lead | OPC UA |
+| Dry room controller | Munters, Modbus TCP | DR-01, DH-01 | 4 (dew point, air temperature, regeneration temperature, wheel pressure drop) | 5 minutes | 1 year | Modbus TCP | Facilities | Modbus |
+| Assembly PLC | Beckhoff CX2040, OPC UA | NT-C1, NT-A1 | 2 (laser power) | 5 minutes | 1 year | OPC UA | OT lead | OPC UA |
+| Formation manager | Chroma, OPC UA | FM-01 to FM-04, AG-01 | 9 (rack temperature and contact resistance, aging room temperature) | 5 minutes | 1 year | OPC UA | Process engineering | OPC UA |
+| Utilities PLC | Wago 750, Modbus TCP | NR-01, CH-01, CP-01 | 3 (outlet NMP, chilled water, air pressure) | 5 minutes | 1 year | Modbus TCP | Facilities | Modbus |
 | MES, per unit | Per batch, coil, roll and cell | Mixers, coaters, slitters, stackers, welder, filler, tester | 21 (viscosity, coating weight, burrs, overhang, separator tension, weld energy, fill weight, capacity, DCIR, K-value) | Per unit | 1 year | CSV export (`mes/`) | Production | Import |
 | Historian | Exports of the above | Every line, the lab | 76 | as above | 1 year | CSV export (`generated/historian/`) | IT | Import (backfill) |
 | MES, events | Stop and scrap logs | 23 machines | Stops, scrap, production per shift | Per event, per shift | 1 year | CSV export (`mes/`) | Production | Import, as events |
@@ -126,8 +129,11 @@ work (die cleaning, blade and horn changes, monthly maintenance) or by a measure
 | Desiccant wheel loading | DH-01 | DT-DRM, stopping assembly | `wheel_dp` up, then `dew_point` up, electrode moisture up | 13 to 17 days |
 
 Besides these, the machines stop for web breaks, vision, robot, electrical and other faults that
-nothing foretells, for want of material when the machine upstream has none to give, and for
-quality holds. A formation rack that is down holds the cells for its channels.
+nothing foretells. A formation rack's stop pauses the cells on its channels: each finishes that
+much later. A stack, weld or fill that fails its check is scrapped on the spot, and a coil scrapped
+at the coater goes no further. When the dry room's dew point passes -30 °C the whole assembly line
+stops: the MES logs DT-DRM on each of its machines, and [baseline.md](baseline.md) counts it once,
+on DR-01.
 
 The cells' results come from their genealogy by
 [ground-truth/quality-model.json](ground-truth/quality-model.json):
@@ -152,7 +158,7 @@ This writes `generated/` (about 80 MB, not in Git) in about four minutes:
 
 - `historian/<month>/<stream>.csv.gz`: the historian export, one row per reading (timestamp in UTC,
   tag, value, quality): about 14 million readings.
-- `tables/cells-<month>.csv.gz`: every cell stacked that month (692,262 in the year) with its
+- `tables/cells-<month>.csv.gz`: every cell stacked that month (691,163 in the year) with its
   genealogy, process values, end-of-line results, grade and scrap code.
 
 The manifest's `generated` section gives each file's rows and the SHA-256 of its text, so a run can

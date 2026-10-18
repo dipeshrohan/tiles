@@ -25,7 +25,7 @@ import math
 import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from tiles_api.sample_plant.battery import calendar as cal
 from tiles_api.sample_plant.battery.plant import (
@@ -36,21 +36,28 @@ from tiles_api.sample_plant.battery.plant import (
     FILL_G,
     LANES,
     METRES_A_CELL,
-    NOMINAL_AH,
     SEED,
     START,
     ZONE,
 )
-from tiles_api.sample_plant.common import Mode, RandomStop, Station, Working, seasonal
+from tiles_api.sample_plant.common import Maintenance, Mode, RandomStop, Station, Stop, Working, seasonal
 
 GRID = Station.GRID
 DAY = 86400.0
 HOUR = 3600.0
+DEW_STOP = -30.0  # °C: above it assembly stops (SOP-DR-01)
+MOISTURE_HOLD = 250.0  # ppm: above it a coil's rolls are dried again (SOP-DR-01)
+BURR_PLAN, BURR_SCRAP = 12.0, 15.0  # µm: plan the blade change; scrap the roll and change the blades now
 
 # The cell's quality model (the ground truth behind the end-of-line test, for the process model).
 QUALITY = {
+    "moisture_ppm": "0.5 * (cathode_moisture + anode_moisture) + 9 * max(0, dew_point + 45)",
+    "weld_weakness": (
+        "0.15 * (welds_since_horn_change / 200000) ** 2 + horn_wear ** 1.6 (horn_wear: 0 to 1, the ground truth)"
+    ),
+    "burr_um": "max(cathode_burr, anode_burr)",
     "capacity_ah": (
-        "60.9 * cathode_loading / 22.0 - 0.012 * max(0, moisture_ppm - 200) - 0.35 * max(0, 245 - fill_g) - noise(0.22)"
+        "60.9 * cathode_loading / 22.0 - 0.012 * max(0, moisture_ppm - 200) - 0.35 * max(0, 245 - fill_g) + noise(0.22)"
     ),
     "dcir_mohm": "0.78 + 0.25 * weld_weakness + 0.0006 * max(0, moisture_ppm - 200) + noise(0.025)",
     "k_value_mv_day": (
@@ -248,6 +255,7 @@ class Coil:
     thickness: float = 0.0
     thickness_sd: float = 0.0
     scrapped: str = ""  # its scrap code
+    redried: bool = False  # its rolls were too wet and dried again
 
 
 @dataclass
@@ -352,6 +360,7 @@ class Plant:
         self.pending: set[str] = set()  # a counted change planned and not yet done
         self.r_racks = random.Random(f"{SEED}/racks")
         self.state: dict[str, float] = {}  # smoothed values per station and tag
+        self.dry_stops: list[Stop] = []
 
     # ---- the site ---------------------------------------------------------------------------
 
@@ -393,25 +402,8 @@ class Plant:
         t = self.t0
         dew_list = self.year.dew
         noise = 0.0
+        m = DRYROOM_MODES[0]
         while t < self.t1:
-            w = self.w.seconds(t)
-            ep = next(
-                (
-                    e
-                    for e in dh.episodes
-                    if e.failed_at is None and e.resolved_at is None and e.onset <= t and e.severity(w, t) >= 1.0
-                ),
-                None,
-            )
-            if ep:  # the dew point is out of specification until the wheel is regenerated
-                m = DRYROOM_MODES[0]
-                dur = max(1800.0, dh.r_stop.lognormvariate(math.log(m.stop_hours[0] * HOUR), m.stop_hours[1]))
-                ep.failed_at, ep.peak, ep.outcome = t, 1.0, "Failed: the dry room went out of specification"
-                ep.resolved_at = t + dur
-                stops.append((t, t + dur, "DT-DRM", dh.r_stop.choice(m.comments)))
-                from tiles_api.sample_plant.common import Maintenance
-
-                dh.maintenance.append(Maintenance("DH-01", t, t + dur, "CM", m.component, m.code, stops[-1][3], ep.id))
             # Monthly checks find a loaded wheel.
             while dh.pi < len(dh.planned) and dh.planned[dh.pi][0] <= t:
                 a, b, code, text = dh.planned[dh.pi]
@@ -420,15 +412,23 @@ class Plant:
             noise = 0.97 * noise + r.gauss(0, 0.35)
             s = dh.sev("desiccant", t)
             dew = -45.5 + 17.5 * s**1.2 + 1.5 * seasonal(t, ZONE) + noise
+            ep = next((e for e in dh.episodes if e.failed_at is None and e.resolved_at is None and e.onset <= t), None)
+            if ep and dew > DEW_STOP and self.w.working(t):
+                # Above -30 °C assembly stops until the wheel is regenerated (SOP-DR-01).
+                dur = max(1800.0, dh.r_stop.lognormvariate(math.log(m.stop_hours[0] * HOUR), m.stop_hours[1]))
+                ep.failed_at, ep.peak, ep.outcome = t, s, "Failed: the dry room went out of specification"
+                ep.resolved_at = t + dur
+                text = dh.r_stop.choice(m.comments)
+                stops.append((t, t + dur, "DT-DRM", text))
+                self.dry_stops.append(Stop("DR-01", t, t + dur, "DT-DRM", False, text, ep.id))
+                dh.maintenance.append(Maintenance("DH-01", t, t + dur, "CM", m.component, m.code, text, ep.id))
             dew_list.append(dew)
             self.write("dr01", "dr01.dew_point", t, round(dew, 1))
             self.write("dr01", "dr01.temperature", t, round(21 + 0.3 * r.gauss(0, 1) + 0.6 * seasonal(t, ZONE), 1))
             self.write("dr01", "dh01.regen_temp", t, round(140 + r.gauss(0, 1.5) - 4 * s, 1))
             self.write("dr01", "dh01.wheel_dp", t, round(220 + 190 * s**1.3 + r.gauss(0, 4), 0))
             t += GRID
-        for ep in dh.episodes:
-            if ep.resolved_at is None and ep.failed_at is None:
-                ep.outcome = "Still building up at the end of the year"
+        dh.close_episodes()
         return stops
 
     def dew_at(self, t: float) -> float:
@@ -499,6 +499,7 @@ class Plant:
             planned=monthly_pm(self.shifts, 15 if side == "C" else 16, 6),
             grid=slitter_grid,
             on_planned=self._slitter_planned,
+            on_repair=self._slitter_repaired,
         )
 
         def oven_grid(st: Station, g: float, mode: str) -> None:
@@ -562,6 +563,12 @@ class Plant:
                 coil.scrapped = "COIL-STREAK"
             elif coil.peel < 8.0:
                 coil.scrapped = "COIL-ADH"
+            if coil.scrapped:  # it goes no further than the coater
+                self.year.coils.append(coil)
+                ready += takt
+                if ready < end - 6 * HOUR:
+                    ready = end - 6 * HOUR
+                continue
             # Calendering, an hour or more after coating.
             cs, ce = cl.run(end + HOUR, COIL_M / 21.0 * 60)
             coil.calendered = (cs, ce)
@@ -575,43 +582,45 @@ class Plant:
             chip = sl.sev("blade-chip", ss)
             km = self.blade_km[sl.asset]
             self.blade_km[sl.asset] = km + COIL_M * LANES / 1000
-            if self.blade_km[sl.asset] >= 150 and sl.asset not in self.pending:
-                nxt = self._next_day_shift(se)
-                bisect.insort(sl.planned, (nxt, nxt + 1.5 * HOUR, "PL-BLD", "Planned blade change at 150 km"))
-                self.pending.add(sl.asset)  # until the change is done
+            if self.blade_km[sl.asset] >= 150:
+                self._plan_blades(sl, se, "Planned blade change at 150 km")
             base_burr = 3.0 + 5.0 * (km / 150) ** 2
-            # Vacuum drying the four rolls together
-            vs, ve = vd.run(se + HOUR, 2.5 * HOUR)
-            coil.dried = (vs, ve)
-            dew = self.dew_at(ve)
-            for lane in range(LANES):
-                burr = base_burr + 11.0 * chip**1.3 + abs(r.gauss(0, 0.7))
-                roll = Roll(f"{coil.id}-{lane + 1}", coil, lane + 1, burr)
-                roll.moisture = 140 + 14 * max(0.0, dew + 45) + r.gauss(0, 12)
-                roll.ready = ve + 2 * HOUR
-                roll.cells_left = int(COIL_M / METRES_A_CELL)
-                sk = sl.asset.lower().replace("-", "")
+            burrs = [base_burr + 11.0 * chip**1.3 + abs(r.gauss(0, 0.7)) for _ in range(LANES)]
+            sk = sl.asset.lower().replace("-", "")
+            for lane, burr in enumerate(burrs):
                 self.write(f"{sk}-unit", f"{sk}.burr_height", se + lane, round(burr, 1))
-                self.year.lab.append((ve + HOUR + lane * 60, "lab.moisture_electrode", round(roll.moisture, 0)))
-                if burr >= 15.0:
-                    roll.scrapped = "COIL-BURR"
-                if coil.scrapped:
-                    roll.scrapped = coil.scrapped
-                rolls.append(roll)
-            # A chipped blade is changed once its burrs go over the limit (or at its failure).
-            if chip >= 0.85:
+            # Burrs at the scrap limit: the blades are changed now; at the wear limit, planned (SOP-EL-04).
+            if max(burrs) >= BURR_SCRAP:
                 ep = next(
                     (e for e in sl.episodes if e.mode == "blade-chip" and e.resolved_at is None and e.onset <= ss), None
                 )
+                m = SLITTER_MODES[0]
+                done = sl.breakdown(se, 1.5 * HOUR, m.code, "Burrs over the limit: blades changed", ep, m.component)
+                sl.t = max(sl.t, done)
                 if ep:
-                    m = SLITTER_MODES[0]
-                    done = sl.breakdown(
-                        se, 1.5 * HOUR, m.code, "Burrs over the limit: chipped blades changed", ep, m.component
-                    )
-                    sl.t = max(sl.t, done)
                     ep.peak, ep.outcome = chip, "Found by the burr measurement: blades changed"
-                    self.blade_km[sl.asset] = 0.0
-                    self.pending.discard(sl.asset)
+            elif max(burrs) >= BURR_PLAN:
+                self._plan_blades(sl, se, f"Planned blade change: burrs at {BURR_PLAN:.0f} µm")
+            # Vacuum drying the four rolls together; dried again if they are still wet.
+            vs, ve = vd.run(se + HOUR, 2.5 * HOUR)
+            coil.dried = (vs, ve)
+            wet = [140 + 14 * max(0.0, self.dew_at(ve) + 45) + r.gauss(0, 12) for _ in range(LANES)]
+            for lane, moisture in enumerate(wet):
+                self.year.lab.append((ve + HOUR + lane * 60, "lab.moisture_electrode", round(moisture, 0)))
+            if max(wet) > MOISTURE_HOLD:
+                vs, ve = vd.run(ve + 2 * HOUR, 2.5 * HOUR)
+                coil.dried, coil.redried = (coil.dried[0], ve), True
+                wet = [0.8 * (140 + 14 * max(0.0, self.dew_at(ve) + 45)) + r.gauss(0, 10) for _ in range(LANES)]
+                for lane, moisture in enumerate(wet):
+                    self.year.lab.append((ve + HOUR + lane * 60, "lab.moisture_electrode", round(moisture, 0)))
+            for lane in range(LANES):
+                roll = Roll(f"{coil.id}-{lane + 1}", coil, lane + 1, burrs[lane])
+                roll.moisture = wet[lane]
+                roll.ready = ve + 2 * HOUR
+                roll.cells_left = int(COIL_M / METRES_A_CELL)
+                if burrs[lane] >= BURR_SCRAP:
+                    roll.scrapped = "COIL-BURR"
+                rolls.append(roll)
             self.year.coils.append(coil)
             ready += takt
             if ready < end - 6 * HOUR:  # far behind: the line catches up as fast as it can
@@ -626,6 +635,27 @@ class Plant:
                 if ep.mode == "die-lip" and ep.resolved_at is None and ep.onset <= start:
                     ep.resolved_at, ep.peak = start, ep.severity(self.w.seconds(start), start)
                     ep.outcome = "Cleared by the planned die cleaning"
+
+    def _plan_blades(self, sl: Station, t: float, text: str) -> None:
+        if sl.asset not in self.pending:
+            nxt = self._next_day_shift(t)
+            bisect.insort(sl.planned, (nxt, nxt + 1.5 * HOUR, "PL-BLD", text))
+            self.pending.add(sl.asset)  # until the change is done
+
+    def _changed(self, st: Station, code: str) -> None:
+        """A blade or horn changed out of turn: its counter starts again, and the change planned is off."""
+        st.planned[st.pi :] = [p for p in st.planned[st.pi :] if p[2] != code]
+        self.pending.discard(st.asset)
+
+    def _slitter_repaired(self, st: Station, m: Maintenance) -> None:
+        if m.code == "DT-BLD":
+            self.blade_km[st.asset] = 0.0
+            self._changed(st, "PL-BLD")
+
+    def _welder_repaired(self, st: Station, m: Maintenance) -> None:
+        if m.code == "DT-WLD":
+            self.welds = 0
+            self._changed(st, "PL-HRN")
 
     def _slitter_planned(self, st: Station, code: str, start: float, end: float) -> None:
         if code == "PL-BLD":
@@ -710,6 +740,7 @@ class Plant:
             planned=monthly_pm(self.shifts, 24, 6),
             external=ext,
             on_planned=self._welder_planned,
+            on_repair=self._welder_repaired,
         )
         ef = self.station(
             "EF-01",
@@ -845,6 +876,7 @@ class Plant:
             start, _ = rack.run(ready, 0.0)
             if start >= self.t1 - 18 * HOUR:
                 break
+            rack.run_s += 18 * HOUR / 512  # its share of the rack's running time
             heapq.heapreplace(channels[i], start + 18 * HOUR)
             contact = rack.sev("contacts", start)
             cell.rack = rack.asset
@@ -855,7 +887,22 @@ class Plant:
                 cell.scrap, cell.scrap_at = "FRM-FAIL", start + 18 * HOUR
         for rk in racks:
             rk.finish()
+            self._paused(rk, [c for c in good if c.rack == rk.asset])
         self._test(good, r)
+
+    def _paused(self, rack: Station, cells: list[CellRecord]) -> None:
+        """A rack's stop pauses the formations on its channels: each ends that much later."""
+        stops = sorted((s.start, s.end) for s in rack.stops)
+        starts = [a for a, _ in stops]
+        for cell in cells:
+            begin, end = cell.formed
+            k = bisect.bisect_right(starts, begin)
+            while k < len(stops) and stops[k][0] < end:
+                end += stops[k][1] - stops[k][0]
+                k += 1
+            cell.formed = (begin, end)
+            if cell.scrap == "FRM-FAIL":
+                cell.scrap_at = end
 
     def _rack_grid(self, st: Station, g: float, mode: str) -> None:
         key = st.asset.lower().replace("-", "")
@@ -935,19 +982,10 @@ class Plant:
         cells = self.assembly(cathodes, anodes, dry_stops)
         self.formation(cells)
         self.year.cells = cells
-        # The dry room's stops are DR-01's in the MES.
-        from tiles_api.sample_plant.common import Stop
-
+        # The dry room's stops are DR-01's in the MES (the assembly's are their consequence).
         dr = self.station("DR-01")
-        dr.stops = [Stop("DR-01", a, b, code, False, text) for a, b, code, text in dry_stops]
+        dr.stops = self.dry_stops
         dr.episodes = []
         for t, tag, v in sorted(self.year.lab):
             self.write("lab", tag, t, v)
         return self.year
-
-
-def nominal() -> float:
-    return NOMINAL_AH
-
-
-__all__ = ["QUALITY", "CellRecord", "Coil", "Plant", "Roll", "Year", "datetime"]

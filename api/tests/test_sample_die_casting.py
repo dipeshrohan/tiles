@@ -10,23 +10,21 @@ import json
 import math
 import statistics
 from collections import Counter
-from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sample_plants import answer_all
 from test_agents import ENG, api, site  # noqa: F401 - api and site are fixtures
 
-from tiles_api import evaluation, grounding, ontology, ontology_io
-from tiles_api.assistant import Turn
-from tiles_api.evaluation import Case
+from tiles_api import evaluation, ontology, ontology_io
 from tiles_api.models.plunger import PlungerFriction
 from tiles_api.sample_plant import common
 from tiles_api.sample_plant.die_casting import generate, questions, simulate
 from tiles_api.sample_plant.die_casting.plant import PILOT, ZONE
-from tiles_api.sample_plant.load import Loader, event_readings, historian_readings
+from tiles_api.sample_plant.load import historian_readings
 
 DATA = Path(__file__).resolve().parents[2] / "data" / "sample-plants" / "die-casting"
 
@@ -218,36 +216,6 @@ def test_generate_all_writes_each_plant_in_out(tmp_path: Path, monkeypatch: pyte
     assert wrote == [tmp_path / name for name in sample_plant.PLANTS]
 
 
-class Oracle:
-    """Calls each question's plan, then states its facts as the tools put them, citing them."""
-
-    def __init__(self, cases: list[Case], plans: dict[str, list[tuple[str, dict[str, Any]]]]) -> None:
-        self.by_question = {c.question: c for c in cases}
-        self.plans = plans
-
-    def stream(self, *, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Iterator[Turn]:
-        case = self.by_question[grounding.text_of(messages[0])]
-        plan = self.plans.get(case.id, [])
-        if len(messages) == 1 and plan:
-            yield Turn(
-                [
-                    {"type": "tool_use", "id": f"t{n}", "name": name, "input": args}
-                    for n, (name, args) in enumerate(plan)
-                ],
-                "tool_use",
-            )
-            return
-        if not plan:
-            yield Turn([{"type": "text", "text": f"{grounding.DECLINE}."}], "end_turn")
-            return
-        results = " ".join(str(b.get("content")) for b in messages[-1]["content"] if b.get("type") == "tool_result")
-        said = []
-        for fact in case.facts:
-            options = fact if isinstance(fact, tuple) else (fact,)
-            said.append(next((o for o in options if o.lower() in results.lower()), options[0]))
-        yield Turn([{"type": "text", "text": "From the site's data: " + ", ".join(said) + " [1]."}], "end_turn")
-
-
 def test_every_question_is_answered_from_the_loaded_plant(
     api: TestClient,  # noqa: F811
     site: str,  # noqa: F811
@@ -255,40 +223,9 @@ def test_every_question_is_answered_from_the_loaded_plant(
     built: tuple[Path, generate.Year],
 ) -> None:
     out, year = built
-    rows = list(csv.DictReader(io.StringIO((out / "copilot" / "questions.csv").read_text())))
-    plans = {r["id"]: [(name, args) for name, args in json.loads(r["plan"])] for r in rows if r["plan"]}
-    windows: dict[str, list[tuple[float, float]]] = {}
-    for r in rows:
-        for item in filter(None, (x.strip() for x in r["data"].split(";"))):
-            tag, span = item.split("@")
-            a, b = span.split("/")
-            windows.setdefault(tag, []).append(
-                (datetime.fromisoformat(a).timestamp(), datetime.fromisoformat(b).timestamp())
-            )
-
-    loader = Loader(api, site, ENG)
-    loader.ontology(out)
-    readings = []
-    for tag, spans in windows.items():
-        times, values = year.capture.readings[tag]
-        for t, v in zip(times, values, strict=True):
-            if any(a - 3600 <= t < b + 3600 for a, b in spans):
-                readings.append((tag, common.iso(t), v))
-    loader.readings("questions' readings", readings)
-    start, end = year.capture.start, year.capture.end
-    may = [r for r in event_readings(out) if start <= datetime.fromisoformat(r[1]).timestamp() < end]
-    loader.readings("May's MES events", may)
-    loader.catalogue(out)
-    assert loader.documents(out) > 0 and loader.planned(out) > 0
-    assert (loader.documents(out), loader.planned(out)) == (0, 0)  # loaded again: nothing twice
-    month = datetime.fromtimestamp(start, ZONE)
-    for c in PILOT:
-        loader.dataset(questions.dataset_name(c.asset, month), "", year.capture.quality[c.asset])
-
-    cases = evaluation.read_csv((out / "copilot" / "questions.csv").read_text())
-    summary = evaluation.run(
-        Oracle(cases, plans), None, database_url, cases, on=evaluation.OnSite(site, ENG["X-Tiles-User"])
-    )
+    month = datetime.fromtimestamp(year.capture.start, ZONE)
+    tables = {c.asset: questions.dataset_name(c.asset, month) for c in PILOT}
+    summary = answer_all(api, site, ENG, database_url, out, year.capture, tables)
     failed = [
         (r.case, r.missing, r.wrong, r.problems, r.error) for r in summary.results if not r.correct or not r.grounded
     ]

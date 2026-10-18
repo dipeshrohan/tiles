@@ -4,6 +4,7 @@ states its facts as the tools put them, and loading what a question set needs in
 import csv
 import io
 import json
+import re
 from collections.abc import Iterable, Iterator
 from datetime import datetime
 from pathlib import Path
@@ -17,9 +18,24 @@ from tiles_api.evaluation import Case
 from tiles_api.sample_plant import common
 from tiles_api.sample_plant.load import Loader, event_readings
 
+NUMBER = re.compile(r"\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
+
+
+def given(fact: str, results: str, numbers: list[str]) -> bool:
+    """Whether the tools gave a fact: its words, or a number that rounds to it, as the grounding
+    check reads one (83.4999 for 83.5)."""
+    if fact.lower() in results.lower():
+        return True
+    plain = fact.replace(",", "")
+    if not re.fullmatch(r"\d+(?:\.\d+)?", plain):
+        return False
+    places = len(plain.split(".")[1]) if "." in plain else 0
+    return any(common.number(float(n), places) == common.number(float(plain), places) for n in numbers)
+
 
 class Oracle:
-    """Calls each question's plan, then states its facts as the tools put them, citing them."""
+    """Calls each question's plan, then states its facts as the tools put them, citing them: a fact
+    the tools didn't give is left out, so its question fails."""
 
     def __init__(self, cases: list[Case], plans: dict[str, list[tuple[str, dict[str, Any]]]]) -> None:
         self.by_question = {c.question: c for c in cases}
@@ -41,10 +57,11 @@ class Oracle:
             yield Turn([{"type": "text", "text": f"{grounding.DECLINE}."}], "end_turn")
             return
         results = " ".join(str(b.get("content")) for b in messages[-1]["content"] if b.get("type") == "tool_result")
+        numbers = NUMBER.findall(results)
         said = []
         for fact in case.facts:
             options = fact if isinstance(fact, tuple) else (fact,)
-            said.append(next((o for o in options if o.lower() in results.lower()), options[0]))
+            said += [o for o in options if given(o, results, numbers)][:1]
         yield Turn([{"type": "text", "text": "From the site's data: " + ", ".join(said) + " [1]."}], "end_turn")
 
 

@@ -124,6 +124,11 @@ def shift_to_now(now: datetime, end: datetime) -> timedelta:
     return timedelta(weeks=max(0, weeks))
 
 
+def _plant(root: Path) -> str:
+    """The plant's name, as its manifest gives it."""
+    return str(json.loads((root / "manifest.json").read_text())["plant"])
+
+
 def planned_codes(root: Path) -> list[str]:
     """The MES's planned-downtime codes (mes/reason-codes.csv)."""
     with (root / "mes" / "reason-codes.csv").open(encoding="utf-8") as f:
@@ -186,7 +191,7 @@ class Loader:
             _ok(
                 self.api.post(
                     self.url("/ontology/commits"),
-                    json={"message": "The Kesselbach plant model (sample plant)"},
+                    json={"message": f"The plant model of {_plant(root)}"},
                     headers=self.who,
                 ),
                 "the plant model's commit",

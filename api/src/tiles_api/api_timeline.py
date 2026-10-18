@@ -3,13 +3,14 @@ one range, on one time axis.
 
 The machine is a Machine node of the committed ontology. Its signals are its linked catalogue tags
 (coverage.signal_nodes); the readings are those that aren't event signals, the first MAX_SIGNALS by
-tag, downsampled as the Data explorer's series. Its warnings are those of the detectors on its tags
-or with its asset (coverage.asset_of), that are out at some time in the range. Its events are the
-readings of the event signals with its asset, each marked when it is planned downtime (T7.03,
-`tiles_planned`). Its planned stops are those for its asset or the whole site. Its changes are the
-ontology commits whose ops touch the machine, its PLCs or its Signal nodes, and the edits of its
-signals and detectors in the audit log (what was done and by whom, not the values; who only for
-engineers and admins, as the audit log itself is for admins). Everyone reads it.
+tag (`every`: all of them, for root cause), downsampled as the Data explorer's series. Its warnings
+are those of the detectors on its tags or with its asset (coverage.asset_of), that are out at some
+time in the range. Its events are the readings of the event signals with its asset, each marked when
+it is planned downtime (T7.03, `tiles_planned`). Its planned stops are those for its asset or the
+whole site. Its changes are the ontology commits whose ops touch the machine, its PLCs or its Signal
+nodes, and the edits of its signals and detectors in the audit log (what was done and by whom, not
+the values; who only for engineers and admins, as the audit log itself is for admins). Everyone
+reads it.
 """
 
 import uuid
@@ -106,7 +107,14 @@ def timeline(
     return read(ctx, machine, start, end)
 
 
-def read(ctx: SiteContext, machine: str, start: datetime, end: datetime, points: int = POINTS) -> dict[str, Any]:
+def read(
+    ctx: SiteContext,
+    machine: str,
+    start: datetime,
+    end: datetime,
+    points: int = POINTS,
+    every: bool = False,
+) -> dict[str, Any]:
     """The timeline of a Machine node from `start` to `end`, as `GET …/timeline` answers it (the
     copilot's root_cause tool reads it too)."""
     graph = ontology_store.load_head(ctx.conn, ctx.site_id)
@@ -126,6 +134,7 @@ def read(ctx: SiteContext, machine: str, start: datetime, end: datetime, points:
         [ctx.site_id, nodes],
     ).fetchall()
     readings = [t for t in tags if t["event_kind"] is None]
+    shown = readings if every else readings[:MAX_SIGNALS]
     tag_ids = [t["id"] for t in tags]
     more = False
 
@@ -180,8 +189,8 @@ def read(ctx: SiteContext, machine: str, start: datetime, end: datetime, points:
         "asset": asset,
         "start": start,
         "end": end,
-        "signals": [read_series(ctx, t["id"], start, end, points, signal=t) for t in readings[:MAX_SIGNALS]],
-        "more_signals": len(readings) > MAX_SIGNALS,
+        "signals": [read_series(ctx, t["id"], start, end, points, signal=t) for t in shown],
+        "more_signals": len(shown) < len(readings),
         "warnings": warnings,
         "events": events,
         "planned": planned,
