@@ -22,7 +22,7 @@ from test_agents import ENG, api, site  # noqa: F401 - api and site are fixtures
 from tiles_api import evaluation, ontology, ontology_io
 from tiles_api.models.plunger import PlungerFriction
 from tiles_api.sample_plant import common
-from tiles_api.sample_plant.die_casting import generate, questions, simulate
+from tiles_api.sample_plant.die_casting import failure_backtest, generate, questions, simulate
 from tiles_api.sample_plant.die_casting.plant import PILOT, ZONE
 from tiles_api.sample_plant.load import historian_readings
 
@@ -43,7 +43,7 @@ def test_the_committed_files_are_what_the_generator_makes(built: tuple[Path, gen
         p.relative_to(DATA)
         for p in DATA.rglob("*")
         if p.is_file()
-        and p.parts[len(DATA.parts)] not in ("generated",)
+        and p.parts[len(DATA.parts)] not in ("generated", "backtests")
         and p.name not in ("manifest.json", "README.md")
     )
     assert made == kept, (
@@ -53,6 +53,17 @@ def test_the_committed_files_are_what_the_generator_makes(built: tuple[Path, gen
     assert stale == [], "run `uv run tiles-sample-plant generate die-casting` and commit data/sample-plants/die-casting"
     new, old = json.loads((out / "manifest.json").read_text()), json.loads((DATA / "manifest.json").read_text())
     assert {k: v for k, v in new.items() if k != "generated"} == {k: v for k, v in old.items() if k != "generated"}
+
+
+def test_the_failure_mode_models_beat_their_targets_and_their_reports_are_current() -> None:
+    # T8.02 to T8.04: each model's backtest on the year, as `tiles-sample-plant backtest die-casting`
+    # writes it to backtests/, beats its target on the year and on the half it wasn't tuned on.
+    results = failure_backtest.all_results(DATA)
+    for r in results:
+        assert r.passed, failure_backtest.report(r)
+        assert r.year.events >= 4 and r.held_out.events >= 1  # enough stops to judge it by
+    stale = [n for n, text in failure_backtest.files(results).items() if (DATA / "backtests" / n).read_text() != text]
+    assert stale == [], "run `uv run tiles-sample-plant backtest die-casting` and commit data/sample-plants/die-casting"
 
 
 def test_the_year_runs_like_a_die_casting_plant(built: tuple[Path, generate.Year]) -> None:

@@ -10,5 +10,14 @@
   "joint-actuator": {
     "1.0.0": "3087c5d70e75057919f196ce56e0bab612bbbed221235d0eaac5ee062eb2af36",
     "1.1.0": "979e681e2e1d739dec7a2ff4329fb44aae25c07f2bf2fe5eb5190b84187868d0"
+  },
+  "accumulator-charge": {
+    "1.0.0": "d9439620d5073c17bb3d6c2f8fcac65060969afedc669d185a95906fbecd18e8"
+  },
+  "furnace-heater": {
+    "1.0.0": "a0cc71af94b833bfb7a6a56755f061e213a95f6617ff9151668eac51579f8183"
+  },
+  "die-cooling": {
+    "1.0.0": "b05a2951943f8f69ad47deb2576c74dd7c04528e0d6542912802b9d286d55d99"
   }
 }

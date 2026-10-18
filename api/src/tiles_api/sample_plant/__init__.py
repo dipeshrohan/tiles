@@ -1,6 +1,7 @@
 """Sample plants: a year of a made-up plant in each of four industries, complete as a partner would
 hand it over (data/sample-plants/README.md). `tiles-sample-plant generate <plant>` writes a plant's
-files; `tiles-sample-plant load <plant>` loads them into a Tiles site through the API.
+files; `tiles-sample-plant load <plant>` loads them into a Tiles site through the API;
+`tiles-sample-plant backtest die-casting` backtests the failure-mode models on its year (T8.02).
 """
 
 import argparse
@@ -43,7 +44,17 @@ def main(argv: list[str] | None = None) -> None:
     who.add_argument("--token", help="an engineer's access token")
     ld.add_argument("--shift-to-now", action="store_true", help="move the year on by whole weeks to end last week")
     ld.add_argument("--no-readings", action="store_true", help="leave out the large files")
+    bt = sub.add_parser("backtest", help="backtest a plant's failure-mode models on its year")
+    bt.add_argument("plant", choices=["die-casting"], help="which plant")
     args = parser.parse_args(argv)
+    if args.command == "backtest":
+        from tiles_api.sample_plant.die_casting import failure_backtest
+
+        results = failure_backtest.all_results(DATA / args.plant)
+        failure_backtest.write(DATA / args.plant, results)
+        for r in results:
+            print(f"{r.plan.key}: {'beats' if r.passed else 'MISSES'} its target")
+        sys.exit(0 if all(r.passed for r in results) else 1)
     if args.command == "load":
         from tiles_api.sample_plant import load
 
