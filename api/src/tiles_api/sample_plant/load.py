@@ -5,7 +5,9 @@
 - the signal catalogue;
 - planned codes and stops;
 - documents;
-- the batch tables its manifest names (the die-casting plant's X-ray results).
+- the batch tables its manifest names (the die-casting plant's X-ray results);
+- its failure-mode models, bound with their detectors as their backtests chose
+  (`backtests/bindings.json`, the die-casting plant's, T8.05), run over the history loaded.
 
 The readings and batch tables under `generated/` come from `tiles-sample-plant generate <plant> --all`;
 without them they are left out, and everything else still loads. A plant's copilot question set is
@@ -268,6 +270,44 @@ class Loader:
         self.say(f"Signal catalogue: {done} signals described")
         return done
 
+    def failure_models(self, root: Path) -> int:
+        """Binds each model of `backtests/bindings.json` whose input signals the site has, runs it over
+        their history, and watches its window output with a detector as the backtest chose, run too:
+        its warnings go to the warnings inbox. Bindings and detectors the site has are left alone."""
+        path = root / "backtests" / "bindings.json"
+        if not path.exists():
+            return 0
+        have = self.signals()
+        bound = {b["name"] for b in _ok(self.api.get(self.url("/model-bindings"), headers=self.who), "bindings")}
+        watching = {d["name"] for d in _ok(self.api.get(self.url("/detectors"), headers=self.who), "detectors")}
+        made = warned = 0
+        for b in json.loads(path.read_text()):
+            if any(tag not in have for tag in b["inputs"].values()):
+                continue  # its readings weren't loaded
+            if b["name"] not in bound:
+                body = {k: b[k] for k in ("name", "model", "version", "window", "align_seconds")}
+                body["inputs"] = {port: have[tag]["id"] for port, tag in b["inputs"].items()}
+                binding = _ok(self.api.post(self.url("/model-bindings"), json=body, headers=self.who), b["name"])
+                self._run(f"/model-bindings/{binding['id']}/run", b["name"])
+                made += 1
+            if b["name"] not in watching:
+                d = dict(b["detector"])
+                signal = self.signals()[d.pop("signal")]
+                body = {"name": b["name"], "signal_id": signal["id"], **d}
+                detector = _ok(self.api.post(self.url("/detectors"), json=body, headers=self.who), b["name"])
+                warned += sum(r["opened"] for r in self._run(f"/detectors/{detector['id']}/run", b["name"]))
+        self.say(f"Failure-mode models: {made} bound, {warned} warnings")
+        return made
+
+    def _run(self, path: str, what: str) -> list[dict[str, Any]]:
+        """Runs a binding or detector until it has caught up with the history loaded."""
+        runs = []
+        for _ in range(1_000):
+            runs.append(_ok(self.api.post(self.url(path), headers=self.who), f"running {what}"))
+            if runs[-1]["caught_up"]:
+                return runs
+        raise LoadError(f"{what} did not catch up")
+
     def planned(self, root: Path) -> int:
         """The planned codes, and each planned stop the site doesn't have yet (by asset and start)."""
         _ok(
@@ -389,6 +429,8 @@ def load(
         ld.readings("historian export (sample plant)", historian_readings(root))
     ld.readings("MES stops and scrap (sample plant)", event_readings(root))
     ld.catalogue(root)
+    if readings:
+        ld.failure_models(root)
     ld.planned(root)
     ld.documents(root)
     if readings:

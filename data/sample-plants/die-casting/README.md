@@ -167,12 +167,16 @@ This loads:
 3. **The MES:** its unplanned stops (as downtime events, at their start, the reason code as the value)
    and its scrap (as scrap events).
 4. **The signal catalogue:** each signal described and linked to its Signal node.
-5. **Planned stops:** the planned codes and every planned stop, including the time without shifts.
-6. **Documents:** every document, for search.
-7. **The X-ray tables:** one batch table per cell and month (`X-ray results DC-01 2026-05`).
+5. **The failure-mode models:** each of [backtests/bindings.json](backtests/bindings.json)'s bindings
+   (three models on each Line 2 cell) with its detector, run over the year, so their warnings are in
+   the warnings inbox ([docs/failure-modes.md](../../../docs/failure-modes.md#going-live)).
+6. **Planned stops:** the planned codes and every planned stop, including the time without shifts.
+7. **Documents:** every document, for search.
+8. **The X-ray tables:** one batch table per cell and month (`X-ray results DC-01 2026-05`).
 
 Everything takes about 20 minutes against a local API (the readings 15, the X-ray tables 2).
-`--no-readings` leaves out the historian and X-ray files (everything else loads in about a minute);
+`--no-readings` leaves out the historian and X-ray files, and so the failure-mode models (everything
+else loads in about a minute);
 `--token` signs in with an access token instead of the API's development sign-in. `--shift-to-now`
 moves every time on by whole weeks, so the year ends last week and the pages' "last 30 days" find it;
 weekdays and shifts stay as they were, but the question set's dates no longer hold.
