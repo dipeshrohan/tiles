@@ -48,7 +48,8 @@ import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '
 import type { Context, View } from './types.ts';
 import { pageHead } from '../lib/ui.ts';
 import { keyAttr, typing } from '../lib/shortcuts.ts';
-import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
+import { currentLocale, t, tHtml, type MessageKey } from '../lib/i18n.ts';
+import { formatLocale } from '../lib/format.ts';
 
 interface OntologyUi {
   tab: 'canvas' | 'history' | 'health';
@@ -168,7 +169,7 @@ function collapsedSet(graph: Graph, h: Hierarchy, ui: OntologyUi): Set<string> {
 }
 
 // The last canvas drawn, for its handlers (zoom limits, where a node is).
-let drawn: (Layout & { graph: Graph }) | null = null;
+let drawn: (Layout & { graph: Graph; counts: Map<string, number> }) | null = null;
 let centerAfterRender: string | null = null; // a search result to bring into view once drawn
 let focusAfterRender = false; // focus selection, once the folds hiding some of it are opened
 let canvasTall = ''; // the canvas's height, last worked out
@@ -240,6 +241,25 @@ function nodeOptions(graph: Graph): string {
   return html;
 }
 
+// A node's name for a screen reader, escaped: kept, as a large plant names 2,000 of them each time
+// it is drawn (U3.07).
+const nodeNames = new Map<string, string>();
+let namesIn = '';
+function nodeName(n: { type: string; label: string }, fold: number): string {
+  const writtenIn = `${currentLocale()}|${formatLocale()}`; // the words and the numbers' format
+  if (namesIn !== writtenIn) {
+    nodeNames.clear();
+    namesIn = writtenIn;
+  }
+  const key = `${n.type}\u0000${n.label}\u0000${fold}`;
+  let name = nodeNames.get(key);
+  if (name === undefined) {
+    if (nodeNames.size > 20_000) nodeNames.clear();
+    nodeNames.set(key, (name = esc(t('ontology.node.label', { type: n.type, label: n.label, count: fold }))));
+  }
+  return name;
+}
+
 function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi): string {
   const hidden = new Set(ui.hidden);
   const h = hierarchyOf(graph);
@@ -250,13 +270,13 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
     return n !== undefined && !hidden.has(n.type) && !folded.has(id);
   };
   const placed = layout(graph, show, h);
-  drawn = { ...placed, graph };
   const { pos, width, height } = placed;
   // A view of another drawing (nodes folded, opened or added since) would show the wrong part.
   const size = `${width}x${height}`;
   if (ui.viewFor !== size) ui.view = null;
   ui.viewFor = size;
   const counts = foldedCounts(collapsed, folded, h);
+  drawn = { ...placed, graph, counts };
   const issueIds = new Set(health.issues.filter((i) => i.level !== 'info').map((i) => i.ref));
   const stagedIds = new Set(ctx.state.repo.staged.flatMap(touchedIds));
   const matches = new Set(searchNodes(graph, ui.search));
@@ -274,7 +294,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       const y2 = b.y + BOX.h / 2;
       const dx = Math.max(40, Math.abs(x2 - x1) / 2) * (fwd ? 1 : -1);
       const hl = picked.has(e.from) || picked.has(e.to);
-      return `<path class="edge ${hl ? 'hl' : ''}" d="M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}"><title>${esc(graph.nodes[e.from]?.label)} —${esc(e.rel)}→ ${esc(graph.nodes[e.to]?.label)}</title></path>`;
+      return `<path class="edge ${hl ? 'hl' : ''}" data-edge="${esc(e.id)}" d="M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}"/>`;
     })
     .join('');
   const nodes = [...pos.entries()]
@@ -292,16 +312,13 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       ]
         .filter(Boolean)
         .join(' ');
-      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(t('ontology.node.label', { type: n.type, label: n.label, count: fold }))}">
-          <rect width="${BOX.w}" height="${BOX.h}" rx="6"/>
-          <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
-          <text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
-            editor && id === ui.selected && picked.size === 1
-              ? `<circle class="handle" data-handle cx="${BOX.w}" cy="${BOX.h / 2}" r="6"><title>${esc(t('ontology.node.handle'))}</title></circle>`
-              : ''
-          }
-          <title>${esc(t('ontology.node.title', { type: n.type, label: n.label, count: fold }))}</title>
-        </g>`;
+      // No white space between the tags and no <title>s (added on pointing, `titleOnHover`): a
+      // large plant draws a third fewer nodes into the page each time it folds (U3.07).
+      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${nodeName(n, fold)}"><rect width="${BOX.w}" height="${BOX.h}" rx="6"/><rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/><text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
+        editor && id === ui.selected && picked.size === 1
+          ? `<circle class="handle" data-handle cx="${BOX.w}" cy="${BOX.h / 2}" r="6"><title>${esc(t('ontology.node.handle'))}</title></circle>`
+          : ''
+      }</g>`;
     })
     .join('');
 
@@ -562,6 +579,25 @@ function reveal(graph: Graph, ui: OntologyUi, id: string): void {
   if (type) ui.hidden = ui.hidden.filter((t) => t !== type);
 }
 
+// The <title> of the node or relationship pointed at, the first time: the browser shows it as a tooltip.
+function titleOnHover(target: EventTarget | null, on: NonNullable<typeof drawn>): void {
+  const el = target instanceof Element ? target.closest('[data-node], [data-edge]') : null;
+  if (!el || [...el.children].some((c) => c.tagName === 'title')) return;
+  const { graph } = on;
+  let text = '';
+  if (el instanceof SVGElement && el.dataset.node !== undefined) {
+    const n = graph.nodes[el.dataset.node];
+    if (n) text = t('ontology.node.title', { type: n.type, label: n.label, count: on.counts.get(n.id) ?? 0 });
+  } else if (el instanceof SVGElement && el.dataset.edge !== undefined) {
+    const e = graph.edges[el.dataset.edge];
+    if (e) text = `${graph.nodes[e.from]?.label ?? ''} —${e.rel}→ ${graph.nodes[e.to]?.label ?? ''}`; // i18n-ok
+  }
+  if (!text) return;
+  const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+  title.textContent = text;
+  el.append(title);
+}
+
 // Zoom (wheel, buttons), pan (drag), fold (double-click) and search on the canvas. The view box
 // changes in place, without re-rendering, and is kept in the page state for the next render.
 function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
@@ -658,14 +694,28 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
     }
   });
 
+  // The wheel zooms once a frame, by what turned since: zooming at each of a burst of events would
+  // lay the drawing out again for each (U3.07).
+  let turned: { deltaY: number; x: number; y: number } | null = null;
   svg.addEventListener(
     'wheel',
     (e) => {
       e.preventDefault();
-      zoom(Math.exp(-e.deltaY * 0.0015), toDrawing(e.clientX, e.clientY));
+      if (turned) {
+        turned = { deltaY: turned.deltaY + e.deltaY, x: e.clientX, y: e.clientY };
+        return;
+      }
+      turned = { deltaY: e.deltaY, x: e.clientX, y: e.clientY };
+      requestAnimationFrame(() => {
+        const w = turned;
+        turned = null;
+        if (w && !signal.aborted) zoom(Math.exp(-w.deltaY * 0.0015), toDrawing(w.x, w.y));
+      });
     },
     { passive: false, signal: bound() },
   );
+  // A node's or a relationship's tooltip, made when it is first pointed at.
+  svg.addEventListener('pointerover', (e) => titleOnHover(e.target, layoutNow), { signal: bound() });
   onAll(root, '[data-zoom]', 'click', (el) => {
     if (el.dataset.zoom === 'in') zoom(1.5);
     else if (el.dataset.zoom === 'out') zoom(1 / 1.5);
@@ -883,7 +933,9 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
     const types = LEVELS.find(([v]) => v === value)?.[2] ?? [];
     ui.collapsed = levelNodes(ctx.graph, hierarchyOf(ctx.graph), types);
     ui.view = null;
-    ctx.rerender();
+    // Drawn in a task of its own: the select lays the page out once its change event is handled,
+    // which would lay out the whole new drawing within the same task as drawing it (U3.07).
+    setTimeout(() => ctx.rerender());
   });
 
   // Search: matches light up as you type; Enter (or Next) goes to the next one.
