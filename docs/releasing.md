@@ -81,7 +81,8 @@ CI's API job runs it from `main` on every pull request, and from the latest rele
    git tag -a vX.Y.Z -m "Tiles X.Y.Z"
    git push origin vX.Y.Z
    ```
-3. **Automation.** Pushing the tag starts the **Release** workflow.
+   Or, where tags can't be pushed (an agent's session), run the **Release** workflow by hand with the version (`X.Y.Z`) and that commit's full SHA: it makes the tag itself once its checks pass.
+3. **Automation.** Pushing the tag, or running it by hand, starts the **Release** workflow.
    1. It checks four things:
       - the tagged commit is on `main`;
       - CI passed on it;

@@ -1,5 +1,6 @@
-# A release (T6.04, docs/releasing.md). Pushing a version tag v1.2.3:
-# 1. checks the tagged commit is on main and CI passed on it, every file states 1.2.3, and
+# A release (T6.04, docs/releasing.md). Pushing a version tag v1.2.3, or running this workflow
+# by hand with a version and a commit on main (it makes the tag once the checks pass):
+# 1. checks the commit is on main and CI passed on it, every file states 1.2.3, and
 #    CHANGELOG.md has a dated section for it;
 # 2. publishes the images tagged 1.2.3 and 1.2 (the Images workflow);
 # 3. publishes a GitHub release with those notes, the Helm chart (its images pinned to 1.2.3) and
@@ -9,23 +10,39 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: the version to release (1.2.3); the tag v1.2.3 is made
+        type: string
+        required: true
+      commit:
+        description: the commit on main to release (its full SHA)
+        type: string
+        required: true
 
 permissions:
   contents: read
 
 jobs:
   check:
-    name: Check ${{ github.ref_name }}
+    name: Check ${{ inputs.version && format('v{0}', inputs.version) || github.ref_name }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: read
+      contents: write # the tag, when run by hand
       actions: read # CI's runs on the commit
+    env:
+      TAG: ${{ inputs.version && format('v{0}', inputs.version) || github.ref_name }}
+      SHA: ${{ inputs.commit || github.sha }}
     outputs:
       version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      sha: ${{ steps.version.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ env.SHA }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -34,17 +51,31 @@ jobs:
         name: The tag, the files and the changelog agree
         run: |
           version=$(node scripts/version.js check)
-          test "v$version" = "$GITHUB_REF_NAME" || { echo "The tag is $GITHUB_REF_NAME but the files say $version"; exit 1; }
+          test "v$version" = "$TAG" || { echo "The tag is $TAG but the files say $version"; exit 1; }
           node scripts/version.js notes "$version" --released > /dev/null
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          sha=$(git rev-parse --verify "$SHA^{commit}")
+          { echo "version=$version"; echo "tag=$TAG"; echo "sha=$sha"; } >> "$GITHUB_OUTPUT"
       - name: The commit is on main, and CI passed on it
         env:
           GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.version.outputs.sha }}
         run: |
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
-            || { echo "$GITHUB_REF_NAME isn't on main: release only what main has"; exit 1; }
-          passed=$(gh run list --workflow CI --commit "$GITHUB_SHA" --status success --json databaseId --jq length)
-          test "$passed" -gt 0 || { echo "CI hasn't passed on $GITHUB_SHA"; exit 1; }
+          git merge-base --is-ancestor "$SHA" origin/main \
+            || { echo "$TAG isn't on main: release only what main has"; exit 1; }
+          passed=$(gh run list --workflow CI --commit "$SHA" --status success --json databaseId --jq length)
+          test "$passed" -gt 0 || { echo "CI hasn't passed on $SHA"; exit 1; }
+      - name: Make the tag (when run by hand)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SHA: ${{ steps.version.outputs.sha }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
+            echo "$TAG already exists"; exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Tiles ${TAG#v}" "$SHA"
+          git push origin "refs/tags/$TAG"
 
   images:
     needs: check
@@ -53,11 +84,11 @@ jobs:
       packages: write
     uses: ./.github/workflows/images.yml
     with:
-      sha: ${{ github.sha }}
+      sha: ${{ needs.check.outputs.sha }}
       version: ${{ needs.check.outputs.version }}
 
   release:
-    name: Release ${{ github.ref_name }}
+    name: Release ${{ needs.check.outputs.tag }}
     needs: [check, images]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -65,8 +96,11 @@ jobs:
       contents: write # the release and its files
     env:
       VERSION: ${{ needs.check.outputs.version }}
+      TAG: ${{ needs.check.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check.outputs.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -92,5 +126,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           prerelease=$([[ "$VERSION" == *-* ]] && echo --prerelease || true)
-          gh release create "$GITHUB_REF_NAME" --verify-tag --title "Tiles $VERSION" \
+          gh release create "$TAG" --verify-tag --title "Tiles $VERSION" \
             --notes-file "$RUNNER_TEMP/notes.md" $prerelease "$RUNNER_TEMP"/out/*
