@@ -329,7 +329,7 @@ jobs:
             node:22-alpine
             timescale/timescaledb:2.30.2-pg17
             redis:7.4-alpine
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
         with:
           version: v3.19.0
       - name: Lint, render and validate (kubeconform)
