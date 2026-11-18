@@ -259,10 +259,14 @@ jobs:
             docker run --rm -e TRIVY_DB_REPOSITORY -v /var/run/docker.sock:/var/run/docker.sock \
               -v "$RUNNER_TEMP/trivy:/root/.cache" "$TRIVY_IMAGE" "$@"
           }
+          # The database once, from the mirror, else from its source (the mirror has served an
+          # incomplete copy); the scans then use it as it is.
+          trivy image --download-db-only --no-progress \
+            || TRIVY_DB_REPOSITORY=ghcr.io/aquasecurity/trivy-db:2 trivy image --download-db-only --no-progress
           status=0
           for image in tiles-api:scan tiles-edge:scan tiles-web:scan; do
-            trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
-              "$image" || status=1
+            trivy image --skip-db-update --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+              --no-progress "$image" || status=1
           done
           exit $status
       - name: Software bills of materials (CycloneDX)
