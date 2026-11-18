@@ -229,11 +229,11 @@ jobs:
           cache: npm
       - uses: astral-sh/setup-uv@v7
       # Each check runs whatever the others found, so one run reports every problem.
-      - name: npm dependencies (npm audit)
+      - name: npm dependencies (npm audit; scripts/npm-audit-allow.json holds advisories no release fixes yet)
         if: ${{ !cancelled() }}
         run: |
           npm ci --ignore-scripts
-          npm audit --audit-level=high
+          node scripts/npm-audit.js
       - name: Python dependencies that ship, of the API and the edge agent (pip-audit)
         if: ${{ !cancelled() }}
         run: |
