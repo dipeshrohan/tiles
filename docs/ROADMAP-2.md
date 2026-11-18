@@ -146,6 +146,13 @@ What v1.0 leaves in place, and what this plan builds on:
 | Recommendations aren't trusted | Start with suggestions shown beside the warning, not pushed; record outcomes from the first one |
 | Attribution: is the extra return Tiles' or the plant's own work? | Per-machine ROI with the same baseline, and machines without new models as a comparison |
 
+Reviewed 2026-11-18, with the first plan's risks ([ROADMAP.md](ROADMAP.md#risks-and-mitigations)). The software for each mitigation is built; none is tried on the partner's line yet:
+
+- **Thin data for new failure modes:** open. The three were chosen (T8.01, [failure modes](failure-modes.md)) and backtested on the die-casting sample plant's year, where they have 11, 4 and 6 stops on Line 2; the partner's history may have fewer.
+- **CMMS integration slow to approve:** open, as planned. Work orders go out as CSV (T9.02); which CMMS the partner runs is still an open question below.
+- **Recommendations not trusted:** open. Recommendations are shown on the machine's page, approved by someone other than their proposer, never written to a PLC (T11.02, T11.04), and their outcomes recorded (T11.03); none has been applied on a real line.
+- **Attribution:** open. The ROI report breaks the avoided cost down per machine and per model (T12.01); the comparison with machines without new models needs the pilot's data.
+
 ## Decisions and open questions
 
 Decided in review (October 2026):
