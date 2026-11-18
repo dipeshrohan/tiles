@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -39,7 +39,7 @@ jobs:
         node: [22, 24]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -52,7 +52,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -66,7 +66,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -83,7 +83,7 @@ jobs:
     # The Playwright container: the browser and fonts the baselines were made with (npm run
     # test:visual uses the same image). Keep its tag equal to package.json's playwright version.
     container:
-      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
     env:
       HOME: /root
@@ -125,7 +125,7 @@ jobs:
       TILES_TEST_DATABASE_URL: postgresql://tiles:tiles-ci@localhost:5432/tiles
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
@@ -199,7 +199,7 @@ jobs:
       TILES_TEST_DATABASE_URL: postgresql://tiles:tiles-ci@localhost:5432/tiles
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
@@ -223,11 +223,11 @@ jobs:
           images: >-
             python:3.13-slim
             node:22-alpine
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       # Each check runs whatever the others found, so one run reports every problem.
       - name: npm dependencies (npm audit)
         if: ${{ !cancelled() }}
@@ -297,7 +297,7 @@ jobs:
         with:
           images: >-
             timescale/timescaledb:2.30.2-pg17
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
@@ -374,7 +374,10 @@ jobs:
           # The chart's other images (the database, Redis), fetched through the mirror at the start
           # of the job: kind's nodes would pull them from Docker Hub themselves.
           for image in $(helm template t "$CHART" --kube-version 1.33.0 $VALUES | awk '$1 == "image:" { gsub(/"/, "", $2); print $2 }' | sort -u | grep -v '^tiles-'); do
-            kind load docker-image "$image" --name tiles
+            # Saved for this runner's platform: a multi-platform image from the containerd store
+            # names content it never pulled, which kind load docker-image can't find.
+            docker save --platform linux/amd64 "$image" -o "$RUNNER_TEMP/image.tar"
+            kind load image-archive "$RUNNER_TEMP/image.tar" --name tiles
           done
       - name: Install
         run: |
@@ -484,7 +487,7 @@ jobs:
       TILES_COPILOT_MODEL: ${{ vars.TILES_COPILOT_MODEL }}
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
@@ -582,7 +585,10 @@ jobs:
           kind load docker-image tiles-api:ci tiles-web:ci --name tiles-install
           # The chart's other images (the database, Redis), fetched through the mirror at the start.
           for image in $(helm template t deploy/helm/tiles --kube-version 1.33.0 --set oidc.issuer=https://idp.example.com | awk '$1 == "image:" { gsub(/"/, "", $2); print $2 }' | sort -u | grep -v '/tiles-'); do
-            kind load docker-image "$image" --name tiles-install
+            # Saved for this runner's platform: a multi-platform image from the containerd store
+            # names content it never pulled, which kind load docker-image can't find.
+            docker save --platform linux/amd64 "$image" -o "$RUNNER_TEMP/image.tar"
+            kind load image-archive "$RUNNER_TEMP/image.tar" --name tiles-install
           done
       - name: Install with the customer-hosted Terraform, as the guide does
         working-directory: deploy/terraform/environments/customer-hosted
