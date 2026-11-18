@@ -418,7 +418,7 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
 - [x] `T12.01` [#353](https://github.com/dipeshrohan/tiles/issues/353) **ROI report v2** · BE+FE · 3d
   *Done when:* the ROI report breaks the avoided cost down per machine and per model, with the same digest method.
 - [ ] `T12.02` [#354](https://github.com/dipeshrohan/tiles/issues/354) **Partner sign-off on three times the return** · PM+TL · 1d · T12.01
-  *Done when:* the partner signs the report.
+  *Done when:* the partner signs the report. The pack for the meeting: [pilot/sign-off.md](pilot/sign-off.md)
 - [ ] `T12.03` [#355](https://github.com/dipeshrohan/tiles/issues/355) **Release v1.1** · TL · 1d
   *Done when:* v1.1 is tagged and deployed on the pilot.
 

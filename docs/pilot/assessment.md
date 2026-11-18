@@ -7,7 +7,9 @@ problem statement and baseline metrics.
 It is written for the people who run it: the product lead (PM) and the tech lead (TL), with the
 on-site engineer (FDE) once named. Everything it collects is something Tiles needs later. The data
 sources become edge-agent connectors or imports. The events become the baseline that the ROI report
-(T6.01) compares against. The security answers prepare the IT/OT review (T3.15).
+(T6.01) compares against. The security answers prepare the IT/OT review (T3.15). At the end of
+the pilot, the [sign-off pack](sign-off.md) (T6.02, T12.02) takes the ROI report to the partner's
+sponsor for signing.
 
 ## Contents
 
