@@ -204,7 +204,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T6.10` [#102](https://github.com/dipeshrohan/tiles/issues/102) ◇ **App Studio v0:** templates (e.g. wear check, SPC limit) configurable without core code changes · BE+FE · 6d · T3.13
 
 ### Plan ahead
-- [ ] `T6.11` [#103](https://github.com/dipeshrohan/tiles/issues/103) **Retrospective** and roadmap for the next 6 months: second line or site, cross-site benchmarking, new physics models · PM+TL · 1d · T6.09
+- [ ] `T6.11` [#103](https://github.com/dipeshrohan/tiles/issues/103) **Retrospective** and roadmap for the next 6 months: second line or site, cross-site benchmarking, new physics models · PM+TL · 1d · T6.09 · The [retrospective](retrospective-2026.md) and the next plan, in draft: [ROADMAP-3.md](ROADMAP-3.md)
 
 **Month 6 exit check:** v1.0 tagged, ROI report signed off, production deployment quoted.
 

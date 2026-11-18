@@ -156,3 +156,5 @@ Decided in review (October 2026):
 Open, for the partner:
 
 - Which CMMS do they run, and will their IT allow an API connection for work orders (T9.02)? Until then, T9.02 starts with CSV export.
+
+Next: [ROADMAP-3](ROADMAP-3.md), draft (months 13 to 18), with [the retrospective](retrospective-2026.md) behind it.
