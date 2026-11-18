@@ -15,7 +15,7 @@ What comes after 1.0.0.
 
 ### Security
 
-- **Dependencies:** pypdf 6.21.4 and certifi 2026.10.23 for their advisories, with the month's other minor and patch updates of the API, the edge agent and the build tools.
+- **Dependencies:** pypdf 6.21.4, certifi 2026.10.23 (the API and the edge agent) and uv 0.13.7 in the images, for their advisories, with the month's other minor and patch updates of the API, the edge agent and the build tools.
 
 ## [1.0.0] - 2026-10-18
 

@@ -13,7 +13,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # uv from PyPI (pinned), as in the API image; then pip goes, unused at run time.
-RUN pip install --no-cache-dir uv==0.11.32 && pip uninstall -y pip
+RUN pip install --no-cache-dir uv==0.13.7 && pip uninstall -y pip
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
