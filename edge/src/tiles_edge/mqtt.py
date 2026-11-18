@@ -253,7 +253,7 @@ class MqttConnector:
 
     def _on_message(self, client: paho.Client, userdata: Any, message: paho.MQTTMessage) -> None:
         try:
-            samples = self.read(message.topic, message.payload)
+            samples = self.read(message.topic, bytes(message.payload))  # paho 2.2: bytes or bytearray
         except Exception as e:  # a bad payload never stops the connector
             with self._lock:
                 self.unreadable += 1
