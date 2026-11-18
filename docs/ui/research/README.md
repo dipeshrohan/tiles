@@ -1,6 +1,17 @@
 # Usability studies
 
-The moderated test behind the UI plan's [measures](../../UI-PLAN.md#goals-and-measures): the baseline (U1.01) and the second round (U6.07) run this same script, so their numbers compare. Each round records two files and scores them with `npm run study`; its report goes beside them.
+The moderated test behind the UI plan's [measures](../../UI-PLAN.md#goals-and-measures): the baseline (U1.01) and the second round (U6.07) run this same script, so their numbers compare. Each round records its files and scores them with `npm run study`; its report goes beside them. The [heuristic review of November 2026](../heuristic-review-2026-11.md) is the baseline's other half (U1.01: Nielsen's 10 on every page).
+
+The kit:
+
+| File | For |
+| --- | --- |
+| [setup.md](setup.md) | Getting Tiles into the study's state before each session, with the commands |
+| [facilitator.md](facilitator.md) | The moderator's words and steps, from the welcome to the debrief |
+| [cards.md](cards.md) | Each task: its card, where it starts, when it succeeds, its time limit, the errors to count and the expected path |
+| [consent.md](consent.md) | The consent and recording form, one per participant |
+| [template/](template/) | The scoring sheet: `tasks.csv`, `sus.csv` and `participants.csv` |
+| [report-template.md](report-template.md) | The round's report |
 
 ## Contents
 
@@ -31,14 +42,15 @@ Copy [template/](template/) to the round's folder, and [report-template.md](repo
 
 ## Setting up
 
-- Tiles with the API, signed in as a fresh user for the participant's role, on a study site holding the copilot evaluation's plant (`load` in `api/src/tiles_api/evaluation/plant.py`: Line 2's die-casting cells DC-01 and DC-02, three days of readings, two warnings, a start-up SOP), loaded again before each session so every participant, in both rounds, sees the same machines, warnings and signals. The tasks below are written for it; with another plant, change the cards for both rounds.
-- For the first-page task, a user who has never signed in (the welcome shows), and a second site with no plant model for the site task.
+- Tiles with the API, as a fresh user for each participant, on a study site holding the copilot evaluation's plant (`load` in `api/src/tiles_api/evaluation/plant.py`: Line 2's die-casting cells DC-01 and DC-02, three days of readings, two warnings, a start-up SOP), loaded into an empty database before each session so every participant, in both rounds, sees the same machines, warnings and signals. [setup.md](setup.md) has the commands. The tasks below are written for it; with another plant, change the cards for both rounds.
+- For the first-page task, a user who has never used Tiles (the welcome shows). For the site task, the participant made an organisation admin just before it; they create the new site themselves.
+- For the copilot task, the copilot service configured and turned on for the site; without it, leave that task out of the round.
 - A laptop at 1440 × 900 for the desktop tasks; the shop-floor tasks of the field round are tested in [the field round](../../pilot/field-round.md), not here.
 - A stopwatch or the recording's clock. One moderator, and one note-taker where possible.
 
 ## The session
 
-About 60 minutes:
+About 60 minutes; [facilitator.md](facilitator.md) has the words to say at each step:
 
 1. **Welcome (5 min):** consent, and think aloud: "Say what you look for and what you expect as you go."
 2. **First page (5 min):** the [first-page task](#the-tasks), before anything else.
@@ -50,11 +62,11 @@ About 60 minutes:
 
 ## The tasks
 
-Each card says the goal in the participant's words, never the page's name or a button's.
+Each card says the goal in the participant's words, never the page's name or a button's. [cards.md](cards.md) has each one ready to print, with its start, success, time limit and expected path.
 
 | Key | Card | Starts on | Success when |
 | --- | --- | --- | --- |
-| `first-page` | "You've just been given access to Tiles. Get to where you'd start your working day." | The sign-in | Their role chosen in the welcome, and a page with their own work open (timed; target under 2 minutes, U4.06) |
+| `first-page` | "You've just been given access to Tiles. Get to where you'd start your working day." | The sign-in, or the welcome with the development sign-in | Their role chosen in the welcome, and a page with their own work open (timed; target under 2 minutes, U4.06) |
 | `home-now` | "What needs your attention right now?" | Home | They name the open warnings or reviews waiting for them, from Home (U5.01) |
 | `triage` | "A die-casting cell has raised a warning. Decide whether it's real and hand it to the right person." | Home | The warning acknowledged and assigned, with a comment (timed) |
 | `plot` | "Show how DC-01's hydraulic pressure has behaved over the last three days." | Home | A chart of that signal over the three days (timed) |
@@ -82,10 +94,13 @@ The System Usability Scale, in the participant's language, each answered from 1 
 
 ## Recording
 
-Two CSV files in the round's folder, one row per participant and task, and one per participant:
+Three CSV files in the round's folder, the scoring sheet:
 
-- `tasks.csv`: `participant,role,task,outcome,seconds,notes`. `task` is a key from [the tasks](#the-tasks); `seconds` is required for a success and may be left empty otherwise; `notes` is what happened, quoted when it has commas.
-- `sus.csv`: `participant,q1,…,q10`, each answer 1 to 5.
+- `tasks.csv`, one row per participant and task: `participant,role,task,outcome,seconds,errors,notes`. `task` is a key from [the tasks](#the-tasks); `seconds` is required for a success and may be left empty otherwise; `errors` is the number of wrong steps ([what counts](cards.md#task-cards)); `notes` is what happened, quoted when it has commas.
+- `sus.csv`, one row per participant: `participant,q1,…,q10`, each answer 1 to 5.
+- `participants.csv`, one row per participant: `participant,role,session_date,new_to_tiles,in_baseline,welcome_role,consent_screen,consent_voice,consent_quotes,consent_clips,notes`, for the report's participants table. No names: the code only.
+
+`npm run study` reads `tasks.csv` and `sus.csv`; it doesn't score `errors`, which go into the problem list.
 
 Problems seen go in the report's problem list, each with how many participants hit it and how badly (blocks the task, slows it, annoys), and the task in [the UI plan](../../UI-PLAN.md) that fixes it.
 
