@@ -917,11 +917,16 @@ test("what's new: a dot on the help button after an update, the changelog's top 
   const news = page.locator('dialog.sheet[open]:has(.whats-new)');
   await news.waitFor();
   assert.match(await news.locator('.sheet-head h2').innerText(), /^Version \d+\.\d+\.\d+/);
-  assert.ok((await news.locator('.whats-new-link').count()) >= 10);
+  assert.ok((await news.locator('.whats-new li').count()) >= 1);
   // Read: the dot goes, and stays gone.
   assert.equal(await page.locator('#help-open.has-news').count(), 0);
-  await news.locator('.whats-new-link:has-text("Open Shopfloor")').first().click();
-  await page.waitForFunction(() => location.hash === '#/shopfloor');
+  // An entry whose task is a page opens it (1.0.0's do; a new version's may not name one yet).
+  const link = news.locator('.whats-new-link').first();
+  if (await link.count()) {
+    const href = await link.getAttribute('href');
+    await link.click();
+    await page.waitForFunction((h) => location.hash === h, href);
+  } else await page.keyboard.press('Escape');
   await page.waitForSelector('dialog[open]', { state: 'detached' });
   await page.reload();
   await page.waitForSelector('#view h1');
