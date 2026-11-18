@@ -212,6 +212,9 @@ const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 test('a chart with several lines prints each with its own dash, and its legend says which (U6.05)', async () => {
   const page = await browser.newPage({ reducedMotion: 'reduce' });
+  // Printing from the start: Chromium 156 doesn't always restyle an SVG drawn on screen when the
+  // media changes to print after it, though paper would get it fresh.
+  await page.emulateMedia({ media: 'print' });
   await page.goto(`${httpBase}#/physics`);
   await page.waitForSelector('#view svg[data-chart] [data-part="s1"]');
   await printMedia(page);

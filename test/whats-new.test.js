@@ -69,8 +69,12 @@ test('the real changelog: its top section is this version (or, while it is empty
   const versions = [...text.matchAll(/^## \[([^\]]+)\]/gm)].map((m) => m[1]);
   assert.equal(versions[0], VERSION);
   assert.ok(w.version === VERSION || w.version === versions[1], w.version);
-  assert.ok((w.html.match(/whats-new-link/g) ?? []).length >= 10);
+  // 1.0.0's entries name their tasks, so they link to their pages; and every link shown lands on one.
+  const first = whatsNew(text.slice(text.indexOf('## [1.0.0]')));
+  assert.ok((first.html.match(/whats-new-link/g) ?? []).length >= 10);
   const pages = pageIds();
+  for (const [, route] of w.html.matchAll(/class="whats-new-link" href="#\/([^"]+)"/g))
+    assert.ok(pages.includes(route.split(/[/?]/)[0]), route);
   for (const [task, [route]] of Object.entries(TASK_PAGES))
     assert.ok(pages.includes(route.split('/')[0]), `${task}: no page ${route}`);
 });

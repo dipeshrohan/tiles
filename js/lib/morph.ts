@@ -87,6 +87,7 @@ const alike = (a: Node, b: Node): boolean =>
       a.classList.item(0) === b.classList.item(0)));
 
 function children(parent: Node, next: Node): void {
+  if (!parent.firstChild && !next.firstChild) return; // an empty element (most of a drawing): nothing to match
   const wanted = new Set<string>();
   for (let n = next.firstChild; n; n = n.nextSibling) {
     const k = keyOf(n);
@@ -247,11 +248,16 @@ function attributes(old: Element, next: Element): void {
   const keepOpen =
     (was !== undefined && was !== (old as HTMLDetailsElement).open && was === next.hasAttribute('open')) ||
     old instanceof HTMLDialogElement;
-  for (const { name } of [...old.attributes]) {
+  // Read by index, without copying the lists: most elements of a page drawn again are as they were.
+  const before = old.attributes;
+  const after = next.attributes;
+  for (let i = before.length - 1; i >= 0; i--) {
+    const name = (before[i] as Attr).name;
     if (keepOpen && name === 'open') continue;
     if (!next.hasAttribute(name)) old.removeAttribute(name);
   }
-  for (const { name, value } of [...next.attributes]) {
+  for (let i = 0; i < after.length; i++) {
+    const { name, value } = after[i] as Attr;
     if (keepOpen && name === 'open') continue;
     if (old.getAttribute(name) !== value) old.setAttribute(name, value);
   }

@@ -174,8 +174,6 @@ let centerAfterRender: string | null = null; // a search result to bring into vi
 let focusAfterRender = false; // focus selection, once the folds hiding some of it are opened
 let canvasTall = ''; // the canvas's height, last worked out
 
-const short = (s: string, n = 19): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
-
 function describeOp(op: Op, graph: Graph): string {
   const label = (id: string) => graph.nodes[id]?.label ?? id;
   switch (op.kind) {
@@ -314,7 +312,8 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
         .join(' ');
       // No white space between the tags and no <title>s (added on pointing, `titleOnHover`): a
       // large plant draws a third fewer nodes into the page each time it folds (U3.07).
-      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${nodeName(n, fold)}"><rect width="${BOX.w}" height="${BOX.h}" rx="6"/><rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/><text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
+      // The whole label is drawn, clipped to the box, so its words are those of the node's name.
+      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${nodeName(n, fold)}"><rect width="${BOX.w}" height="${BOX.h}" rx="6"/><rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/><text x="13" y="18" clip-path="url(#${fold ? 'node-clip-fold' : 'node-clip'})">${esc(n.label)}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
         editor && id === ui.selected && picked.size === 1
           ? `<circle class="handle" data-handle cx="${BOX.w}" cy="${BOX.h / 2}" r="6"><title>${esc(t('ontology.node.handle'))}</title></circle>`
           : ''
@@ -368,7 +367,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
             </span>
           </div>
           <div class="canvas-wrap" data-tour="onto-canvas">
-            <svg data-canvas data-morph="replace" viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
+            <svg data-canvas data-morph="replace" viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet"><defs><clipPath id="node-clip" clipPathUnits="userSpaceOnUse"><rect x="8" width="${BOX.w - 14}" height="${BOX.h}"/></clipPath><clipPath id="node-clip-fold" clipPathUnits="userSpaceOnUse"><rect x="8" width="${BOX.w - 38}" height="${BOX.h}"/></clipPath></defs>${edges}${nodes}</svg>
             <svg class="minimap" data-minimap data-morph="replace" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="mini-nodes" d="${minimapPath(pos)}"/><rect class="mini-view" data-mini-view x="${view.x}" y="${view.y}" width="${view.w}" height="${view.h}"/></svg>
           </div>
           <div class="statusbar">

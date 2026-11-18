@@ -11,7 +11,7 @@ RUN apt-get update \
 
 # uv from PyPI (pinned) rather than a container registry. pip then goes: the app runs from uv's
 # environment, and an unused pip is only something more to patch.
-RUN pip install --no-cache-dir uv==0.11.32 && pip uninstall -y pip
+RUN pip install --no-cache-dir uv==0.13.7 && pip uninstall -y pip
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \

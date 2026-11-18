@@ -47,7 +47,7 @@ CI runs lint and typecheck, unit tests on Node 22 and 24, the browser tests, the
 ### Security scanning (T5.08)
 
 The CI's **Dependency and container scanning** job fails a pull request in three cases:
-- `npm audit` finds a high or critical advisory in the npm dependencies;
+- `npm audit` finds a high or critical advisory in the npm dependencies (`scripts/npm-audit.js`), unless no release fixes it yet and it is in `scripts/npm-audit-allow.json` with its reason and a date to look again; an entry past its date, or one no longer reported, fails too;
 - `pip-audit` finds any known vulnerability in the API's or the edge agent's locked dependencies;
 - Trivy finds a high or critical vulnerability that has a fix in the API or edge agent image.
 
@@ -56,7 +56,7 @@ The job also writes software bills of materials in CycloneDX: the source tree an
 To run the same checks locally (as CI runs them):
 
 ```
-npm audit --audit-level=high
+node scripts/npm-audit.js
 for p in api edge; do (cd $p && uv export --locked --all-extras --no-dev --no-hashes --no-emit-project --format requirements-txt > /tmp/$p.txt) && uvx pip-audit==2.10.1 --strict --no-deps --disable-pip -r /tmp/$p.txt; done
 docker build --pull --no-cache -t tiles-api:scan api && docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.56.2 image --db-repository mirror.gcr.io/aquasec/trivy-db:2 --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed tiles-api:scan
 ```

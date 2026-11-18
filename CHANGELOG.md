@@ -6,7 +6,16 @@ The top section is the next version, marked **Unreleased** until it is released.
 
 ## [1.1.0] - Unreleased
 
-What comes after 1.0.0. Nothing yet.
+What comes after 1.0.0.
+
+### Fixed
+
+- **Screen readers:** an ontology node's name now holds the words shown on it (a long label is clipped at the box's edge rather than cut short with "…"), and Home's Customise buttons are named "Move up: <card>" and "Move down: <card>", their visible words first.
+- **The copilot:** a conversation deleted since the page was last open is no longer asked for when it opens again.
+
+### Security
+
+- **Dependencies:** pypdf 6.21.4, certifi 2026.10.23 (the API and the edge agent) and uv 0.13.7 in the images, for their advisories, with the month's other minor and patch updates of the API, the edge agent and the build tools.
 
 ## [1.0.0] - 2026-10-18
 

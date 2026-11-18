@@ -55,6 +55,9 @@ let focusComposer = false; // once drawn, the box takes the focus (so Enter send
 let rating: { key: string; comment: string } | null = null; // a thumbs-down comment being written
 // An answer that failed (the error isn't stored), shown after the conversation reloads.
 let failure: { key: string; question: string; error: string } | null = null;
+// The conversation open in the tab's last load (U3.05) is opened again only once the list says it is
+// still there: one deleted meanwhile (here or elsewhere) is let go rather than asked for.
+let keptChecked = false;
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const threadKey = (ctx: Context): string => `${siteId(ctx)}|${uiState(ctx).conversation}`;
@@ -320,7 +323,18 @@ async function rateNow(
 function remoteBind(root: HTMLElement, ctx: Context): void {
   const ui = uiState(ctx);
   const site = siteId(ctx);
-  if (ui.conversation && thread?.key !== threadKey(ctx) && !live) void loadThread(ctx, ui.conversation);
+  if (!keptChecked && ui.conversation) {
+    const listed = remote?.site === site ? remote.conversations : null;
+    if (listed) {
+      keptChecked = true;
+      if (!listed.some((c) => c.id === ui.conversation)) {
+        ui.conversation = null;
+        ctx.rerender();
+        return;
+      }
+    }
+  } else keptChecked = true;
+  if (keptChecked && ui.conversation && thread?.key !== threadKey(ctx) && !live) void loadThread(ctx, ui.conversation);
   const logEl = root.querySelector<HTMLElement>('#chat-log');
   if (logEl) toEnd(logEl);
   root.querySelector<HTMLInputElement>('#composer [name=q]')?.addEventListener(
