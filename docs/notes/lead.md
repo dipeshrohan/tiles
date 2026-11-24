@@ -10,13 +10,9 @@ anything.
 | Session | Id | Task | Branch | State |
 | --- | --- | --- | --- | --- |
 | TILES · Lead (product manager) | `session_01UPWFCtJ41TYMJrwEyic6Pe` | coordination, reviews, merges | — | context past 80 % |
-| TILES · UI 1 | `session_01AqW5DEuSPAoxk2PKGSVefJ` | review H-01, H-02: demo pages say what they are; the copilot-off page by role | `review-h01-h02` | draft PR, deep review running |
-| TILES · UI 2 | `session_01AqW5DEaHTxjwb9kmhWwUxQ` | review H-03, H-04: open warnings on an engineer's Home; the Shopfloor places warnings by asset | `review-h03-h04` | draft PR, deep review running |
 
-UI 1 and UI 2 were started on 2026-11-24 before the lead prompt; the user then chose to review
-and merge both PRs (#409, #408). Their findings are in
-[heuristic-review-2026-11.md](../ui/heuristic-review-2026-11.md). They don't merge; the lead
-reviews and merges with the expected head SHA.
+No child session is running. UI 1 and UI 2 (review H-01 to H-04) were merged on 2026-11-24 as
+#409 and #408 after a deep review each, and archived.
 
 One scheduled check-in names the running sessions; re-arm it with the current state each time it
 fires.
@@ -26,7 +22,7 @@ fires.
 Nothing starts without the user's choice. Candidates, each to be put to the user one at a time
 with a recommendation:
 
-- The usability review's other findings (H-05 to H-23).
+- The usability review's other findings (H-05 to H-23); H-01 to H-04 are done (#408, #409).
 - Tracker drift found by the [retrospective](../retrospective-2026.md): #15 and #51 ticked but
   open; T1.02 and CM-1 disagree on branch protection; T6.09's open half is the pilot deploy.
 - [ROADMAP-3](../ROADMAP-3.md) (a draft: 30 tasks, months 13 to 18).
