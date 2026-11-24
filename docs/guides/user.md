@@ -136,7 +136,7 @@ The app hides controls you can't use. If you think you need more rights, ask a s
 **With the Tiles API**, Home is a set of cards, each answering "what needs me now?" with a number and the first few items, each linked to its record. Which cards you start with depends on the work you chose in the welcome (or, until you choose, your site role):
 
 - **Maintenance:** **My open warnings** (assigned to you, not resolved; those still out first) and **Machines out of range** (machines with a signal still out).
-- **Engineers:** **Reviews waiting for me** (change requests you may approve, waiting longest first), **Recent insights** and **Data freshness** (signals with no reading for 15 minutes, or ten of their sample periods).
+- **Engineers:** **Warnings nobody has taken** (open warnings nobody has acknowledged or been assigned; those still out first), **Reviews waiting for me** (change requests you may approve, waiting longest first), **Recent insights** and **Data freshness** (signals with no reading for 15 minutes, or ten of their sample periods).
 - **Shift leads:** **This shift** (warnings raised since 06:00, 14:00 or 22:00, and how many nobody has acknowledged), **Machines out of range** and **My open warnings**.
 - **Admins:** **Edge agents** (offline or never called in), **Data quality** (signals whose last check found problems) and **Reviews waiting for me**.
 
@@ -521,12 +521,13 @@ The Shopfloor page is the warnings page for a tablet on the line: large type, re
 
 - **The headline** says what needs someone: how many warnings are open, how many signals are still out, and how many nobody has taken. Green means all clear.
 - **The warnings come first, worst first:** signals still out, then warnings nobody has taken, then the rest; newest first within each. Each card names the machine, with its line above it, and the signal.
-  - Tiles finds the machine from the ontology: the signal's `Signal` node (linked on the Signals page, or carrying the tag in its `tag` property), the PLC that emits it, and the machine that PLC controls. A warning Tiles can't place is named by its signal's tag.
+  - Tiles finds the machine from the ontology: the signal's `Signal` node (linked on the Signals page, or carrying the tag in its `tag` property), the PLC that emits it, and the machine that PLC controls. When the signal has no `Signal` node, the machine is the one its detector watches: the detector's asset (else the signal's) matched to a `Machine` node's `asset` property, else to its name, exactly as written.
+  - A warning Tiles still can't place is titled by its signal's tag and marked **Not on a machine**.
 - **Engineers and admins** act on a warning with the buttons on its card:
   - **I'm on it** acknowledges a new warning and assigns it to you. **Take it** assigns a warning someone else has to you.
   - **Resolve** asks what it was: **True alarm**, **False alarm** or **Unknown**. **Back** closes the question.
   - **Details** opens the warning on the Warnings page, with its chart, activity and comments.
-- **Machines** below show every machine of the site, coloured by its worst open warning: red for a signal out or a warning nobody has taken, amber while someone handles it, green when it has none.
+- **Machines** below show every machine of the site, coloured by its worst open warning: red for a signal out or a warning nobody has taken, amber while someone handles it, green when it has none. Open warnings Tiles can't place have a tile of their own, **Not on a machine**, sorted with the machines by its worst warning.
 - The page refreshes itself every 30 seconds. **Refresh** fetches now.
 - **Full view** hides the menu and the top bar, for a tablet mounted on a machine. **Show navigation** brings them back.
 - **High contrast** makes every grey the page's darkest colour and thickens the borders, for direct light. The tablet keeps the choice. The page also follows the system's "increase contrast" setting.
@@ -541,7 +542,7 @@ Viewers see the same page without the buttons. In local mode, the page shows the
 
 The Plant page walks the site the way it is laid out: site, workcenters, lines and cells, machines. It is built from the ontology's hierarchy (the `contains` relationships between them), so it changes when the ontology does.
 
-- **Places.** Each place shows the places in it as cards, with how many machines they hold and their open warnings: red when a signal is out or nobody has taken a warning, amber while someone handles it, green when there are none. Its open warnings are listed below the cards.
+- **Places.** Each place shows the places in it as cards, with how many machines they hold and their open warnings: red when a signal is out or nobody has taken a warning, amber while someone handles it, green when there are none. Its open warnings are listed below the cards. Warnings are placed on machines as on the Shopfloor; those Tiles can't place are listed at the top of the plant, under **Open warnings not on a machine**.
 - **The trail** under the title shows where you are; each step is a link back up. With one site, the page opens on it.
 - **A machine** shows:
   - its open warnings, with **Details** to open each on the Warnings page;

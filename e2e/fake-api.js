@@ -2508,7 +2508,8 @@ export function createFakeApi({
     async function warningRoute(url, path, user, role, memberOf) {
       const name = (who) => (who ? who.split('@')[0] : null);
       const shown = (w) => ({
-        ...Object.fromEntries(Object.entries(w).filter(([k]) => k !== 'activity')),
+        ...Object.fromEntries(Object.entries(w).filter(([k]) => k !== 'activity' && k !== 'detector_asset')),
+        asset: w.detector_asset ?? signals.find((x) => x.id === w.signal_id)?.asset ?? null,
         status: w.resolved_at ? 'resolved' : w.acknowledged_at ? 'acknowledged' : 'raised',
         acknowledged_by: name(w.acknowledged_by),
         assignee: name(w.assignee_id),
@@ -2857,6 +2858,9 @@ export function createFakeApi({
         detector: `${tag.replace(/[^a-z0-9]+/g, '-')}-detector`,
         signal_id: signals.find((x) => x.tag === tag).id,
         signal_tag: tag,
+        // The asset of the detector that raised it (a test sets it to place the warning by its
+        // machine); listed as `asset`, else the signal's, as the API's COALESCE(d.asset, g.asset).
+        detector_asset: null,
         side: 'above',
         ended_at: null,
         acknowledged_at: null,
