@@ -30,8 +30,6 @@ with a recommendation:
 - Tracker drift found by the [retrospective](../retrospective-2026.md): #15 and #51 ticked but
   open; T1.02 and CM-1 disagree on branch protection; T6.09's open half is the pilot deploy.
 - [ROADMAP-3](../ROADMAP-3.md) (a draft: 30 tasks, months 13 to 18).
-- The picomatch allowance ends 2026-12-15 (`scripts/npm-audit-allow.json`); a check-in on
-  2026-12-14 looks for a fixed release.
 - #169, TypeScript 7: waits for typescript-eslint to support it.
 
 ## How the lead works
