@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { workingGraph } from '../js/lib/ontology.ts';
 import { seedOntology } from '../js/lib/data.ts';
 import {
+  floorBoard,
   freshness,
   floorOrder,
   headline,
@@ -143,6 +144,37 @@ test("warnings no machine is found for are their own group, never left out; the 
   // Placed: the machine is the title and the tag its subtitle; unplaced: the tag is the title alone.
   assert.equal(subtitleOf(items[0]), 'dc02.velocity');
   assert.equal(subtitleOf(items[1]), null);
+});
+
+test('the board puts the not-on-a-machine tile by its worst state, not always first (H-04)', () => {
+  const links = new Map([['dc02.velocity', 'sig-vel']]);
+  const place = (over) => placeWarning(graph, warning(over), links, '');
+  const back = '2026-10-09T10:10:00Z';
+  const ids = (tiles) => tiles.slice(0, 3).map((tile) => [tile.id, tile.state]);
+  // Every unplaced warning taken (amber): after the machine with a signal still out (red).
+  const taken = floorBoard(graph, [
+    place({ id: 'on' }),
+    place({ id: 'lost', signal_tag: 'x.y', status: 'acknowledged', ended_at: back }),
+  ]);
+  assert.deepEqual(ids(taken), [
+    ['m-dc02', 'out'],
+    [null, 'taken'],
+    [taken[2].id, 'ok'],
+  ]);
+  assert.equal(taken.length, Object.values(graph.nodes).filter((n) => n.type === 'Machine').length + 1);
+  // Still out: first, ahead of a machine in the same state.
+  const out = floorBoard(graph, [place({ id: 'on' }), place({ id: 'lost', signal_tag: 'x.y' })]);
+  assert.deepEqual(ids(out).slice(0, 2), [
+    [null, 'out'],
+    ['m-dc02', 'out'],
+  ]);
+  // None unplaced: the machines alone.
+  assert.ok(floorBoard(graph, [place({ id: 'on' })]).every((tile) => tile.id !== null));
+  // No machines: the tile alone.
+  assert.deepEqual(
+    floorBoard({ nodes: {}, edges: {} }, [place({ id: 'lost', signal_tag: 'x.y' })]).map((t) => t.id),
+    [null],
+  );
 });
 
 test("a warning's state: out while its signal is, then new until someone takes it", () => {

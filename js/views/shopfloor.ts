@@ -1,15 +1,7 @@
 import { announce, bound, esc, onAll, onNavigate, routeOf } from '../lib/dom.ts';
 import type { WarningOutcome } from '../lib/api.ts';
 import { OUTCOMES, when } from '../lib/warnings.ts';
-import {
-  CONTRAST_KEY,
-  freshness,
-  headline,
-  machineBoard,
-  subtitleOf,
-  unplaced,
-  type FloorItem,
-} from '../lib/shopfloor.ts';
+import { CONTRAST_KEY, freshness, headline, floorBoard, subtitleOf, type FloorItem } from '../lib/shopfloor.ts';
 import { load, save } from '../lib/store.ts';
 import type { Graph } from '../lib/types.ts';
 import {
@@ -185,33 +177,31 @@ function card(ctx: Context, item: FloorItem, ui: Ui, now: number): string {
 }
 
 function board(graph: Graph, list: FloorItem[]): string {
-  const tiles = machineBoard(graph, list);
-  // Open warnings no machine is found for: their own tile, first (they are never OK), so the board
-  // doesn't read as all clear while they are open.
-  const lost = unplaced(list);
-  const lostTile = lost.warnings.length
-    ? (() => {
-        const [cls, label] = STATE_LABEL[lost.state];
-        return `<div class="floor-tile s-${lost.state}" data-floor-unplaced>
+  // Every machine, and the open warnings no machine is found for as a tile of their own, so the
+  // board doesn't read as all clear while they are open; worst first.
+  const tiles = floorBoard(graph, list);
+  const none = tiles.every((tile) => tile.id === null);
+  const html = tiles.length
+    ? `<div class="floor-board">${tiles
+        .map((tile) => {
+          const [cls, label] = STATE_LABEL[tile.state];
+          const count = esc(t('shopfloor.warnings', { count: tile.warnings }));
+          const badge = `<span class="badge ${cls}">${esc(tile.state === 'ok' ? t('floor.state.ok') : label)}</span>`;
+          return tile.id === null
+            ? `<div class="floor-tile s-${tile.state}" data-floor-unplaced>
           <div class="floor-where">${esc(t('shopfloor.unplacedWhere'))}</div>
           <b>${esc(t('shopfloor.unplaced'))}</b>
-          <span><span class="badge ${cls}">${esc(label)}</span> <span class="small">${esc(t('shopfloor.warnings', { count: lost.warnings.length }))}</span></span>
-        </div>`;
-      })()
-    : '';
-  if (!tiles.length)
-    return `${lostTile ? `<div class="floor-board">${lostTile}</div>` : ''}<p class="small soft">${esc(t('shopfloor.noMachines'))}</p>`;
-  return `<div class="floor-board">${lostTile}${tiles
-    .map((tile) => {
-      const [cls, label] = STATE_LABEL[tile.state];
-      const count = t('shopfloor.warnings', { count: tile.warnings });
-      return `<div class="floor-tile s-${tile.state}">
+          <span>${badge} <span class="small">${count}</span></span>
+        </div>`
+            : `<div class="floor-tile s-${tile.state}">
           <div class="floor-where">${esc(tile.path.join(' › '))}</div>
           <b>${esc(tile.label)}</b>
-          <span><span class="badge ${cls}">${esc(tile.state === 'ok' ? t('floor.state.ok') : label)}</span> <span class="small">${esc(count)}</span></span>
+          <span>${badge} <span class="small">${count}</span></span>
         </div>`;
-    })
-    .join('')}</div>`;
+        })
+        .join('')}</div>`
+    : '';
+  return none ? `${html}<p class="small soft">${esc(t('shopfloor.noMachines'))}</p>` : html;
 }
 
 async function take(ctx: Context, id: string): Promise<void> {

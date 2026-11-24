@@ -177,6 +177,19 @@ export function unplaced(items: readonly FloorItem[]): { state: FloorState; warn
   return { state, warnings };
 }
 
+// The Shopfloor's board: every machine (machineBoard), and the open warnings no machine is found
+// for as a tile of their own (`id` null), placed by its worst state like the machines, worst first,
+// ahead of machines in the same state (it needs someone to place them too).
+export type BoardTile = Omit<MachineTile, 'id'> & { id: string | null };
+export function floorBoard(graph: Graph, items: readonly FloorItem[]): BoardTile[] {
+  const tiles: BoardTile[] = machineBoard(graph, items);
+  const lost = unplaced(items);
+  if (!lost.warnings.length) return tiles;
+  const at = tiles.findIndex((tile) => RANK[tile.state] >= RANK[lost.state]);
+  const tile: BoardTile = { id: null, label: '', path: [], state: lost.state, warnings: lost.warnings.length };
+  return at < 0 ? [...tiles, tile] : [...tiles.slice(0, at), tile, ...tiles.slice(at)];
+}
+
 // A card's subtitle: the tag, unless the title already is the tag (a warning on no machine).
 export const subtitleOf = (item: Pick<FloorItem, 'machine' | 'tag'>): string | null =>
   item.machine === item.tag ? null : item.tag;

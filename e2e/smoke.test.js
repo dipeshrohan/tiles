@@ -1901,7 +1901,7 @@ test("home by role: the role's cards answer what needs you now; customised, kept
   fake.addSignal('dc1.friction', { node_id: 'sig-dc1' });
   // Open and nobody has taken it (review H-03); its signal has no node, its detector's asset is DC-01.
   fake.raiseWarning('dc1.pressure', [], {
-    asset: 'DC-01',
+    detector_asset: 'DC-01',
     started_at: at(10 * 60_000),
     last_at: at(60_000),
     peak: 3,
@@ -4366,7 +4366,7 @@ test("warnings whose signal has no node are placed by their detector's asset, el
   const at = (m) => new Date(Date.now() - m * 60_000).toISOString();
   const raise = (tag, asset, m) =>
     fake.raiseWarning(tag, [], {
-      asset,
+      detector_asset: asset,
       started_at: at(m),
       last_at: at(m - 1),
       ended_at: at(m - 2),
