@@ -7,6 +7,7 @@ import {
   badge,
   breadcrumbs,
   button,
+  demoNotice,
   card,
   chip,
   emptyState,
@@ -341,4 +342,12 @@ test('the wait counts from when loading began, not from each render', async () =
   assert.ok(again <= first - 100, `${first} then ${again}`);
   await new Promise((r) => setTimeout(r, 1100)); // loading stopped, then something new loads
   assert.equal(waitOf(skeleton.card()), 300);
+});
+
+test('demoNotice (review H-01): a note with a Demo data badge, its words escaped', () => {
+  const html = demoNotice('Shots <b>made up</b>');
+  assert.match(html, /role="note"/);
+  assert.match(html, /data-demo-notice/);
+  assert.match(html, /<span class="badge warn">Demo data<\/span>/);
+  assert.match(html, /Shots &lt;b&gt;made up&lt;\/b&gt;/);
 });

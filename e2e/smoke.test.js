@@ -6401,9 +6401,78 @@ test('the copilot: with the service off, the built-in skills answer and say so',
   t.after(() => fake.close());
   const a = await openAs(t, apiUrl, null, 'chat');
   await a.page.waitForSelector('[data-copilot-off]');
+  // Not an admin (review H-02): who can turn it on, without the settings' names.
+  const said = await a.page.locator('[data-copilot-off]').innerText();
+  // The service is the installation's: a site admin can't set it up, so the words don't say they can.
+  assert.match(
+    said,
+    /The copilot isn’t set up for this Tiles installation yet\. Whoever runs Tiles for your organisation can set it up\./,
+  );
+  assert.doesNotMatch(said, /site admin/);
+  assert.doesNotMatch(said, /TILES_/);
+  // The built-in skills' questions say they are about the demo plant.
+  assert.equal(
+    await a.page.locator('[data-demo-questions]').innerText(),
+    'Questions the built-in skills answer on the demo plant',
+  );
   await a.page.click('.chip >> nth=0');
   await a.page.waitForSelector('.msg.bot');
   assert.deepEqual(a.errors, []);
+});
+
+test('the copilot: a status that fails to load says so, not "not set up", and can be checked again', async (t) => {
+  const fake = createFakeApi({ copilot: true });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.failNext('GET', /\/copilot$/, 503, 'The service is restarting');
+  const a = await openAs(t, apiUrl, null, 'chat');
+  const said = a.page.locator('[data-copilot-unchecked]');
+  await said.waitFor();
+  assert.match(await said.innerText(), /couldn’t check whether the copilot is on/);
+  assert.equal(await a.page.locator('[data-copilot-off], [data-copilot-site-off]').count(), 0);
+  await a.page.click('[data-copilot-retry]');
+  await a.page.waitForSelector('[data-new-conversation]'); // on, the second time
+  assert.equal(await said.count(), 0);
+  assert.deepEqual(
+    a.errors.filter((e) => !/status of 503/.test(e)),
+    [],
+  );
+});
+
+test('the copilot with the service off: an admin is told what the API needs (review H-02)', async (t) => {
+  const fake = createFakeApi({ roles: { 'admin@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const a = await openAs(t, apiUrl, 'admin@example.com', 'chat');
+  await a.page.waitForSelector('[data-copilot-off]');
+  const said = await a.page.locator('[data-copilot-off]').innerText();
+  assert.match(said, /TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL/);
+  assert.match(said, /built-in skills answer on the demo plant/);
+  assert.deepEqual(a.errors, []);
+});
+
+test('the demo pages say so with the API, and the menu has no demo count (review H-01)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const a = await openAs(t, apiUrl, null, 'physics');
+  await a.page.waitForSelector('#view h1');
+  const notice = a.page.locator('#view [data-demo-notice]');
+  await notice.waitFor();
+  assert.match(await notice.innerText(), /Demo data[\s\S]*built-in demo plant .*not this site’s data/);
+  assert.equal(await a.page.locator('.nav-link[href="#/physics"] .badge').count(), 0);
+  await a.page.evaluate(() => (location.hash = '#/quality'));
+  await a.page.waitForSelector('#view h1:has-text("cutter batches")');
+  assert.match(await a.page.locator('#view [data-demo-notice]').innerText(), /built-in demo plant/);
+  assert.deepEqual(a.errors, []);
+
+  // Without the API: no notice, and the demo's count stays.
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/physics`);
+  await page.waitForSelector('.nav-link[href="#/physics"] .badge');
+  assert.equal(await page.locator('#view [data-demo-notice]').count(), 0);
+  assert.deepEqual(errors, []);
 });
 
 test('the copilot per site: off until an admin turns it on in Settings, knowing what it sends', async (t) => {
@@ -6416,11 +6485,17 @@ test('the copilot per site: off until an admin turns it on in Settings, knowing 
   t.after(() => fake.close());
   const e = await openAs(t, apiUrl, null, 'chat');
   await e.page.waitForSelector('[data-copilot-site-off]');
+  // An engineer is told who can turn it on, not sent to Settings (review H-02).
+  assert.match(await e.page.locator('[data-copilot-site-off]').innerText(), /A site admin can turn it on/);
+  assert.equal(await e.page.locator('[data-copilot-site-off] a').count(), 0);
   await e.page.click('.chip >> nth=0'); // the built-in skills still answer
   await e.page.waitForSelector('.msg.bot');
   assert.deepEqual(fake.copilotQuestions, []); // nothing reached the copilot service
 
-  const a = await openAs(t, apiUrl, 'admin@example.com', 'settings');
+  // An admin is sent to Settings, where they turn it on.
+  const a = await openAs(t, apiUrl, 'admin@example.com', 'chat');
+  await a.page.waitForSelector('[data-copilot-site-off] a[href="#/settings"]');
+  await a.page.click('[data-copilot-site-off] a[href="#/settings"]');
   const box = a.page.locator('[data-copilot-enabled]');
   await a.page.waitForSelector('[data-copilot-enabled]:not([disabled])');
   assert.equal(await box.isChecked(), false);
