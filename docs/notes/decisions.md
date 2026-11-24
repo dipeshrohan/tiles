@@ -6,6 +6,9 @@ wrong entry the same day and say so.
 
 ## 2026-11-24
 
+- **UI 1 and UI 2's draft PRs** (#408: engineers' Home warnings and Shopfloor placement; #409:
+  demo pages labelled and the copilot-off wording; review H-01 to H-04). Chosen: _review and
+  merge both_. Turned down: only #408; close both.
 - **Lead prompt adopted.** The user pasted the lead (product manager) prompt; its rules are in
   [lead.md](lead.md#how-the-lead-works). Among them: creating issues never starts work, the lead
   asks which to start; one question at a time, with a recommendation; times in the user's time
@@ -60,7 +63,5 @@ Recorded from the conversation's summary, not from the user's words verbatim:
   ([sign-off.md](../pilot/sign-off.md)). Lead's recommendation: the ratio when v1.0 is above zero,
   else a minimum amount agreed with the partner beforehand.
 - Which follow-up issues to create: the usability review's 14, the tracker drift, ROADMAP-3's 30.
-- Whether UI 1 and UI 2 (fixes for review findings H-01 to H-04) go on: the lead started them on
-  2026-11-24 before the lead prompt arrived, without the user choosing that work.
 - The user's time zone.
 - The lead's own context is past 80 %: a fresh lead from these notes, or `/compact`.
