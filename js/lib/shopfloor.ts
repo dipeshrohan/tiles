@@ -3,7 +3,7 @@
 // machines with the worst state of each, and the line that says how things stand.
 
 import type { WarningInfo } from './api.ts';
-import { incoming, outgoing, signalByLabel, signalByTag } from './graph-index.ts';
+import { incoming, machineByAsset, outgoing, signalByLabel, signalByTag } from './graph-index.ts';
 import type { Graph, OntologyNode } from './types.ts';
 import { t } from './i18n.ts';
 import { textOrder } from './format.ts';
@@ -15,7 +15,7 @@ export interface FloorItem {
   id: string;
   tag: string; // the signal, or what the local demo detector watches
   machineId: string | null; // the Machine node, when the ontology places it
-  machine: string; // its label, or the tag when nothing places it
+  machine: string; // its label, or the tag when nothing places it (then `machineId` is null)
   path: string[]; // the hierarchy above the machine, top first, without the site: e.g. Workcenter, Line
   state: FloorState;
   status: WarningInfo['status'];
@@ -90,6 +90,20 @@ export function stateOf(w: Pick<WarningInfo, 'status' | 'ended_at'>): FloorState
 
 const RANK: Record<FloorState, number> = { out: 0, new: 1, taken: 2, ok: 3 };
 
+// The machine a warning is on: its signal's (through its Signal node), else the one its detector
+// watches (the asset the API gives with it, matched to a Machine node's `asset` property, else its
+// label, as coverage and Warning performance match them). Null when neither places it.
+export function machineOfWarning(
+  graph: Graph,
+  w: Pick<WarningInfo, 'signal_tag' | 'asset'>,
+  links: ReadonlyMap<string, string>,
+): string | null {
+  const node = nodeForTag(graph, w.signal_tag, links);
+  const bySignal = node ? machineOf(graph, node) : null;
+  if (bySignal) return bySignal;
+  return w.asset ? (machineByAsset(graph, w.asset) ?? null) : null;
+}
+
 // Where a warning stands in the API's terms, as the floor reads it.
 export function placeWarning(
   graph: Graph,
@@ -97,8 +111,7 @@ export function placeWarning(
   links: ReadonlyMap<string, string>,
   detail: string,
 ): FloorItem {
-  const node = nodeForTag(graph, w.signal_tag, links);
-  const machineId = node ? machineOf(graph, node) : null;
+  const machineId = machineOfWarning(graph, w, links);
   const machine = machineId ? graph.nodes[machineId] : undefined;
   return {
     id: w.id,
@@ -154,6 +167,32 @@ export function machineBoard(graph: Graph, items: readonly FloorItem[]): Machine
   const text = textOrder({ numeric: true });
   return tiles.sort((a, b) => RANK[a.state] - RANK[b.state] || text.compare(where(a), where(b)));
 }
+
+// The open warnings no machine could be placed for, and the worst of their states: shown as their
+// own group ("Not on a machine") rather than left out, so the board never says all is well while
+// they are open.
+export function unplaced(items: readonly FloorItem[]): { state: FloorState; warnings: FloorItem[] } {
+  const warnings = items.filter((i) => i.machineId === null && i.state !== 'ok');
+  const state = warnings.reduce<FloorState>((worst, i) => (RANK[i.state] < RANK[worst] ? i.state : worst), 'ok');
+  return { state, warnings };
+}
+
+// The Shopfloor's board: every machine (machineBoard), and the open warnings no machine is found
+// for as a tile of their own (`id` null), placed by its worst state like the machines, worst first,
+// ahead of machines in the same state (it needs someone to place them too).
+export type BoardTile = Omit<MachineTile, 'id'> & { id: string | null };
+export function floorBoard(graph: Graph, items: readonly FloorItem[]): BoardTile[] {
+  const tiles: BoardTile[] = machineBoard(graph, items);
+  const lost = unplaced(items);
+  if (!lost.warnings.length) return tiles;
+  const at = tiles.findIndex((tile) => RANK[tile.state] >= RANK[lost.state]);
+  const tile: BoardTile = { id: null, label: '', path: [], state: lost.state, warnings: lost.warnings.length };
+  return at < 0 ? [...tiles, tile] : [...tiles.slice(0, at), tile, ...tiles.slice(at)];
+}
+
+// A card's subtitle: the tag, unless the title already is the tag (a warning on no machine).
+export const subtitleOf = (item: Pick<FloorItem, 'machine' | 'tag'>): string | null =>
+  item.machine === item.tag ? null : item.tag;
 
 // The page's headline: what needs someone now.
 export function headline(items: readonly FloorItem[]): { tone: 'bad' | 'warn' | 'good'; text: string } {
