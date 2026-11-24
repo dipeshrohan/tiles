@@ -1,6 +1,7 @@
 import { ux } from '../lib/analytics.ts';
 import { ask, suggestions } from '../lib/copilot.ts';
 import {
+  copilotOff,
   answerHtml,
   applyEvent,
   emptyAnswer,
@@ -436,7 +437,8 @@ function localRender(ctx: Context, note = ''): string {
       <div class="chat">
         <div class="chat-log" id="chat-log">${messages}</div>
         <div>
-          <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples">${suggestions()
+          ${ctx.api ? `<p class="small soft mt-2_5" id="chat-demo-label" data-demo-questions>${esc(t('chat.demoQuestions'))}</p>` : ''}
+          <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples"${ctx.api ? ' role="group" aria-labelledby="chat-demo-label"' : ''}>${suggestions()
             .map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`)
             .join('')}</div>
           <form class="composer" id="composer" data-tour="chat-ask">
@@ -501,14 +503,16 @@ const view: View = {
       })}`;
     if (on) return head + remoteRender(ctx);
     const checking = ctx.api && remote?.configured === null;
-    const note =
-      ctx.api && remote?.configured === false
-        ? `<p class="small soft mb-2" data-copilot-off>${esc(t('chat.serviceOff', { key: 'TILES_ANTHROPIC_API_KEY', model: 'TILES_COPILOT_MODEL' }))}</p>`
-        : ctx.api && remote?.configured && !remote.enabled
-          ? `<p class="small soft mb-2" data-copilot-site-off>${tHtml('chat.siteOff', { settings: `<a href="#/settings">${esc(t('chat.settings'))}</a>` })}</p>`
-          : checking
-            ? `<p class="small soft">${esc(t('chat.checking'))}</p>`
-            : '';
+    const off = ctx.api && remote ? copilotOff(remote.configured, remote.enabled, ctx.ontology.role) : null;
+    const note = !off
+      ? checking
+        ? `<p class="small soft">${esc(t('chat.checking'))}</p>`
+        : ''
+      : !off.admin
+        ? `<p class="small soft mb-2" ${off.why === 'service' ? 'data-copilot-off' : 'data-copilot-site-off'}>${esc(t('chat.notSetUp'))}</p>`
+        : off.why === 'service'
+          ? `<p class="small soft mb-2" data-copilot-off>${esc(t('chat.serviceOff', { key: 'TILES_ANTHROPIC_API_KEY', model: 'TILES_COPILOT_MODEL' }))}</p>`
+          : `<p class="small soft mb-2" data-copilot-site-off>${tHtml('chat.siteOff', { settings: `<a href="#/settings">${esc(t('chat.settings'))}</a>` })}</p>`;
     return head + localRender(ctx, note);
   },
   bind(root, ctx) {

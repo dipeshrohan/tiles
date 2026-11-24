@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { sseParser } from '../js/lib/sse.ts';
 import {
   answerHtml,
+  copilotOff,
   applyEvent,
   emptyAnswer,
   evidenceLink,
@@ -174,4 +175,15 @@ test('an answer the tools do not back is flagged with what is missing', () => {
     }),
     'Check this answer: it cites no tool result; no tool returned 1,900; no tool named x.y.',
   );
+});
+
+test('copilot off (review H-02): why, and whether the person is told what it takes', () => {
+  assert.deepEqual(copilotOff(false, false, 'viewer'), { why: 'service', admin: false });
+  assert.deepEqual(copilotOff(false, false, 'engineer'), { why: 'service', admin: false });
+  assert.deepEqual(copilotOff(false, false, 'admin'), { why: 'service', admin: true });
+  assert.deepEqual(copilotOff(true, false, 'engineer'), { why: 'site', admin: false });
+  assert.deepEqual(copilotOff(true, false, 'admin'), { why: 'site', admin: true });
+  assert.equal(copilotOff(true, true, 'viewer'), null); // on
+  assert.equal(copilotOff(null, false, 'admin'), null); // still checking
+  assert.deepEqual(copilotOff(false, false, null), { why: 'service', admin: false });
 });

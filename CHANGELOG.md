@@ -12,6 +12,8 @@ What comes after 1.0.0.
 
 - **Screen readers:** an ontology node's name now holds the words shown on it (a long label is clipped at the box's edge rather than cut short with "…"), and Home's Customise buttons are named "Move up: <card>" and "Move down: <card>", their visible words first.
 - **The copilot:** a conversation deleted since the page was last open is no longer asked for when it opens again.
+- **Demo pages with the API:** Factory physics and Process & quality say they show the built-in demo plant, not the site's data, and the menu no longer counts the demo's warnings beside the site's (review H-01).
+- **The copilot with its service off:** people who aren't admins read that a site admin can turn it on, without the API's setting names, and the built-in skills' questions say they answer on the demo plant (review H-02).
 
 ### Security
 

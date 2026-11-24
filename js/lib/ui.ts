@@ -180,6 +180,12 @@ export function badge(text: string, tone: Tone = '', o: { title?: string; attrs?
   return `<span${attrs({ class: classes('badge', tone), title: o.title, ...o.attrs })}>${esc(text)}</span>`;
 }
 
+// On a page that draws the browser's built-in demo plant while a Tiles API is connected (review
+// H-01): says so near the top, so its machines aren't read as the site's.
+export function demoNotice(text: string): string {
+  return `<div class="card mb-4 row gap-2 wrap" role="note" data-demo-notice>${badge(t('ui.demoBadge'), 'warn')}<span>${esc(text)}</span></div>`;
+}
+
 // A toggle in a row of filters: aria-pressed says whether it's on.
 export function chip(label: string, o: { pressed?: boolean; attrs?: ExtraAttrs } = {}): string {
   return `<button${attrs({ class: 'chip', type: 'button', 'aria-pressed': o.pressed === undefined ? undefined : String(o.pressed), ...o.attrs })}>${esc(label)}</button>`;

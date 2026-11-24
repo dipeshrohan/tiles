@@ -243,3 +243,16 @@ export const toolLabel = (t: Pick<ToolTrace, 'name' | 'input'>): string => {
     .join(', ');
   return `${t.name}(${args})`;
 };
+
+// What the Copilot page says while the API's copilot can't answer (review H-02): the service isn't
+// set up on the API ('service') or the site's admins haven't turned it on ('site'). Only admins are
+// told what it takes (the settings' names, the Settings page); everyone else that a site admin can
+// turn it on. Null while it is on, or still being checked.
+export type CopilotOff = { why: 'service' | 'site'; admin: boolean } | null;
+
+export function copilotOff(configured: boolean | null, enabled: boolean, role: string | null | undefined): CopilotOff {
+  const admin = role === 'admin';
+  if (configured === false) return { why: 'service', admin };
+  if (configured && !enabled) return { why: 'site', admin };
+  return null;
+}
