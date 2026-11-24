@@ -1899,6 +1899,16 @@ test("home by role: the role's cards answer what needs you now; customised, kept
     readings: 12,
   });
   fake.addSignal('dc1.friction', { node_id: 'sig-dc1' });
+  // Open and nobody has taken it (review H-03); its signal has no node, its detector's asset is DC-01.
+  fake.raiseWarning('dc1.pressure', [], {
+    asset: 'DC-01',
+    started_at: at(10 * 60_000),
+    last_at: at(60_000),
+    peak: 3,
+    baseline: 1,
+    threshold: 2,
+    readings: 4,
+  });
   fake.addCopilotProposal({ message: 'Add DC-02', ops: [], author: 'maria@example.com' });
 
   // An engineer by site role, with no role chosen: the engineers' cards.
@@ -1906,7 +1916,15 @@ test("home by role: the role's cards answer what needs you now; customised, kept
   await page.waitForSelector('#view h1:has-text("Home")');
   await page.waitForSelector('#view .page-head p.soft:has-text("The cards for engineers")');
   const ids = () => page.$$eval('#view [data-card]', (els) => els.map((e) => e.dataset.card));
-  assert.deepEqual(await ids(), ['reviews', 'insights', 'freshness']);
+  assert.deepEqual(await ids(), ['untaken', 'reviews', 'insights', 'freshness']);
+  // The open warning nobody has taken comes first; the one assigned to me isn't in it.
+  await page.waitForSelector('[data-card="untaken"] .home-figure:has-text("1 open warning nobody has taken")');
+  assert.equal(await page.locator('[data-card="untaken"] a:has-text("dc1.pressure")').count(), 1);
+  assert.equal(await page.locator('[data-card="untaken"] a:has-text("dc1.friction")').count(), 0);
+  assert.equal(
+    await page.locator('[data-card="untaken"] .card-head a').getAttribute('href'),
+    '#/warnings?show=raised&who=none',
+  );
   await page.waitForSelector('[data-card="reviews"] a:has-text("#1 Add DC-02")');
   await page.waitForSelector('[data-card="freshness"] .home-figure:has-text("stale")');
   assert.match(await page.locator('[data-card="freshness"]').innerText(), /dc1\.friction\s+Last reading 2 h ago/);
@@ -1918,17 +1936,17 @@ test("home by role: the role's cards answer what needs you now; customised, kept
   await page.click('[data-card-add-form] button[type=submit]');
   await page.waitForSelector('[data-card="my-warnings"] a:has-text("dc1.friction")');
   await page.click('[data-card-up="my-warnings"]');
-  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'reviews,insights,my-warnings,freshness');
+  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'untaken,reviews,insights,my-warnings,freshness');
   await page.click('[data-card-remove="insights"]');
   await page.waitForSelector('#toast:has-text("Recent insights removed")');
-  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'reviews,my-warnings,freshness');
+  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'untaken,reviews,my-warnings,freshness');
   await page.locator('#toast button:has-text("Undo")').click();
-  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'reviews,insights,my-warnings,freshness');
+  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'untaken,reviews,insights,my-warnings,freshness');
   await page.click('[data-home-done]');
   await page.reload();
   await page.waitForSelector('#view .page-head p.soft:has-text("Your cards")');
-  await page.waitForFunction(() => document.querySelectorAll('#view [data-card]').length === 4);
-  assert.deepEqual(await ids(), ['reviews', 'insights', 'my-warnings', 'freshness']);
+  await page.waitForFunction(() => document.querySelectorAll('#view [data-card]').length === 5);
+  assert.deepEqual(await ids(), ['untaken', 'reviews', 'insights', 'my-warnings', 'freshness']);
   // Coming back, a change made before the API's answer about your cards arrives stands.
   await page.evaluate(() => (location.hash = '#/signals'));
   await page.waitForSelector('#view h1:has-text("Signals")');
@@ -1936,13 +1954,20 @@ test("home by role: the role's cards answer what needs you now; customised, kept
   await page.evaluate(() => (location.hash = '#/'));
   await page.click('[data-home-edit]');
   await page.click('[data-card-remove="insights"]');
-  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'reviews,my-warnings,freshness');
+  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'untaken,reviews,my-warnings,freshness');
   await page.waitForTimeout(1800);
-  assert.deepEqual(await ids(), ['reviews', 'my-warnings', 'freshness']);
+  assert.deepEqual(await ids(), ['untaken', 'reviews', 'my-warnings', 'freshness']);
   // Back to the role's.
   await page.click('[data-home-reset]');
   await waitFor(() => !fake.homeLayouts.has(me));
   await page.waitForSelector('#view .page-head p.soft:has-text("The cards for engineers")');
+  // Someone who kept the engineers' cards from before keeps them: only the default changed.
+  fake.homeLayouts.set(me, { cards: ['reviews', 'insights', 'freshness'], updated_at: new Date().toISOString() });
+  await page.reload();
+  await page.waitForSelector('#view .page-head p.soft:has-text("Your cards")');
+  await page.waitForFunction(() => document.querySelectorAll('#view [data-card]').length === 3);
+  assert.deepEqual(await ids(), ['reviews', 'insights', 'freshness']);
+  fake.homeLayouts.delete(me);
 
   // Maintenance (the welcome's role): my warnings, and the machine that is out.
   await page.evaluate(
@@ -4153,17 +4178,18 @@ test('the shopfloor field round: high contrast kept, offline said with the last 
   // High contrast for direct light: on, kept after a reload, greys made the ink.
   const colours = () =>
     page.evaluate(() => [
-      getComputedStyle(document.querySelector('.floor-tag')).color,
+      // The line above the title ("Not on a machine": this site has no ontology), grey like a tag.
+      getComputedStyle(document.querySelector('.floor-card .floor-where')).color,
       getComputedStyle(document.querySelector('.floor-card h2')).color,
     ]);
   const [tagBefore, nameBefore] = await colours();
-  assert.notEqual(tagBefore, nameBefore, 'the tag is grey before');
+  assert.notEqual(tagBefore, nameBefore, 'the place line is grey before');
   await page.click('[data-floor-contrast]');
   await page.waitForSelector('body.floor-contrast [data-floor-contrast][aria-pressed="true"]');
   await page.reload();
   await page.waitForSelector('body.floor-contrast .floor-card');
   const [tagAfter, nameAfter] = await colours();
-  assert.equal(tagAfter, nameAfter, 'the tag is as dark as the machine name');
+  assert.equal(tagAfter, nameAfter, 'the place line is as dark as the title');
 
   // The network gone: the last list stays, "as of" its time, and the steps wait.
   await page.context().setOffline(true);
@@ -4222,6 +4248,11 @@ test('the shopfloor view: warnings first on their machines, taken and resolved w
   await page.waitForSelector('.floor-card:first-child:has-text("Casting › DC line 1")');
   assert.match(await cards.nth(0).innerText(), /Die-caster DC-01[\s\S]*dc1\.friction[\s\S]*Signal still out/);
   assert.match(await cards.nth(1).innerText(), /dc2\.friction[\s\S]*Nobody has it/);
+  // Nothing places it: it says so, and its tag (the title) isn't repeated under it (review H-04).
+  assert.equal(await cards.nth(1).locator('.floor-where').innerText(), 'Not on a machine');
+  assert.equal(await cards.nth(1).locator('.floor-tag').count(), 0);
+  assert.equal(await cards.nth(0).locator('.floor-tag').innerText(), 'dc1.friction');
+  await page.waitForSelector('[data-floor-unplaced].s-new:has-text("Not on a machine"):has-text("1 warning")');
   // Gloves: every button is at least 64 px each way (measured once the page has settled).
   // (Progress that loops, a spinner or a shimmer, never settles: only what ends is waited for.)
   await page.waitForFunction(() =>
@@ -4313,6 +4344,71 @@ test('the shopfloor view: warnings first on their machines, taken and resolved w
   await v.page.waitForSelector('.floor-card:has-text("An engineer of the site acts on it")');
   assert.equal(await v.page.locator('[data-take], [data-resolve]').count(), 0);
   assert.deepEqual(v.errors, []);
+});
+
+test("warnings whose signal has no node are placed by their detector's asset, else shown as not on a machine (review H-04)", async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const node = (id, type, label, props = {}) => ({ kind: 'addNode', node: { id, type, label, props } });
+  const edge = (from, rel, to) => ({ kind: 'addEdge', edge: { id: `${from}-${rel}-${to}`, from, rel, to } });
+  fake.commitAs(
+    'maria',
+    [
+      node('ln-dc', 'Line', 'DC line 1'),
+      node('m-dc1', 'Machine', 'DC-01 die-casting cell', { asset: 'DC-01' }),
+      node('m-dc2', 'Machine', 'DC-02'),
+      edge('ln-dc', 'contains', 'm-dc1'),
+      edge('ln-dc', 'contains', 'm-dc2'),
+    ],
+    'the casting line',
+  );
+  const at = (m) => new Date(Date.now() - m * 60_000).toISOString();
+  const raise = (tag, asset, m) =>
+    fake.raiseWarning(tag, [], {
+      asset,
+      started_at: at(m),
+      last_at: at(m - 1),
+      ended_at: at(m - 2),
+      peak: 3,
+      baseline: 1,
+      threshold: 2,
+      readings: 4,
+    });
+  raise('dc01.plunger_friction', 'DC-01', 30); // the machine's `asset` property
+  raise('dc01.plunger_friction', 'DC-01', 20);
+  raise('dc02.shot_speed', 'DC-02', 15); // the machine's label
+  raise('x9.pressure', null, 10); // nothing places it
+
+  const { page, errors } = await openAs(t, apiUrl, null, 'shopfloor');
+  await page.waitForSelector('.floor-headline:has-text("4 open warnings: 4 nobody has taken")');
+  // The board: DC-01 has its two, DC-02 its one, and the fourth is not on a machine, not left out.
+  await page.waitForSelector('.floor-tile.s-new:has-text("DC-01 die-casting cell"):has-text("2 warnings")');
+  await page.waitForSelector('.floor-tile.s-new:has-text("DC-02"):has-text("1 warning")');
+  await page.waitForSelector('[data-floor-unplaced]:has-text("Not on a machine"):has-text("1 warning")');
+  assert.equal(await page.locator('.floor-tile.s-ok').count(), 0);
+  // Each card: the machine, then its tag; the unplaced one its tag once.
+  const cards = page.locator('.floor-card');
+  const texts = await cards.evaluateAll((els) =>
+    els.map((e) => [e.querySelector('h2').textContent, e.querySelector('.floor-tag')?.textContent ?? null]),
+  );
+  assert.deepEqual(texts, [
+    ['x9.pressure', null],
+    ['DC-02', 'dc02.shot_speed'],
+    ['DC-01 die-casting cell', 'dc01.plunger_friction'],
+    ['DC-01 die-casting cell', 'dc01.plunger_friction'],
+  ]);
+  assert.match(await cards.nth(2).locator('.floor-where').innerText(), /DC line 1/);
+
+  // The Plant page rolls them up the same way, and lists the unplaced one at the top (the line,
+  // the only top place, opens at once).
+  await page.evaluate(() => (location.hash = '#/plant'));
+  await page.waitForSelector('.place-card:has-text("DC-01 die-casting cell"):has-text("2 warnings")');
+  await page.waitForSelector('.place-card:has-text("DC-02"):has-text("1 warning")');
+  const lost = page.locator('.card:has(h2:text-is("Open warnings not on a machine"))');
+  await lost.waitFor();
+  assert.match(await lost.innerText(), /x9\.pressure/);
+  assert.deepEqual(errors, []);
 });
 
 test("the shopfloor view in local mode shows the demo detector's warnings, read-only", async (t) => {

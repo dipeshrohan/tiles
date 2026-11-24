@@ -2857,6 +2857,8 @@ export function createFakeApi({
         detector: `${tag.replace(/[^a-z0-9]+/g, '-')}-detector`,
         signal_id: signals.find((x) => x.tag === tag).id,
         signal_tag: tag,
+        // The detector's asset, else the signal's (a test sets `asset` to place it by its machine).
+        asset: signals.find((x) => x.tag === tag).asset ?? null,
         side: 'above',
         ended_at: null,
         acknowledged_at: null,

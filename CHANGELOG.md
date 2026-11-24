@@ -12,6 +12,7 @@ What comes after 1.0.0.
 
 - **Screen readers:** an ontology node's name now holds the words shown on it (a long label is clipped at the box's edge rather than cut short with "…"), and Home's Customise buttons are named "Move up: <card>" and "Move down: <card>", their visible words first.
 - **The copilot:** a conversation deleted since the page was last open is no longer asked for when it opens again.
+- **Home and the Shopfloor:** an engineer's Home starts with a new card, **Warnings nobody has taken**, so open warnings are among what needs you now (a layout you kept is unchanged; add the card with Customise). The Shopfloor and the Plant page place a warning whose signal has no Signal node on the machine its detector watches (the machine's `asset` property, else its name), list any they still can't place as **Not on a machine** rather than showing every machine OK, and no longer repeat a warning's tag under it. Warnings from the API now carry that `asset`. (Heuristic review H-03, H-04.)
 
 ### Security
 

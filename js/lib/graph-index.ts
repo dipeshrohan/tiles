@@ -2,6 +2,7 @@
 // Shopfloor and Plant pages walk the hierarchy for every machine they show.
 
 import type { Graph } from './types.ts';
+import { assetOf } from './recommendations.ts';
 
 // The graph's edges by relationship and end, built once per graph (each render has its own):
 // lookups are then constant time, however many machines and warnings the page shows. Graphs are
@@ -11,6 +12,7 @@ interface Index {
   from: Map<string, string[]>; // `${rel}|${from}` → the nodes it goes to, sorted
   byTag: Map<string, string>; // a Signal node's `tag` property → its id (the first by id)
   byLabel: Map<string, string>; // a Signal node's label → its id (the first by id)
+  byAsset: Map<string, string>; // a Machine node's asset (its `asset` property, else its label) → its id (the first by id)
 }
 
 const indexes = new WeakMap<Graph, Index>();
@@ -23,7 +25,7 @@ function indexOf(graph: Graph): Index {
     if (list) list.push(id);
     else map.set(key, [id]);
   };
-  const index: Index = { to: new Map(), from: new Map(), byTag: new Map(), byLabel: new Map() };
+  const index: Index = { to: new Map(), from: new Map(), byTag: new Map(), byLabel: new Map(), byAsset: new Map() };
   for (const e of Object.values(graph.edges)) {
     if (!graph.nodes[e.from] || !graph.nodes[e.to]) continue; // dangling: the health check's business
     add(index.to, `${e.rel}|${e.to}`, e.from);
@@ -38,6 +40,13 @@ function indexOf(graph: Graph): Index {
     if (typeof tag === 'string' && !index.byTag.has(tag)) index.byTag.set(tag, n.id);
     if (!index.byLabel.has(n.label)) index.byLabel.set(n.label, n.id);
   }
+  const machines = Object.values(graph.nodes)
+    .filter((n) => n.type === 'Machine')
+    .sort((a, b) => a.id.localeCompare(b.id));
+  for (const n of machines) {
+    const asset = assetOf(n);
+    if (!index.byAsset.has(asset)) index.byAsset.set(asset, n.id);
+  }
   indexes.set(graph, index);
   return index;
 }
@@ -50,3 +59,6 @@ export const outgoing = (graph: Graph, from: string, rel: string): string[] =>
 // A Signal node by its `tag` property, or by its label (the first by id when several share one).
 export const signalByTag = (graph: Graph, tag: string): string | undefined => indexOf(graph).byTag.get(tag);
 export const signalByLabel = (graph: Graph, label: string): string | undefined => indexOf(graph).byLabel.get(label);
+// A Machine node by the name the MES knows it by: its `asset` property, else its label, exactly as
+// written (coverage.asset_of; the first by id when several share one).
+export const machineByAsset = (graph: Graph, asset: string): string | undefined => indexOf(graph).byAsset.get(asset);

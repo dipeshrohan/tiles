@@ -15,6 +15,7 @@ import {
   shiftStart,
   shiftSummary,
   staleSignals,
+  untakenWarnings,
 } from '../js/lib/home-cards.ts';
 import { WORK_ROLES } from '../js/lib/welcome.ts';
 
@@ -37,6 +38,29 @@ test('each role has its cards, from the welcome or else the site role', () => {
   assert.equal(homeRole(null, 'engineer'), 'engineer');
   assert.equal(homeRole('pilot', 'viewer'), 'maintenance');
   assert.equal(homeRole(null, null), 'maintenance');
+});
+
+test("an engineer's Home starts with the open warnings nobody has taken (review H-03)", () => {
+  assert.equal(ROLE_CARDS.engineer[0], 'untaken');
+  assert.deepEqual(ROLE_CARDS.engineer, ['untaken', 'reviews', 'insights', 'freshness']);
+  assert.deepEqual(needsOf(['untaken']), ['open-warnings']);
+  // A layout someone kept is theirs: only the default changed.
+  assert.deepEqual(cleanCards(['reviews', 'insights', 'freshness']), ['reviews', 'insights', 'freshness']);
+});
+
+test('warnings nobody has taken: not acknowledged, nobody assigned; still out first, then the newest', () => {
+  const list = [
+    w({ id: 'back', ended_at: '2026-10-14T11:00:00Z', started_at: '2026-10-14T12:00:00Z' }),
+    w({ id: 'old', started_at: '2026-10-14T08:00:00Z' }),
+    w({ id: 'new' }),
+    w({ id: 'acked', status: 'acknowledged' }),
+    w({ id: 'assigned', assignee_id: 'you' }),
+    w({ id: 'done', status: 'resolved' }),
+  ];
+  assert.deepEqual(
+    untakenWarnings(list).map((x) => x.id),
+    ['new', 'old', 'back'],
+  );
 });
 
 test('cards as kept: known ones, once each, in order; moved within bounds; their needs', () => {
