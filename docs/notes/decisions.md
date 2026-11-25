@@ -6,6 +6,9 @@ wrong entry the same day and say so.
 
 ## 2026-11-25
 
+- **What next, after H-05 to H-15 merged.** Chosen: _polish H-16 to H-23_ (#413 to #420) and
+  #425's follow-ups. Turned down: planning ROADMAP-3; branch protection (#421) steps; pause.
+
 - **Time zone for times given to the user.** Chosen (typed): _"Cet"_, read by the lead as
   Central European Time, UTC+1 now; whether summer times follow CEST wasn't asked. Turned down: India (IST), UK (London), US Eastern, keep
   UTC.
