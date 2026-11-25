@@ -208,7 +208,7 @@ function resultBlock(r: CorrelationResult, split: boolean): string {
     .slice(0, 50)
     .map(
       (f) =>
-        `<tr><td>${esc(f.segment)}</td><td>${esc(f.variable)}</td><td>${f.ng_mean === null ? '–' : fmt(f.ng_mean, 2)}</td><td>${f.ok_mean === null ? '–' : fmt(f.ok_mean, 2)}</td><td><b>${signedNumber(f.effect, 2)}</b></td><td>${f.ci_low === null || f.ci_high === null ? '–' : esc(t('correlate.range', { low: signedNumber(f.ci_low, 2), high: signedNumber(f.ci_high, 2) }))}${f.clear ? '' : ` <span class="small soft">${esc(t('correlate.couldBeZero'))}</span>`}</td><td>${signedNumber(f.r, 2)}</td><td>${f.ng_count} / ${f.ok_count}</td></tr>`,
+        `<tr><td>${esc(f.segment)}</td><td>${esc(f.variable)}</td><td>${f.ng_mean === null ? '–' : signedNumber(f.ng_mean, 2)}</td><td>${f.ok_mean === null ? '–' : signedNumber(f.ok_mean, 2)}</td><td><b>${signedNumber(f.effect, 2)}</b></td><td>${f.ci_low === null || f.ci_high === null ? '–' : esc(t('correlate.range', { low: signedNumber(f.ci_low, 2), high: signedNumber(f.ci_high, 2) }))}${f.clear ? '' : ` <span class="small soft">${esc(t('correlate.couldBeZero'))}</span>`}</td><td>${signedNumber(f.r, 2)}</td><td>${f.ng_count} / ${f.ok_count}</td></tr>`,
     )
     .join('');
   return `<div class="stack gap-2_5" data-result>

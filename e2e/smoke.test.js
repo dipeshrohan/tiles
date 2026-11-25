@@ -7120,7 +7120,7 @@ test('design studio with the API: runs are stored in shared projects', async (t)
   await b.page.fill('#run-form [name=note]', 'Lower charge');
   await b.page.click('#run-form button[type=submit]');
   await b.page.waitForSelector('[data-run="2"]:has-text("Lower charge")');
-  assert.match(await b.page.locator('[data-run="2"]').innerText(), /State of charge: 80\.00 → 60\.00/);
+  assert.match(await b.page.locator('[data-run="2"]').innerText(), /State of charge: 80\.0% → 60\.0%/);
   assert.equal(fake.designRuns[1].parent, 1);
   assert.equal(fake.designRuns[1].params.soc, 60);
   await b.page.waitForSelector('#project option:has-text("Pack B (2 runs)")', { state: 'attached' }); // counted in place
