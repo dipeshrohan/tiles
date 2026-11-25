@@ -3286,7 +3286,9 @@ test('the data explorer: plot signals, zoom in by dragging, zoom out into bucket
   await page.waitForSelector('[data-series-note]:has-text("288 readings")'); // the day up to the latest
   assert.match(await page.locator('[data-charts] svg').first().innerHTML(), /<path data-part="line" d="M/);
 
-  // Drag across the middle half of the chart: about half a day.
+  // Drag across the middle half of the chart: about half a day. In view first: the range's line
+  // above it (review H-18) puts its middle near the window's foot.
+  await page.locator('[data-zoom] svg').first().scrollIntoViewIfNeeded();
   const box = await page.locator('[data-zoom] svg').first().boundingBox();
   await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2);
   await page.mouse.down();
