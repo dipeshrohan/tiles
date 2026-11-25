@@ -643,6 +643,7 @@ const ctx: Context = {
     // language the browser's); kept with the person on the API, theirs come back once the site
     // answers (firstRun), and nothing is sent to it from here.
     applyPreferences(keptPreferences(), currentPreferences());
+    clearTimeout(keepTimer); // a change just before isn't sent after the reset
     Object.assign(state, freshState(), { ui: {} });
     localRepo = state.repo;
     persist();

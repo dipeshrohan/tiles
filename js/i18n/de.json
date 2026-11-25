@@ -2712,7 +2712,7 @@
   "similar.loading": "Ähnliche Warnungen werden gesucht",
   "similar.failed": "Ähnliche Warnungen konnten nicht geladen werden. Aktualisieren Sie, um es erneut zu versuchen.",
   "similar.none": "{count, plural, =0 {Keine frühere Warnung zu diesem Signal, Detektor oder dieser Maschine.} one {Die eine frühere Warnung zu diesem Signal, Detektor oder dieser Maschine ähnelt dieser nicht.} other {Keine der # früheren Warnungen zu diesem Signal, Detektor oder dieser Maschine ähnelt dieser.}}",
-  "similar.summary": "{count, plural, one {Die ähnlichste Warnung} other {Die # ähnlichsten}}: {trueAlarms, plural, one {# echter Alarm} other {# echte Alarme}}, {falseAlarms, plural, one {# Fehlalarm} other {# Fehlalarme}}, {open} offen oder unbekannt; {followed, plural, =0 {auf keine folgte ein Ereignis} one {auf eine folgte ein Ereignis} other {auf # folgte ein Ereignis}}.",
+  "similar.summary": "{count, plural, other {Die # ähnlichsten}}: {trueAlarms, plural, one {# echter Alarm} other {# echte Alarme}}, {falseAlarms, plural, one {# Fehlalarm} other {# Fehlalarme}}, {open} offen oder unbekannt; {followed, plural, =0 {auf keine folgte ein Ereignis} one {auf eine folgte ein Ereignis} other {auf # folgte ein Ereignis}}.",
   "similar.summaryOne": "1 ähnliche Warnung, {trueAlarms, plural, =0 {{falseAlarms, plural, =0 {{unknown, plural, =0 {noch offen} other {als unbekannt abgeschlossen}}} other {ein Fehlalarm}}} other {ein echter Alarm}}; {followed, plural, =0 {ihr folgte kein Ereignis} other {ihr folgte ein Ereignis}}.",
   "similar.started": "Beginn",
   "similar.warning": "Warnung",

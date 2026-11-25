@@ -4392,10 +4392,15 @@ test('the warnings inbox: see a warning on its signal, acknowledge, assign, reso
   assert.equal(await b.page.locator('[data-warning-list] [data-clear-filters]').count(), 1);
   await b.page.click('[data-show=resolved]');
   await b.page.waitForSelector(`[data-warning-list] [data-warning="${out}"]:has-text("True alarm")`);
+  // Resolved: no primary button in its form (review H-19).
+  const primaries = () => b.page.locator('#warning-form .btn.primary').evaluateAll((p) => p.map((e) => e.dataset.act));
+  assert.deepEqual(await primaries(), []);
 
-  // Reopened, it is acknowledged again, and back in "To do".
+  // Reopened, it is acknowledged again, and back in "To do"; Resolve is its primary button.
   await b.page.click('[data-act=reopen]');
   await b.page.waitForSelector('#toast:has-text("Reopened")');
+  await b.page.waitForSelector('#warning-form [data-act=resolve]');
+  assert.deepEqual(await primaries(), ['resolve']);
   await b.page.click('[data-show=unresolved]');
   await b.page.waitForSelector(`[data-warning-list] [data-warning="${out}"]:has-text("eng2")`);
   assert.deepEqual([...a.errors, ...b.errors], []);
@@ -7061,12 +7066,21 @@ test('Reset workspace puts the preferences in effect back to the defaults; a lat
   await page.waitForSelector('[data-reset]');
   await page.click('#theme');
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  // Compact table rows and German too.
+  await page.evaluate(() => (location.hash = '#/preferences'));
+  await page.selectOption('#preferences [name=density]', 'compact');
+  await page.selectOption('#preferences [name=language]', 'de');
+  await page.waitForFunction(() => document.documentElement.lang === 'de');
+  await page.evaluate(() => (location.hash = '#/settings'));
   await page.click('[data-reset]');
   await confirmIn(page, 'reset');
-  await page.waitForSelector('#toast:has-text("Demo data reset")');
+  await page.waitForSelector('#toast:has-text("Demo data reset")'); // English already: back to the browser's
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme ?? null), null);
-  // Another preference changed since doesn't write the dark theme back.
+  await page.waitForFunction(() => document.documentElement.lang === 'en');
   await page.evaluate(() => (location.hash = '#/preferences'));
+  assert.equal(await page.inputValue('#preferences [name=density]'), 'comfortable');
+  assert.equal(await page.inputValue('#preferences [name=language]'), 'auto');
+  // Another preference changed since doesn't write the dark theme back.
   await page.selectOption('#preferences [name=numbers]', 'de-DE');
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('tiles:preferences') ?? '{}').numbers === 'de-DE');
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('tiles:preferences') ?? '{}'));
@@ -7121,8 +7135,22 @@ test("menu names aren't cut at 1440 px; on a phone the breadcrumb shows this pag
         .map((l) => l.textContent),
     );
   assert.deepEqual(await cut(), []);
-  // Pointed at, the pin shows over the count; the name doesn't move.
+  // Room for the pin only on pinned rows: "Ontology builder" beside its count keeps to one line,
+  // and its count has no room kept beside it until the page is pinned.
   const label = page.locator('#nav [data-key="nav-menu-ontology"] .nav-label');
+  const lines = await label.evaluate(
+    (l) => l.getBoundingClientRect().height / parseFloat(getComputedStyle(l).lineHeight),
+  );
+  assert.ok(lines < 1.5, `"Ontology builder" takes ${lines.toFixed(1)} lines`);
+  const room = () =>
+    page.locator('#nav [data-key="nav-menu-ontology"] .badge').evaluate((b) => getComputedStyle(b).marginRight);
+  assert.equal(await room(), '0px');
+  await page.click('#nav [data-nav-pin="ontology"]', { force: true });
+  await page.waitForSelector('#nav [data-key="nav-pinned-ontology"]');
+  assert.equal(await room(), '24px');
+  await page.click('#nav [data-key="nav-menu-ontology"] [data-nav-pin]', { force: true });
+  await page.waitForSelector('#nav [data-key="nav-pinned-ontology"]', { state: 'detached' });
+  // Pointed at, the pin shows over the count; the name doesn't move.
   const before = await label.boundingBox();
   await page.hover('#nav [data-key="nav-menu-ontology"]');
   assert.deepEqual(await label.boundingBox(), before);

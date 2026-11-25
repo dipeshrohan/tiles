@@ -785,10 +785,13 @@ button.nav-group .icon {
     flex: none;
   }
   .crumbs li:nth-last-child(2) a {
-    display: inline-grid;
-    place-items: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-width: var(--target-min);
     font-size: 0;
+    /* With no font size its hidden words make no line box: the arrow is centred on the page's name. */
+    line-height: var(--leading-none);
   }
   .crumbs li:nth-last-child(2) a::before {
     content: '';
@@ -810,6 +813,12 @@ button.nav-group .icon {
     line-height: var(--leading-tight);
     overflow-wrap: anywhere;
     hyphens: auto;
+  }
+}
+/* Forced colours turn a mask's currentColor background into Canvas: the arrow takes LinkText. */
+@media (max-width: 640px) and (forced-colors: active) {
+  .crumbs li:nth-last-child(2) a::before {
+    background: LinkText;
   }
 }
 .crumbs a {
