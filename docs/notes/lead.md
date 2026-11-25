@@ -58,6 +58,12 @@ The merge flow for a child's PR:
    the user's to change; children make room instead. 2026-11-25: #427 and #428 together were
    0.03 kB over the 200 kB bundle budget; UI 5 moves the glossary data (4.2 kB gzipped) to a lazily
    loaded classic script like help-data.js.
+8. No push without the full local suite green on that exact head (the user, 2026-11-25: "Why are
+   ci runs failing are not doing quality check through a child session"): lint, typecheck, unit,
+   the whole e2e suite (smoke unfiltered, a11y, print, morph), perf, visual (or a diff against CI's
+   images), API/edge checks if touched; Docker context and COPY lines checked locally when the
+   images change. Reports list the suites and counts for the pushed head. A red CI the child
+   didn't name in advance is a miss.
 
 Docs-only PRs (these notes, decisions): check the diff, CI green, merge the same way.
 

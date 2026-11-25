@@ -6,6 +6,11 @@ wrong entry the same day and say so.
 
 ## 2026-11-25
 
+- **"Why are ci runs failing are not doing quality check through a child session"** (the user's
+  words). The lead's answer: children ran partial local checks; Docker can't run in their
+  sandboxes. Rule sent to UI 5 and UI 6 and kept in lead.md: the full local suite green before
+  every push, the suites listed in each report.
+
 - **"Make sure the child sessions follow rules, I do not want work stopped because ci doesn't
   work."** (the user's words). The lead's reading, sent to UI 5 and UI 6: a red CI job is the
   child's to root-cause and fix at once, never to wait on; an infrastructure failure gets one
