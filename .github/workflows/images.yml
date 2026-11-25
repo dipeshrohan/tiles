@@ -68,7 +68,7 @@ jobs:
             type=raw,value=sha-${{ env.SHA }},enable=${{ env.VERSION == '' }}
             type=semver,pattern={{version}},value=${{ env.VERSION }},enable=${{ env.VERSION != '' }}
             type=semver,pattern={{major}}.{{minor}},value=${{ env.VERSION }},enable=${{ env.VERSION != '' && !contains(env.VERSION, '-') }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           push: true
