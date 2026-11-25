@@ -9,10 +9,13 @@ anything.
 
 | Session | Id | Task | Branch | State |
 | --- | --- | --- | --- | --- |
-| TILES · Lead (product manager) | `session_01UPWFCtJ41TYMJrwEyic6Pe` | coordination, reviews, merges | — | context past 80 % |
+| TILES · Lead (product manager) | `session_01UPWFCtJ41TYMJrwEyic6Pe` | coordination, reviews, merges | — | context past 80 % (user: /compact) |
+| TILES · UI 3 | `session_01AqW5DEehd8CZ9p2nqQTCFE` | review H-05, H-06, H-07, H-12, H-13, H-15: Warnings, Home, Settings, menu | `review-h05-h15-a` | started 2026-11-25 |
+| TILES · UI 4 | `session_01AqW5DFHsWAAuF8zTgpqy9m` | review H-08, H-09, H-10, H-11, H-14: set-up wizard, ontology builder, correlation finder | `review-h05-h15-b` | started 2026-11-25 |
 
-No child session is running. UI 1 and UI 2 (review H-01 to H-04) were merged on 2026-11-24 as
-#409 and #408 after a deep review each, and archived.
+UI 1 and UI 2 (review H-01 to H-04) were merged on 2026-11-24 as #409 and #408 after a deep
+review each, and archived. On 2026-11-25 the user chose H-05 to H-15 next: UI 3 and UI 4 split them
+by page so they don't share files.
 
 One scheduled check-in names the running sessions; re-arm it with the current state each time it
 fires.
@@ -22,7 +25,8 @@ fires.
 Nothing starts without the user's choice. Candidates, each to be put to the user one at a time
 with a recommendation:
 
-- The usability review's other findings (H-05 to H-23); H-01 to H-04 are done (#408, #409).
+- The usability review's severity-1 findings (H-16 to H-23); H-01 to H-04 are done (#408, #409),
+  H-05 to H-15 are with UI 3 and UI 4.
 - Tracker drift found by the [retrospective](../retrospective-2026.md): #15 and #51 ticked but
   open; T1.02 and CM-1 disagree on branch protection; T6.09's open half is the pilot deploy.
 - [ROADMAP-3](../ROADMAP-3.md) (a draft: 30 tasks, months 13 to 18).
