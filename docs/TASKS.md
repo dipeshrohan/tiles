@@ -21,8 +21,8 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 ### Repository and delivery
 - [x] `T1.01` [#9](https://github.com/dipeshrohan/tiles/issues/9) ★ **Merge PR #1** (Tiles demo) into `main` · TL · 0.5d
   *Done when:* `main` runs with `npm start` and `npm test` passes.
-- [x] `T1.02` [#15](https://github.com/dipeshrohan/tiles/issues/15) ★ **Automated checks on GitHub Actions:** lint (ESLint), format (Prettier), unit tests on every PR · TL · 1d · T1.01
-  *Done when:* PRs show required green checks and `main` is protected.
+- [ ] `T1.02` [#15](https://github.com/dipeshrohan/tiles/issues/15) ★ **Automated checks on GitHub Actions:** lint (ESLint), format (Prettier), unit tests on every PR · TL · 1d · T1.01
+  *Done when:* PRs show required green checks and `main` is protected. The checks run on every PR; branch protection isn't shown to be on (CM-1, [#421](https://github.com/dipeshrohan/tiles/issues/421)).
 - [x] `T1.03` [#10](https://github.com/dipeshrohan/tiles/issues/10) **Browser smoke test in the automated checks:** Playwright loads every page in light, dark and mobile and fails on console errors or horizontal overflow · FE · 1.5d · T1.02
   *Done when:* a deliberately broken view makes the check fail.
 - [x] `T1.04` [#16](https://github.com/dipeshrohan/tiles/issues/16) **Architecture decision records:** `docs/adr/` with 001 stack, 002 storage, 003 edge agent, 004 auth, 005 AI copilot · TL · 1.5d
@@ -101,7 +101,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T3.02` [#48](https://github.com/dipeshrohan/tiles/issues/48) ★ **Port the plunger-friction model** to the registry, with unit tests carried over from `physics.test.js` · ML · 2d · T3.01
 - [x] `T3.03` [#49](https://github.com/dipeshrohan/tiles/issues/49) ★ **Model runner:** runs registered models on new data windows and writes derived signals back to TimescaleDB · BE · 3d · T3.01, T2.06
 - [x] `T3.04` [#50](https://github.com/dipeshrohan/tiles/issues/50) ★ **Streaming detection job:** rolling robust baseline, how long a deviation must persist, cooldown; thresholds stored as config per signal · ML+BE · 3d · T3.03
-- [x] `T3.05` [#51](https://github.com/dipeshrohan/tiles/issues/51) ★ **Backtest tool:** replay history to get recall, precision and warning-time distribution per threshold setting · ML · 3d · T3.04
+- [ ] `T3.05` [#51](https://github.com/dipeshrohan/tiles/issues/51) ★ **Backtest tool:** replay history to get recall, precision and warning-time distribution per threshold setting · ML · 3d · T3.04
   *Done when:* a report generated for the partner's target machine. The tool is built (`POST /sites/{id}/backtest`, `tiles-backtest`); the report waits on the partner's history (T2.17).
 - [ ] `T3.06` [#13](https://github.com/dipeshrohan/tiles/issues/13) **Tune on partner history** and document the chosen settings · ML+FDE · 3d · T3.05, T2.17
 
