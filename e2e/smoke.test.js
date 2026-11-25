@@ -818,6 +818,26 @@ test("the glossary's definitions after a failure: the page drawn again doesn't a
   await page.close();
 });
 
+test("the glossary's definitions after a failure: back online, the page drawn again asks again (U4.05)", async () => {
+  const { page } = await openPage();
+  let asked = 0;
+  await page.route('**/js/glossary-data.js', (r) => {
+    asked++;
+    return r.abort();
+  });
+  await page.goto(`${httpBase}#/physics`);
+  await page.waitForSelector('.term');
+  await waitFor(() => asked === 1);
+  // Within the wait after a failure a redraw doesn't ask; back online, the next one does.
+  await page.click('#theme');
+  await page.waitForTimeout(500);
+  assert.equal(asked, 1);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await page.click('#theme');
+  await waitFor(() => asked === 2);
+  await page.close();
+});
+
 test("the glossary's definitions: a failure says so; a new visit and Try again ask again; file:// works (U4.05)", async () => {
   const { page, errors } = await openPage();
   // The file missing: a term focused says so, aloud too, and the Glossary page says so.
