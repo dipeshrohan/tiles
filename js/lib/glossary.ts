@@ -14,14 +14,22 @@ export const loadGlossary = (src = 'js/glossary-data.js') => loadKept('tilesGlos
 
 // Asked for when the browser is idle, once a page shows a term or the palette opens, so a term
 // Tabbed to has its definition at once (a description added after the focus isn't read out). Once
-// at a time; after a failure, asked again the next time.
+// at a time; after a failure, asked again only on a new page, after RETRY_MS or back online, not on
+// every redraw.
+const RETRY_MS = 30_000;
 let preloading = false;
-export function preloadGlossary(): void {
+let failedAt = -Infinity;
+if (typeof window !== 'undefined') window.addEventListener('online', () => (failedAt = -Infinity));
+export function preloadGlossary(newPage = false): void {
   if (glossaryLoaded() || preloading) return;
+  if (!newPage && Date.now() - failedAt < RETRY_MS) return;
   preloading = true;
   const go = (): void =>
     void loadGlossary()
-      .catch(() => {}) // a term or the Glossary page says so when it is wanted
+      .then(
+        () => {},
+        () => (failedAt = Date.now()), // a term or the Glossary page says so when it is wanted
+      )
       .finally(() => (preloading = false));
   if ('requestIdleCallback' in window) requestIdleCallback(go, { timeout: 2000 });
   else setTimeout(go, 200);

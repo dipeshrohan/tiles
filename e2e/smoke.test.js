@@ -729,13 +729,20 @@ test('glossary terms explain themselves where they appear; the Glossary page lis
   await page.close();
 });
 
-test("the glossary's definitions load when wanted: kept from a term moved away from, said to one Tabbed to (U4.05)", async () => {
-  // A slow file: the page is drawn before the definitions are here (js/glossary-data.js).
-  const { page, errors } = await openPage();
+// Holds js/glossary-data.js until released: the page is drawn before the definitions are here.
+async function holdGlossary(page) {
+  let release;
+  const held = new Promise((done) => (release = done));
   await page.route('**/js/glossary-data.js', async (r) => {
-    await new Promise((done) => setTimeout(done, 1500));
+    await held;
     await r.continue();
   });
+  return () => release();
+}
+
+test("the glossary's definitions load when wanted: kept from a term moved away from, said to one Tabbed to (U4.05)", async () => {
+  const { page, errors } = await openPage();
+  const release = await holdGlossary(page);
   await page.goto(`${httpBase}#/physics`);
   const median = page.locator('.term[data-term="median"]').first();
   await median.scrollIntoViewIfNeeded();
@@ -744,25 +751,24 @@ test("the glossary's definitions load when wanted: kept from a term moved away f
   await median.hover();
   await page.waitForTimeout(500);
   await page.mouse.move(0, 0);
+  release();
   await page.waitForFunction(() => 'tilesGlossary' in window);
   await page.waitForTimeout(200);
   assert.ok(await page.locator('#tooltip').isHidden(), 'a tooltip for a term no longer pointed at');
   assert.deepEqual(errors, []);
   await page.close();
-  // Another browser (nothing cached), Tabbed to a term at once: once the words arrive they are said
-  // (a description added after the focus isn't read out), and describe it.
+  // Another browser (nothing cached), Tabbed to a term before they arrive: once here, the words are
+  // said (a description added after the focus isn't read out), and describe it.
   const fresh = await openPage();
-  await fresh.page.route('**/js/glossary-data.js', async (r) => {
-    await new Promise((done) => setTimeout(done, 1500));
-    await r.continue();
-  });
+  const go = await holdGlossary(fresh.page);
   await fresh.page.goto(`${httpBase}#/physics`);
   const robust = fresh.page.locator('.term[data-term="robust-σ"]').first();
   await robust.scrollIntoViewIfNeeded();
   await robust.focus();
   await fresh.page.keyboard.press('Shift+Tab');
   await fresh.page.keyboard.press('Tab');
-  assert.equal(await robust.getAttribute('data-tooltip'), null, 'the words were here before the Tab');
+  assert.equal(await robust.getAttribute('data-tooltip'), null);
+  go();
   await fresh.page.waitForFunction(() =>
     document.querySelector('#announcer')?.textContent?.startsWith('The spread of the readings'),
   );
@@ -770,6 +776,46 @@ test("the glossary's definitions load when wanted: kept from a term moved away f
   assert.match(await fresh.page.locator('#tooltip').innerText(), /^The spread of the readings/);
   assert.deepEqual(fresh.errors, []);
   await fresh.page.close();
+});
+
+test("the glossary's definitions already here: a term Tabbed to is described once, not also announced (U4.05)", async () => {
+  const { page, errors } = await openPage();
+  await page.goto(`${httpBase}#/physics`);
+  // Loaded by the idle preload; the page isn't drawn again, so its terms have no tooltip yet.
+  await page.waitForFunction(() => 'tilesGlossary' in window);
+  const robust = page.locator('.term[data-term="robust-σ"]').first();
+  assert.equal(await robust.getAttribute('data-tooltip'), null);
+  await robust.scrollIntoViewIfNeeded();
+  await robust.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await page.waitForSelector('#tooltip:not([hidden]):has-text("The spread of the readings")');
+  assert.equal(await robust.getAttribute('aria-describedby'), 'tooltip');
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('#announcer').textContent(), '', 'said twice: described and announced');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test("the glossary's definitions after a failure: the page drawn again doesn't ask again (U4.05)", async () => {
+  const { page } = await openPage();
+  let asked = 0;
+  await page.route('**/js/glossary-data.js', (r) => {
+    asked++;
+    return r.abort();
+  });
+  await page.goto(`${httpBase}#/physics`);
+  await page.waitForSelector('.term');
+  await waitFor(() => asked === 1);
+  // Drawn again five times (the theme switched): no more requests.
+  for (let i = 0; i < 5; i++) await page.click('#theme');
+  await page.waitForTimeout(2500);
+  assert.equal(asked, 1);
+  // A new page asks again.
+  await page.evaluate(() => (location.hash = '#/quality'));
+  await page.waitForSelector('#view h1');
+  await waitFor(() => asked === 2);
+  await page.close();
 });
 
 test("the glossary's definitions: a failure says so; a new visit and Try again ask again; file:// works (U4.05)", async () => {

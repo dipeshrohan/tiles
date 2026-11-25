@@ -865,7 +865,7 @@ function render(): void {
   else replace(root, html);
   rebind();
   view.bind?.(root, ctx);
-  if (root.querySelector('.term')) preloadGlossary(); // its definitions, before a term is Tabbed to
+  if (root.querySelector('.term')) preloadGlossary(!again); // its definitions, before a term is Tabbed to
   afterRender(); // the API's field errors on the form sent last stay (js/lib/forms.ts)
   after(root, was);
   // Home › the page › the record or place it shows (after render and bind, from what they show; the

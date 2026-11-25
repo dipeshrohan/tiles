@@ -5,7 +5,7 @@
 // its tooltip or, without one, its name; screen readers have the key from the attribute already.
 import { keyLabel } from './shortcuts.ts';
 import { announce } from './dom.ts';
-import { loadGlossary, termTip } from './glossary.ts';
+import { glossaryLoaded, loadGlossary, termTip } from './glossary.ts';
 import type { GlossaryKey } from './glossary-data.ts';
 import { t as say } from './i18n.ts';
 
@@ -28,11 +28,18 @@ function element(): HTMLElement {
 
 const nameOf = (el: HTMLElement): string => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim();
 
-// A glossary term drawn before the definitions were loaded (js/lib/glossary.ts): they are loaded,
-// and its tooltip shown if it is still wanted (pointed at, focused or tapped); kept on it until the
-// page is drawn again, by then with them. A failure says so in the tooltip. A term focused all the
-// while has the words said too (#announcer): a description added after the focus isn't read out.
+// A glossary term drawn before the definitions were loaded (js/lib/glossary.ts). Here by now (the
+// idle preload): its tooltip at once, described as it is shown. Still on their way: shown when they
+// arrive if the term is still wanted (pointed at, focused or tapped), and said through #announcer
+// if it has the focus all the while (a description added after the focus isn't read out); a
+// failure says so the same way. Kept on the term until the page is drawn again, by then with them.
 function showTerm(el: HTMLElement): void {
+  const tipOf = (): string | null => termTip(el.dataset.term as GlossaryKey, el.textContent ?? '');
+  if (glossaryLoaded()) {
+    const text = tipOf();
+    if (text) el.dataset.tooltip = text;
+    return text ? show(el, text) : undefined;
+  }
   wanted = el;
   const ready = (text: string): void => {
     if (wanted !== el || !el.isConnected) return;
@@ -41,7 +48,7 @@ function showTerm(el: HTMLElement): void {
   };
   loadGlossary().then(
     () => {
-      const text = termTip(el.dataset.term as GlossaryKey, el.textContent ?? '');
+      const text = tipOf();
       if (text) el.dataset.tooltip = text;
       ready(text ?? '');
     },
