@@ -492,6 +492,23 @@ test('every page reflows at 320 px and at 200% zoom: nothing scrolls sideways (U
   assert.deepEqual(wide, []);
 });
 
+// The pages review H-16 and H-17 changed, in the pseudo-locale (every message 40% longer, padded with
+// a run that doesn't break) on a phone: their heads and leads still fit. The 320 px check above runs
+// in English, where nothing is that long.
+test('the pages headed by their names fit a phone in the pseudo-locale (review H-16)', async (t) => {
+  const page = await browser.newPage({ reducedMotion: 'reduce', viewport: { width: 390, height: 800 } });
+  t.after(() => page.close());
+  const wide = [];
+  for (const route of ['ontology', 'chat', 'physics', 'quality', 'design', 'correlate']) {
+    await page.goto('about:blank');
+    await page.goto(`${httpBase}?lang=en-XA#/${route}`);
+    await page.waitForSelector('#view h1');
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (over > 0) wide.push(`${route}: ${over} px too wide`);
+  }
+  assert.deepEqual(wide, []);
+});
+
 // Tab through a page: every control the keyboard reaches shows where the focus is, an outline or a
 // ring it hasn't without the focus. In forced colours (Windows High Contrast) shadows are dropped,
 // so it must be an outline. The walk ends back where it began; a page with more controls than the

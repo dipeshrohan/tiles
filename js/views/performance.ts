@@ -22,6 +22,7 @@ import {
 import { GLOSSARY } from '../lib/glossary-data.ts';
 import { showErrors } from '../lib/forms.ts';
 import { dateTime, fromInput, month, number, percent } from '../lib/format.ts';
+import { bindReadsAs, datedField } from '../lib/date-fields.ts';
 import {
   change,
   defaultPeriods,
@@ -323,8 +324,8 @@ function plannedCard(ctx: Context): string {
   const addForm = canEdit
     ? `<form id="planned-form" class="roi-form no-print">
         ${field(t('performance.planned.asset'), input({ name: 'asset', value: d?.asset ?? '', placeholder: t('performance.planned.wholeSite'), attrs: { maxlength: '100' } }), { hint: t('performance.planned.assetHint') })}
-        ${field(t('performance.planned.from'), input({ name: 'from', type: 'datetime-local', value: d?.from ?? '', attrs: { required: true } }))}
-        ${field(t('performance.planned.to'), input({ name: 'to', type: 'datetime-local', value: d?.to ?? '', attrs: { required: true } }))}
+        ${datedField(t('performance.planned.from'), { name: 'from', kind: 'datetime-local', value: d?.from ?? '', required: true })}
+        ${datedField(t('performance.planned.to'), { name: 'to', kind: 'datetime-local', value: d?.to ?? '', required: true })}
         ${field(t('performance.planned.reason'), input({ name: 'reason', value: d?.reason ?? '', attrs: { maxlength: '200' } }))}
         <div>${button(t('performance.planned.add'), { type: 'submit', variant: 'primary' })}</div>
       </form>`
@@ -335,7 +336,7 @@ function plannedCard(ctx: Context): string {
 function roiCard(): string {
   const f: RoiForm = roi?.form ?? defaultPeriods(Date.now());
   const date = (name: string, label: string) =>
-    field(label, input({ name, type: 'date', value: f[name] ?? '', attrs: { required: true } }));
+    datedField(label, { name, kind: 'date', value: f[name] ?? '', required: true });
   const amount = (name: string, label: string, hint?: string) =>
     field(label, input({ name, type: 'number', value: f[name] ?? '', attrs: { min: '0', step: 'any' } }), { hint });
   return `<div class="card stack gap-3" id="roi">
@@ -398,6 +399,7 @@ const view: View = {
     return `${head}${controls(u)}<div class="stack gap-4 mt-4">${body}</div>`;
   },
   bind(root, ctx) {
+    bindReadsAs(root);
     if (!ctx.api || ctx.ontology.status !== 'ready') return;
     const key = keyFor(ctx);
     if (fetched?.key !== key && fetched?.key !== `${key}|failed`) void load(ctx);

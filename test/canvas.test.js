@@ -8,6 +8,7 @@ import {
   fitView,
   focusView,
   inBox,
+  likelyChild,
   likelyRel,
   minimapPath,
   stepFrom,
@@ -265,4 +266,46 @@ test('a label too long for its room keeps whole words from its start, for an ell
   // Spaces doubled or leading don't make empty words.
   assert.deepEqual(fitLabel(' A  bb cc', 70, measure, 10), { text: ' A  bb', cut: true });
   assert.deepEqual(fitLabel(' A  bb cc', 69, measure, 10), { text: ' A', cut: true });
+});
+
+test('a new node starts as a Machine, or as the type that fits under its parent (review H-22)', () => {
+  assert.equal(likelyChild(null), 'Machine');
+  assert.equal(likelyChild(undefined), 'Machine');
+  assert.equal(likelyChild('Enterprise'), 'Site');
+  assert.equal(likelyChild('Line'), 'Machine');
+  assert.equal(likelyChild('Machine'), 'PLC');
+  // A parent nothing is made under leaves the form's choice alone.
+  for (const leaf of ['Signal', 'Material', 'Document', 'Model']) assert.equal(likelyChild(leaf), null);
+});
+
+// The pairs docs/data-model.md allows for each relationship.
+const HIERARCHY = ['Enterprise', 'Site', 'Workcenter', 'Line', 'Cell', 'Machine'];
+const ALLOWED = {
+  contains: (a, b) => HIERARCHY.includes(a) && HIERARCHY.indexOf(b) > HIERARCHY.indexOf(a),
+  runs: (a, b) => a === 'Machine' && b === 'Process',
+  consumes: (a, b) => a === 'Process' && b === 'Material',
+  controlledBy: (a, b) => a === 'Machine' && b === 'PLC',
+  emits: (a, b) => a === 'PLC' && b === 'Signal',
+  feeds: (a, b) => ['Line', 'Cell', 'Machine'].includes(a) && ['Line', 'Cell', 'Machine'].includes(b),
+};
+
+test('the relationship suggested under each parent is one the data model allows (review H-22)', () => {
+  // Each parent's child, every entry of the table: a changed one fails here.
+  const EXPECTED = {
+    Enterprise: 'Site',
+    Site: 'Workcenter',
+    Workcenter: 'Line',
+    Line: 'Machine',
+    Cell: 'Machine',
+    Machine: 'PLC',
+    PLC: 'Signal',
+    Process: 'Material',
+  };
+  for (const [parent, expected] of Object.entries(EXPECTED)) {
+    const child = likelyChild(parent);
+    assert.equal(child, expected, parent);
+    const rel = likelyRel(parent, child);
+    assert.ok(ALLOWED[rel]?.(parent, child), `${parent} ${rel} ${child}`);
+  }
+  assert.equal(likelyRel('Enterprise', 'Site'), 'contains');
 });

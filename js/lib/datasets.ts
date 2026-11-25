@@ -3,6 +3,7 @@
 
 import type { CorrelationFinding, DatasetColumn, DatasetValue } from './api.ts';
 import { esc } from './dom.ts';
+import { signedNumber } from './format.ts';
 import { parseNumber } from './importer.ts';
 import { t } from './i18n.ts';
 
@@ -91,7 +92,7 @@ export function forestPlot(findings: CorrelationFinding[], split: boolean, width
       const name = split ? `${f.segment} · ${f.variable}` : f.variable;
       return `<text class="tick" x="${label}" y="${y + 4}" text-anchor="end">${esc(name)}</text>
         <line class="ci ${cls}" x1="${x(f.ci_low!).toFixed(1)}" x2="${x(f.ci_high!).toFixed(1)}" y1="${y}" y2="${y}"/>
-        <circle class="ci ${cls}" cx="${x(f.effect).toFixed(1)}" cy="${y}" r="4"><title>${esc(t('datasets.pointTitle', { d: f.effect.toFixed(2), low: f.ci_low!.toFixed(2), high: f.ci_high!.toFixed(2) }))}</title></circle>`;
+        <circle class="ci ${cls}" cx="${x(f.effect).toFixed(1)}" cy="${y}" r="4"><title>${esc(t('datasets.pointTitle', { d: signedNumber(f.effect, 2), low: signedNumber(f.ci_low!, 2), high: signedNumber(f.ci_high!, 2) }))}</title></circle>`;
     })
     .join('');
   // For screen readers: the effects whose interval misses 0, as the plot makes them stand out.
@@ -103,9 +104,9 @@ export function forestPlot(findings: CorrelationFinding[], split: boolean, width
           .map((f) =>
             t('datasets.clearEffect', {
               name: name(f),
-              d: f.effect.toFixed(2),
-              low: f.ci_low!.toFixed(2),
-              high: f.ci_high!.toFixed(2),
+              d: signedNumber(f.effect, 2),
+              low: signedNumber(f.ci_low!, 2),
+              high: signedNumber(f.ci_high!, 2),
             }),
           )
           .join('; '),

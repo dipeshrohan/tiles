@@ -47,3 +47,10 @@ test('runs record lineage and diffs, and audit export includes outputs', () => {
   assert.equal(audit.runs[0].output.unit, 'kN');
   assert.throws(() => evaluate('swelling', '9.9', {}), /no version/);
 });
+
+test('the Design studio writes a range with an en dash, or "to" when an end is negative (review H-17)', async () => {
+  const { range } = await import('../js/views/design.ts');
+  assert.equal(range(2.781, 5.532, 'kN'), '2.78–5.53 kN');
+  assert.equal(range(-5, 10, '°C'), '−5.00 to 10.00 °C');
+  assert.equal(range(-0.001, 1, ''), '0.00–1.00'); // zero has no sign
+});

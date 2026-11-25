@@ -10,6 +10,7 @@ import {
   fitView,
   focusView,
   inBox,
+  likelyChild,
   likelyRel,
   minimapPath,
   stepFrom,
@@ -211,6 +212,8 @@ function hierarchyOf(graph: Graph): ReturnType<typeof hierarchy> {
   return h;
 }
 const optionLists = new WeakMap<Graph, string>();
+// The new node form's selects someone chose themselves: no longer set from the node above.
+const chosen = new WeakSet<Element>();
 // A number per graph: a node picker drawn for another graph is drawn again (its options go).
 const versions = new WeakMap<Graph, number>();
 let lastVersion = 0;
@@ -1074,7 +1077,7 @@ function newNodeForm(graph: Graph): string {
       <p class="small soft mb-3">${esc(t('ontology.new.hint'))}</p>
       <form class="stack gap-2_5 max-w-form" id="node-form" data-tour="onto-add">
         <label class="field">${esc(t('ontology.new.type'))}<select name="type">${Object.keys(NODE_TYPES)
-          .map((type) => `<option>${type}</option>`)
+          .map((type) => `<option${type === 'Machine' ? ' selected' : ''}>${type}</option>`)
           .join('')}</select></label>
         <label class="field">${esc(t('ontology.new.label'))}<input type="text" name="label" placeholder="${esc(t('ontology.new.placeholder'))}" required /></label>
         <label class="field">${esc(t('ontology.new.from'))}<select name="from" data-morph="if-changed" data-node-options="${versionOf(graph)}"><option value="">${esc(t('ontology.new.none'))}</option></select></label>
@@ -1163,7 +1166,7 @@ function reviewControls(ctx: Context): string {
 const ontologyHead = (): string =>
   pageHead({
     eyebrow: t('ontology.eyebrow'),
-    title: t('ontology.headTitle'),
+    title: t('ontology.title'),
     lead: t('ontology.lead'),
   });
 
@@ -1740,6 +1743,20 @@ const view: View = {
     });
     for (const type of ['focus', 'pointerdown', 'keydown'] as const)
       onAll(root, 'select[data-node-options]', type, (el) => fillNodeOptions(el as HTMLSelectElement, ctx.graph));
+    // A new node's type and relationship follow the node it hangs from, until chosen (review H-22);
+    // a parent nothing is made under (a Signal) changes neither. `input` comes with every pick.
+    onAll(root, '#node-form select', 'input', (el) => {
+      const { type, rel, from } = (el as HTMLSelectElement).form!.elements as unknown as Record<
+        'type' | 'rel' | 'from',
+        HTMLSelectElement
+      >;
+      if (el !== from) return void chosen.add(el);
+      const parent = ctx.graph.nodes[from.value]?.type;
+      const child = likelyChild(parent);
+      if (!child) return;
+      if (!chosen.has(type)) type.value = child;
+      if (parent && !chosen.has(rel)) rel.value = likelyRel(parent, type.value as NodeType);
+    });
     onSubmit(root, '#node-form', (form) => {
       const type = field(form, 'type') as NodeType;
       const label = field(form, 'label').trim();
