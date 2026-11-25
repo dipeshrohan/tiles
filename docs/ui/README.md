@@ -101,7 +101,7 @@ A new page replaces `#view`; the same page drawn again is patched in place by `j
 ## Help, the glossary, tours and what's new
 
 - **Help** (U4.04): each page's section of `docs/guides/user.md` opens beside it from the top bar's help button; `scripts/help.js` cuts the guide into `js/help-data.js` at build time and fails when a page has no section in `PAGE_HELP`.
-- **The glossary** (U4.05): a term in [glossary.md](glossary.md) (a `##` group, a `###` term, one paragraph), made into `js/lib/glossary-data.ts` by `npm run glossary`; `term(key)` shows it dotted, its definition in a tooltip, where it first appears on a page.
+- **The glossary** (U4.05): a term in [glossary.md](glossary.md) (a `##` group, a `###` term, one paragraph), made by `npm run glossary` into `js/lib/glossary-data.ts` (names, in the bundle) and `js/glossary-data.js` (definitions, loaded when first wanted); `term(key)` shows it dotted, its definition in a tooltip, where it first appears on a page.
 - **Tours** (U4.07): steps in `js/lib/tours.ts`, each naming a `data-tour="…"` a page draws; renaming one means changing its tour (`test/tours.test.js`).
 - **What's new** (U4.08): the changelog's top section; a dot on the help button until the person opens it.
 - **Feedback** (U4.09) and **the welcome** (U4.06) need nothing from a page.

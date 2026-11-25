@@ -4,7 +4,7 @@
 // loaded the first time help is wanted (so it works from file://, and the app's bundle stays small).
 import type { IconName } from './icons.ts';
 import type { PaletteItem } from './palette.ts';
-import { t } from './i18n.ts';
+import { t, type MessageKey } from './i18n.ts';
 
 export interface HelpSection {
   slug: string; // the heading's anchor in the guide, as GitHub makes it
@@ -29,29 +29,44 @@ export interface HelpData {
 declare global {
   interface Window {
     tilesHelp?: HelpData;
+    tilesGlossary?: Readonly<Record<string, { group: string; text: string }>>; // js/lib/glossary.ts
   }
 }
 
-let loading: Promise<HelpData> | null = null;
+type Kept = 'tilesHelp' | 'tilesGlossary';
+const loading = new Map<Kept, Promise<unknown>>();
 
-// The guide, loaded once; a failure (a missing file) can be tried again.
-export function loadHelp(src = 'js/help-data.js'): Promise<HelpData> {
-  if (window.tilesHelp) return Promise.resolve(window.tilesHelp);
-  loading ??= new Promise<HelpData>((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = src;
-    script.async = true;
-    const fail = (message: string): void => {
-      loading = null; // tried again next time
-      script.remove();
-      reject(new Error(message));
-    };
-    script.onload = () => (window.tilesHelp ? resolve(window.tilesHelp) : fail(t('help.fileEmpty')));
-    script.onerror = () => fail(t('help.fileFailed'));
-    document.head.append(script);
-  });
-  return loading;
+// A classic script beside the bundle that sets window[name] (help-data.js, glossary-data.js), added
+// once, so it loads from file:// too; a failure (a missing file) can be tried again.
+export function loadKept<K extends Kept>(name: K, src: string, failed: MessageKey): Promise<NonNullable<Window[K]>> {
+  const now = window[name];
+  if (now) return Promise.resolve(now);
+  let p = loading.get(name) as Promise<NonNullable<Window[K]>> | undefined;
+  if (!p) {
+    p = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      const fail = (): void => {
+        loading.delete(name); // tried again next time
+        script.remove();
+        reject(new Error(t(failed)));
+      };
+      script.onload = () => {
+        const kept = window[name];
+        if (kept) resolve(kept);
+        else fail();
+      };
+      script.onerror = fail;
+      document.head.append(script);
+    });
+    loading.set(name, p);
+  }
+  return p;
 }
+
+// The guide, loaded once.
+export const loadHelp = (src = 'js/help-data.js'): Promise<HelpData> => loadKept('tilesHelp', src, 'help.fileFailed');
 
 export const helpLoaded = (): HelpData | null => window.tilesHelp ?? null;
 

@@ -10,15 +10,17 @@ anything.
 | Session | Id | Task | Branch | State |
 | --- | --- | --- | --- | --- |
 | TILES · Lead (product manager) | `session_01UPWFCtJ41TYMJrwEyic6Pe` | coordination, reviews, merges | — | context past 80 % (user: /compact) |
-| TILES · UI 3 | `session_01AqW5DEehd8CZ9p2nqQTCFE` | review H-05, H-06, H-07, H-12, H-13, H-15: Warnings, Home, Settings, menu | `review-h05-h15-a` | PR #423; its a11y job waits for #422's `overlay.ts` fix: after #422 merges, UI 3 merges main and reports, then the lead deep-reviews it |
-| TILES · UI 4 | `session_01AqW5DFHsWAAuF8zTgpqy9m` | review H-08, H-09, H-10, H-11, H-14: set-up wizard, ontology builder, correlation finder | `review-h05-h15-b` | PR #422: deep review and delta check done (all 10 items fixed, migration 0046 checked); last asks sent: a test that the waiting line's failed read shows no toast, a `MAX_SEGMENTS` comment, the tooltip text cached, out-of-order answers dropped. Read that change (small), then merge |
+| TILES · UI 5 | `session_01AqW5DHhA39a5rAW2pwvEM4` | H-19, H-20, H-21, H-23 (Warnings, Home), #425: Warnings, Home, Settings, menu, top bar, reset | `review-h16-h23-a` | started 2026-11-25 |
+| TILES · UI 6 | `session_01AqW5DHobjTtR4d5c28JXLD` | H-16, H-17, H-18, H-22, H-23 (correlation finder): ontology, copilot heading, physics, quality, explorer, design, correlation, performance | `review-h16-h23-b` | started 2026-11-25 |
+| TILES · QA 1 | `session_01AqW5DHCtRuZug414TpkzKM` | independent quality check of each reported PR head (three-fold check) | — | started 2026-11-25 |
 
-UI 1 and UI 2 (review H-01 to H-04) were merged on 2026-11-24 as #409 and #408 after a deep
-review each, and archived. On 2026-11-25 the user chose H-05 to H-15 next: UI 3 and UI 4 split them
-by page so they don't share files.
+On 2026-11-25 the user chose the polish findings H-16 to H-23 and #425 next: UI 5 and UI 6 split them
+by page. H-01 to H-04 were merged on 2026-11-24 (#408, #409); H-05 to H-15 on
+2026-11-25 (#422 by UI 4, #423 by UI 3), each after a deep review and a delta check; all four UI
+sessions are archived. #423's low follow-ups are #425.
 
 One scheduled check-in names the running sessions; re-arm it with the current state each time it
-fires. Now: `trig_013LKvjzMPanCDgezswWWtAF` ("Check child sessions UI 3 and UI 4").
+fires. None now (deleted 2026-11-25 when no child was running).
 
 ## How the lead runs children
 
@@ -51,6 +53,24 @@ The merge flow for a child's PR:
    `unsubscribe_pr_activity`, archive the child, update this file.
 6. A second PR on shared generated files (bundle, help, messages): the child merges main and
    rebuilds with `npm run build`, never by hand.
+7. CI never stops the work (the user, 2026-11-25): every brief says a red job is the child's to
+   root-cause and fix at once; an infrastructure failure gets one re-run, then a fix in the PR or an
+   immediate report to the lead, who fixes or escalates it the same day. Budgets (bundle size) are
+   the user's to change; children make room instead. 2026-11-25: #427 and #428 together were
+   0.03 kB over the 200 kB bundle budget; UI 5 moves the glossary data (4.2 kB gzipped) to a lazily
+   loaded classic script like help-data.js.
+9. Three-fold check (the user, 2026-11-25), no step repeating another: (a) the child: full suite
+   before every push, its counts in the report; (b) QA 1 (standing quality session): the lead sends
+   it each reported PR and head SHA; it runs the suite itself, uses the change at widths, languages,
+   file://, keyboard and print, checks claims against findings, plants bugs, checks Docker context
+   and CI health, and reports; no code review; (c) the lead: deep code review (agent; targeted
+   checks only, no whole-suite re-runs), verify, merge only when all three are clean.
+8. No push without the full local suite green on that exact head (the user, 2026-11-25: "Why are
+   ci runs failing are not doing quality check through a child session"): lint, typecheck, unit,
+   the whole e2e suite (smoke unfiltered, a11y, print, morph), perf, visual (or a diff against CI's
+   images), API/edge checks if touched; Docker context and COPY lines checked locally when the
+   images change. Reports list the suites and counts for the pushed head. A red CI the child
+   didn't name in advance is a miss.
 
 Docs-only PRs (these notes, decisions): check the diff, CI green, merge the same way.
 
@@ -59,8 +79,9 @@ Docs-only PRs (these notes, decisions): check the diff, CI green, merge the same
 Nothing starts without the user's choice. Candidates, each to be put to the user one at a time
 with a recommendation:
 
-- The usability review's severity-1 findings (H-16 to H-23); H-01 to H-04 are done (#408, #409),
-  H-05 to H-15 are with UI 3 and UI 4.
+- The usability review's severity-1 findings H-16 to H-23 (issues #413 to #420) and #425; H-01 to
+  H-15 are done (#408, #409, #422, #423).
+- #421: whether `main` is protected (T1.02, CM-1) is a repository setting only an admin can see.
 - Tracker drift found by the [retrospective](../retrospective-2026.md): #15 and #51 ticked but
   open; T1.02 and CM-1 disagree on branch protection; T6.09's open half is the pilot deploy.
 - [ROADMAP-3](../ROADMAP-3.md) (a draft: 30 tasks, months 13 to 18).
@@ -115,6 +136,9 @@ From the lead prompt the user gave on 2026-11-24:
   waiting on the user. No estimates; "no change" when nothing changed.
 
 ## Lessons
+
+- 2026-11-25: the 5-hour usage limit stopped two review agents for about 1.5 hours; resume a stopped
+  agent with SendMessage rather than starting it again.
 
 - 2026-11-24: UI 1 and UI 2 were started on findings the user hadn't chosen to fix; under the
   lead prompt, the lead asks first.

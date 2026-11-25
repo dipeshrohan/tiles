@@ -6,4 +6,5 @@
 !css/
 !js/tiles.bundle.js
 !js/help-data.js
+!js/glossary-data.js
 !js/messages-*.js
