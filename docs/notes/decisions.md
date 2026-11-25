@@ -14,6 +14,10 @@ wrong entry the same day and say so.
 - **What next, after H-01 to H-04** ("Continue tasks", then the question). Chosen: _the usability
   review's H-05 to H-15_ (the severity-2 findings). Turned down: all of H-05 to H-23; the
   Dependabot PRs #399 to #406; planning ROADMAP-3.
+- **The "three times the return" rule when v1.0's return is zero or below** (sign-off pack).
+  Asked twice; the user's words: _"I do not understand the question at all"_, then _"Again no
+  context I do not understand the question"_. Not answered. Parked until a partner exists; the
+  pack already leaves it to the sign-off meeting. Don't ask again before then.
 
 ## 2026-11-24
 
@@ -70,7 +74,4 @@ Recorded from the conversation's summary, not from the user's words verbatim:
 
 ## Waiting for the user
 
-- The rule for "three times the return" when v1.0's return is zero or negative
-  ([sign-off.md](../pilot/sign-off.md)). Lead's recommendation: the ratio when v1.0 is above zero,
-  else a minimum amount agreed with the partner beforehand.
 - Which follow-up issues to create: the usability review's 14, the tracker drift, ROADMAP-3's 30.
