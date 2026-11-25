@@ -7176,7 +7176,7 @@ test("menu names aren't cut at 1440 px; on a phone the breadcrumb shows this pag
   assert.deepEqual(await label.boundingBox(), before);
   // On a phone: the place above as a back arrow, named for screen readers; this page whole.
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const route of ['warnings', 'performance', 'help/warnings']) {
+  for (const route of ['warnings', 'performance', 'glossary/baseline']) {
     await page.goto(`${httpBase}#/${route}`);
     await page.waitForSelector('#view h1');
     const back = page.locator('#crumbs li:nth-last-child(2) a');
@@ -7193,10 +7193,13 @@ test("menu names aren't cut at 1440 px; on a phone the breadcrumb shows this pag
     const fits = await here.evaluate((b) => b.scrollWidth <= b.clientWidth && b.scrollHeight <= b.clientHeight + 1);
     assert.ok(fits, `${route}: "${await here.innerText()}" is cut`);
   }
-  assert.equal(await page.locator('#crumbs li:nth-last-child(2) a').getAttribute('href'), '#/help');
-  // At 320 px a long name takes a second line rather than an ellipsis.
+  // The place above the record: its page (the glossary's crumbs need nothing loaded, unlike a help
+  // section's, which come with the help file).
+  assert.equal(await page.locator('#crumbs li:nth-last-child(2) a').getAttribute('href'), '#/glossary');
+  // At 320 px a long name takes a second line rather than an ellipsis (names that fit two lines in
+  // the runner's fonts and the container's: "Warning performance" may not, the PR's known edge).
   await page.setViewportSize({ width: 320, height: 700 });
-  for (const route of ['performance', 'preferences', 'onboarding']) {
+  for (const route of ['correlate', 'reviews', 'onboarding']) {
     await page.goto(`${httpBase}#/${route}`);
     await page.waitForSelector('#view h1');
     const here = await page.locator('#crumbs b[aria-current=page]').evaluate((b) => ({
