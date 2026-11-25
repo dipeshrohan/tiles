@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { sseParser } from '../js/lib/sse.ts';
 import {
   answerHtml,
+  copilotOff,
+  copilotOffKey,
   applyEvent,
   emptyAnswer,
   evidenceLink,
@@ -174,4 +176,27 @@ test('an answer the tools do not back is flagged with what is missing', () => {
     }),
     'Check this answer: it cites no tool result; no tool returned 1,900; no tool named x.y.',
   );
+});
+
+test('copilot off (review H-02): why, and whether the person is told what it takes', () => {
+  const off = (configured, enabled, failed = false) => ({ configured, enabled, failed });
+  assert.deepEqual(copilotOff(off(false, false), 'viewer'), { why: 'service', admin: false });
+  assert.deepEqual(copilotOff(off(false, false), 'engineer'), { why: 'service', admin: false });
+  assert.deepEqual(copilotOff(off(false, false), 'admin'), { why: 'service', admin: true });
+  assert.deepEqual(copilotOff(off(true, false), 'engineer'), { why: 'site', admin: false });
+  assert.deepEqual(copilotOff(off(true, false), 'admin'), { why: 'site', admin: true });
+  assert.equal(copilotOff(off(true, true), 'viewer'), null); // on
+  assert.equal(copilotOff(off(null, false), 'admin'), null); // still checking
+  assert.deepEqual(copilotOff(off(false, false), null), { why: 'service', admin: false });
+  // The status couldn't be read: not "not set up".
+  assert.deepEqual(copilotOff(off(false, false, true), 'engineer'), { why: 'unchecked', admin: false });
+});
+
+test('copilot off: the words for each case (a site admin can turn it on only on the site)', () => {
+  assert.equal(copilotOffKey({ why: 'service', admin: false }), 'serviceNotSetUp'); // not "a site admin"
+  assert.equal(copilotOffKey({ why: 'service', admin: true }), 'serviceOff'); // the settings' names
+  assert.equal(copilotOffKey({ why: 'site', admin: false }), 'notSetUp');
+  assert.equal(copilotOffKey({ why: 'site', admin: true }), 'siteOff');
+  assert.equal(copilotOffKey({ why: 'unchecked', admin: false }), 'checkFailed');
+  assert.equal(copilotOffKey({ why: 'unchecked', admin: true }), 'checkFailed');
 });

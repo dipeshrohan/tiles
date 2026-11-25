@@ -3,7 +3,7 @@ import { createRng } from '../lib/rng.ts';
 import { fitWidth, lineChart } from '../lib/svg.ts';
 import { esc, fmt, need, onAll, bound } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
-import { badge, pageHead, term } from '../lib/ui.ts';
+import { badge, demoNotice, pageHead, term } from '../lib/ui.ts';
 import { t, tHtml } from '../lib/i18n.ts';
 
 const uiState = (ctx: Context) =>
@@ -42,6 +42,7 @@ const view: View = {
           detection.alerts.length ? 'bad' : 'good',
         ),
       })}
+      ${ctx.api ? demoNotice(t('physics.demoNotice')) : ''}
 
       <div class="grid g4 mb-4">
         <div class="card kpi"><div class="label">${esc(t('physics.kpi.shots'))}</div><div class="value">${fmt(hist.length)}</div><div class="note">${esc(t('physics.kpi.hours', { hours: fmt(toH(hist.length), 0) }))}</div></div>

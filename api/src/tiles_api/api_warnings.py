@@ -33,6 +33,9 @@ class WarningOut(BaseModel):
     detector: str
     signal_id: uuid.UUID
     signal_tag: str
+    # The machine it is on, as the MES names it: its detector's asset, else its signal's (the app
+    # places a warning on a Machine node by it when its signal has no Signal node).
+    asset: str | None
     started_at: datetime
     last_at: datetime
     ended_at: datetime | None  # when the signal came back; None while it is still out
@@ -91,7 +94,8 @@ class ResolveIn(BaseModel):
 
 
 WARNINGS = """
-SELECT w.id, w.detector_id, d.name AS detector, w.signal_id, g.tag AS signal_tag, w.started_at, w.last_at,
+SELECT w.id, w.detector_id, d.name AS detector, w.signal_id, g.tag AS signal_tag,
+       COALESCE(d.asset, g.asset) AS asset, w.started_at, w.last_at,
        w.ended_at, w.side, w.peak, w.baseline, w.threshold, w.readings,
        CASE WHEN w.resolved_at IS NOT NULL THEN 'resolved'
             WHEN w.acknowledged_at IS NOT NULL THEN 'acknowledged'

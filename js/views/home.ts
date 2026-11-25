@@ -22,6 +22,7 @@ import {
   shiftStart,
   shiftSummary,
   staleSignals,
+  untakenWarnings,
   type CardId,
 } from '../lib/home-cards.ts';
 import { ensureLayout, ensureNeeds, homeLayout, keepCards, slot, SIGNALS_PAGE, WARNINGS_PAGE } from './home-data.ts';
@@ -79,6 +80,15 @@ function cardBody(ctx: Context, id: CardId, now: number): string | null {
       if (!mine.length) return nothing(t('home.mine.none'), t('home.mine.noneBody'));
       return `${figure(mine.length, t('home.mine.figure', { count: mine.length }), 'bad', full)}
         ${rows(mine.map((w) => warningRow(w, now)))}${more(mine.length, '#/warnings?who=me', t('home.onWarnings'), full)}`;
+    }
+    case 'untaken': {
+      const all = slot(ctx, 'open-warnings').value;
+      if (!all) return null;
+      const waiting = untakenWarnings(all);
+      const full = all.length === WARNINGS_PAGE;
+      if (!waiting.length) return nothing(t('home.untaken.none'), t('home.untaken.noneBody'));
+      return `${figure(waiting.length, t('home.untaken.figure', { count: waiting.length }), 'bad', full)}
+        ${rows(waiting.map((w) => warningRow(w, now)))}${more(waiting.length, '#/warnings?show=raised&who=none', t('home.onWarnings'), full)}`;
     }
     case 'machines-out': {
       const all = slot(ctx, 'open-warnings').value;
@@ -196,6 +206,7 @@ function cardBody(ctx: Context, id: CardId, now: number): string | null {
 
 const CARD_LINKS: Record<CardId, [string, MessageKey]> = {
   'my-warnings': ['#/warnings?who=me', 'home.link.warnings'],
+  untaken: ['#/warnings?show=raised&who=none', 'home.link.warnings'],
   'machines-out': ['#/shopfloor', 'home.link.shopfloor'],
   shift: ['#/warnings', 'home.link.warnings'],
   reviews: ['#/reviews', 'home.link.reviews'],

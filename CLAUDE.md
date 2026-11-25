@@ -69,6 +69,9 @@ Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontolog
 - `docs/UI-PLAN.md`: the 6-month UI and UX plan (tasks `U1.01` … in TASKS.md's UI track, GitHub issues labelled `ui`): design tokens, `js/lib/ui.ts` components, dialogs, states, motion, help, i18n. UI work follows it; `docs/ui/README.md` (U6.08) is the handbook that brings its outputs together, with a new page step by step and the review checklist.
 - `docs/`: roadmap, task list, ADRs, and `data-model.md` (node types and relationships, mapped to ISA-95). Adding a node type means changing `NODE_TYPES` in both `js/lib/ontology.ts` and `api/src/tiles_api/ontology.py` plus a migration for the database check.
 
+## Working notes
+- `docs/notes/lead.md`: how the lead session works (the user's lead prompt of 2026-11-24), the running child sessions and the queue. `docs/notes/decisions.md`: every answer the user gave, dated, with the options turned down. A lead or child session reads both before acting; nothing in them may be guessed.
+
 ## Rules
 - Add or update tests with every behaviour change; never skip or disable a test.
 - A site's data is under row security (T5.04, migration 0024), closed when no site is named: a new table with a `site_id` needs a forced `site_rows` policy in its migration, and a table that belongs to a site through a parent needs one through the parent (`tests/test_row_security.py` fails otherwise). Requests are scoped by `SiteContext`; a pooled connection used outside one must scope itself (`store.scope_to_site`); jobs connect with `store.connect_job` (every site, working as `tiles_app`; threat model G-D1); widen with `store.all_sites` only for what spans sites. The API reads readings from the `site_samples` view and stores them with `tiles_store_samples`, never the `samples` table.
