@@ -11,6 +11,9 @@ wrong entry the same day and say so.
   UTC.
 - **The lead's context past 80 %.** Chosen: _/compact here_ (the user runs it). Turned down: a
   fresh lead session from the notes (the lead's recommendation); keep going as is.
+- **What next, after H-01 to H-04** ("Continue tasks", then the question). Chosen: _the usability
+  review's H-05 to H-15_ (the severity-2 findings). Turned down: all of H-05 to H-23; the
+  Dependabot PRs #399 to #406; planning ROADMAP-3.
 
 ## 2026-11-24
 
