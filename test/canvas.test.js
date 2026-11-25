@@ -290,8 +290,20 @@ const ALLOWED = {
 };
 
 test('the relationship suggested under each parent is one the data model allows (review H-22)', () => {
-  for (const parent of ['Enterprise', 'Site', 'Workcenter', 'Line', 'Cell', 'Machine', 'PLC', 'Process']) {
+  // Each parent's child, every entry of the table: a changed one fails here.
+  const EXPECTED = {
+    Enterprise: 'Site',
+    Site: 'Workcenter',
+    Workcenter: 'Line',
+    Line: 'Machine',
+    Cell: 'Machine',
+    Machine: 'PLC',
+    PLC: 'Signal',
+    Process: 'Material',
+  };
+  for (const [parent, expected] of Object.entries(EXPECTED)) {
     const child = likelyChild(parent);
+    assert.equal(child, expected, parent);
     const rel = likelyRel(parent, child);
     assert.ok(ALLOWED[rel]?.(parent, child), `${parent} ${rel} ${child}`);
   }

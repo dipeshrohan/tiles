@@ -856,6 +856,9 @@ main {
   color: var(--soft);
   margin-top: var(--space-1);
   max-width: 70ch;
+  /* A run longer than a phone's width (the pseudo-locale's padding, a long compound word) breaks
+     rather than pushing the page sideways. */
+  overflow-wrap: anywhere;
 }
 .eyebrow {
   font-size: var(--text-2xs);
