@@ -630,6 +630,9 @@ const ctx: Context = {
     // The data source is a preference, not workspace data; kept only if this browser chose one, so
     // a deployment's default (the tiles-api meta tag) stays a default.
     const chosen = load<Partial<DataSource> | null>('datasource', null);
+    // Preferences kept with the person's account (U6.06) are theirs, not this browser's workspace:
+    // they stay, here too (a change still waiting is sent as made). Otherwise, the defaults (#425).
+    const kept = ctx.preferences.kept === 'account' ? currentPreferences() : null;
     clearAll();
     if (chosen) save('datasource', chosen);
     // What is held in memory too, or its next change writes the cleared settings back: the menu's
@@ -639,11 +642,17 @@ const ctx: Context = {
     borrowed = false;
     waitingVisits = [];
     forgetTables();
-    // And the preferences in effect (#425): back to what a reload would read now, the defaults (the
-    // language the browser's); kept with the person on the API, theirs come back once the site
-    // answers (firstRun), and nothing is sent to it from here.
-    applyPreferences(keptPreferences(), currentPreferences());
-    clearTimeout(keepTimer); // a change just before isn't sent after the reset
+    if (kept) {
+      applyPreferences(kept, null); // written here again: the theme, rows, numbers, clock and motion
+      setShortcutsOn(kept.shortcuts);
+      if (kept.language !== 'auto') keepLanguage(kept.language);
+      if (kept.start) setPrefs({ ...prefs(), start: kept.start });
+    } else {
+      // Back to what a reload would read now, the defaults (the language the browser's); nothing is
+      // sent to an API, and a change still waiting isn't either.
+      applyPreferences(keptPreferences(), currentPreferences());
+      clearTimeout(keepTimer);
+    }
     Object.assign(state, freshState(), { ui: {} });
     localRepo = state.repo;
     persist();

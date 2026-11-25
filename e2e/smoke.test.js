@@ -7089,27 +7089,56 @@ test('Reset workspace puts the preferences in effect back to the defaults; a lat
   assert.deepEqual(errors, []);
 });
 
-test('Reset workspace with the API: your preferences stay with your account, and Settings says so (#425)', async (t) => {
+test('Reset workspace with the API: your preferences stay, here and with your account, and Settings says so (#425)', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
   const apiUrl = await fake.listen();
   t.after(() => fake.close());
   const { page, errors } = await openAs(t, apiUrl, null, 'settings');
+  // Every preference the page sends to the account.
+  const sent = [];
+  page.on('request', (r) => {
+    if (r.method() === 'PUT' && r.url().endsWith('/me/preferences')) sent.push(r.postDataJSON());
+  });
+  // Once the site is open, preferences are the account's (before, this browser's).
+  await page.waitForSelector('.card:has([data-reset]):has-text("Your preferences stay with your account")');
+  // The dark theme, chosen just before the reset: its save (sent 300 ms after a change) still waits
+  // when the reset comes, with the page's clock held, and is then sent as made.
+  await page.clock.install();
+  await page.clock.pauseAt(Date.now() + 60_000);
+  await page.click('#theme');
+  await page.click('[data-reset]');
+  assert.match(await page.locator('dialog.dialog[open]').innerText(), /Your preferences stay with your account/);
+  // The account answers late after the reset: what shows meanwhile is what this browser kept.
+  fake.slowNext('GET', /\/me\/preferences$/, 3000);
+  await confirmIn(page, 'reset');
+  await page.waitForSelector('#toast:has-text("Demo data reset")');
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  assert.deepEqual(sent, [], 'sent before the reset');
+  await page.clock.resume();
+  await waitFor(() => fake.userPreferences.get('demo@example.com')?.preferences.theme === 'dark');
+  await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  assert.deepEqual(
+    sent.map((p) => p.theme),
+    ['dark'],
+    'the defaults were sent to the account',
+  );
+  // Kept in this browser too: a reload, before the account answers, is still dark.
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('tiles:preferences')).theme), 'dark');
+  assert.deepEqual(errors, []);
+});
+
+test('Reset workspace without the API says your preferences go back to the defaults (#425)', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/settings`);
   await page.waitForSelector('[data-reset]');
   assert.match(
     await page.locator('.card:has([data-reset])').innerText(),
-    /your preferences stay with your account, and you change them under Your preferences/,
+    /Reset workspace also puts your preferences back to the defaults/,
   );
-  // The dark theme, kept with the account.
-  await page.click('#theme');
-  await waitFor(() => fake.userPreferences.get('demo@example.com')?.preferences.theme === 'dark');
   await page.click('[data-reset]');
-  assert.match(await page.locator('dialog.dialog[open]').innerText(), /your preferences stay with your account/);
-  await confirmIn(page, 'reset');
-  await page.waitForSelector('#toast:has-text("Demo data reset")');
-  // Back from the account once the site answers; nothing sent over it.
-  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
-  await page.waitForTimeout(500);
-  assert.equal(fake.userPreferences.get('demo@example.com')?.preferences.theme, 'dark');
+  assert.match(await page.locator('dialog.dialog[open]').innerText(), /Your preferences go back to the defaults/);
   assert.deepEqual(errors, []);
 });
 

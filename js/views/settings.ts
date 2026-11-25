@@ -484,6 +484,10 @@ let apiCheckSeq = 0;
 let sourceDraft: { base: string; mode: 'local' | 'api'; apiUrl: string } | null = null;
 const sourceKey = (ds: { mode: string; apiUrl: string }): string => `${ds.mode}|${ds.apiUrl}`;
 
+// What Reset workspace does to the preferences (#425): kept with the account (the API, a site
+// open), they stay; otherwise they go back to the defaults.
+const prefsKept = (ctx: Context): 'account' | 'browser' => ctx.preferences.kept;
+
 function readSource(form: HTMLFormElement): { mode: 'local' | 'api'; apiUrl: string } {
   const mode = (form.elements.namedItem('mode') as RadioNodeList).value === 'api' ? 'api' : 'local';
   return { mode, apiUrl: field(form, 'apiUrl') };
@@ -710,7 +714,7 @@ const view: View = {
         </div>
         <div class="card stack gap-3">
           <h2>${esc(t(ds.mode === 'api' ? 'settings.demo.titleApi' : 'settings.demo.title'))}</h2>
-          <p class="small soft">${esc(t(ds.mode === 'api' ? 'settings.demo.leadApi' : 'settings.demo.lead'))}</p>
+          <p class="small soft">${esc(t(ds.mode === 'api' ? 'settings.demo.leadApi' : 'settings.demo.lead', { prefs: prefsKept(ctx) }))}</p>
           <div><button class="btn danger" data-reset>${esc(t('settings.demo.reset'))}</button></div>
         </div>
         <form class="card stack gap-3" id="datasource">
@@ -804,7 +808,9 @@ const view: View = {
     onAll(root, '[data-reset]', 'click', async () => {
       const yes = await confirmDialog({
         title: t('settings.demo.confirmTitle'),
-        body: t(ctx.dataSource.mode === 'api' ? 'settings.demo.confirmBodyApi' : 'settings.demo.confirmBody'),
+        body: t(ctx.dataSource.mode === 'api' ? 'settings.demo.confirmBodyApi' : 'settings.demo.confirmBody', {
+          prefs: prefsKept(ctx),
+        }),
         confirm: t('settings.demo.reset'),
         tone: 'danger',
         typeToConfirm: 'reset',

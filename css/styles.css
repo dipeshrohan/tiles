@@ -773,7 +773,7 @@ button.nav-group .icon {
   text-overflow: ellipsis;
 }
 /* On a phone (review H-21): this place in full, after an arrow back to the place above (its name
-   kept for screen readers); a long name takes two lines. */
+   kept for screen readers); a long name takes two lines, or three in a narrow bar. */
 @media (max-width: 640px) {
   .crumbs li:not(:last-child):not(:nth-last-child(2)) {
     display: none;
@@ -808,9 +808,9 @@ button.nav-group .icon {
   .crumbs b {
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3; /* 3 × 13 px × 1.15, its padding and border: within the bar's 52 px */
     padding-inline: var(--space-1_5);
-    line-height: var(--leading-tight);
+    line-height: var(--leading-snug);
     overflow-wrap: anywhere;
     hyphens: auto;
   }
@@ -4100,6 +4100,17 @@ body.floor-full .topbar {
   .hero {
     grid-template-columns: 1fr;
     padding: var(--space-5);
+  }
+}
+/* The narrowest phones (review H-21): a little less room around the top bar's controls, so the
+   page's name fits its two lines whatever the font. */
+@media (max-width: 360px) {
+  .topbar {
+    gap: var(--space-1_5);
+    padding: 0 var(--space-3);
+  }
+  .crumbs b {
+    padding-inline: var(--space-1);
   }
 }
 @media (max-width: 480px) {
