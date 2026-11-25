@@ -10,8 +10,11 @@ anything.
 | Session | Id | Task | Branch | State |
 | --- | --- | --- | --- | --- |
 | TILES · Lead (product manager) | `session_01UPWFCtJ41TYMJrwEyic6Pe` | coordination, reviews, merges | — | context past 80 % (user: /compact) |
+| TILES · UI 5 | `session_01AqW5DHhA39a5rAW2pwvEM4` | H-19, H-20, H-21, H-23 (Warnings, Home), #425: Warnings, Home, Settings, menu, top bar, reset | `review-h16-h23-a` | started 2026-11-25 |
+| TILES · UI 6 | `session_01AqW5DHobjTtR4d5c28JXLD` | H-16, H-17, H-18, H-22, H-23 (correlation finder): ontology, copilot heading, physics, quality, explorer, design, correlation, performance | `review-h16-h23-b` | started 2026-11-25 |
 
-No child session is running. H-01 to H-04 were merged on 2026-11-24 (#408, #409); H-05 to H-15 on
+On 2026-11-25 the user chose the polish findings H-16 to H-23 and #425 next: UI 5 and UI 6 split them
+by page. H-01 to H-04 were merged on 2026-11-24 (#408, #409); H-05 to H-15 on
 2026-11-25 (#422 by UI 4, #423 by UI 3), each after a deep review and a delta check; all four UI
 sessions are archived. #423's low follow-ups are #425.
 
