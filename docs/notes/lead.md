@@ -52,6 +52,10 @@ The merge flow for a child's PR:
    `unsubscribe_pr_activity`, archive the child, update this file.
 6. A second PR on shared generated files (bundle, help, messages): the child merges main and
    rebuilds with `npm run build`, never by hand.
+7. CI never stops the work (the user, 2026-11-25): every brief says a red job is the child's to
+   root-cause and fix at once; an infrastructure failure gets one re-run, then a fix in the PR or an
+   immediate report to the lead, who fixes or escalates it the same day. Budgets (bundle size) are
+   the user's to change; children make room instead.
 
 Docs-only PRs (these notes, decisions): check the diff, CI green, merge the same way.
 

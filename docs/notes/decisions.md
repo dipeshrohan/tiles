@@ -6,6 +6,12 @@ wrong entry the same day and say so.
 
 ## 2026-11-25
 
+- **"Make sure the child sessions follow rules, I do not want work stopped because ci doesn't
+  work."** (the user's words). The lead's reading, sent to UI 5 and UI 6: a red CI job is the
+  child's to root-cause and fix at once, never to wait on; an infrastructure failure gets one
+  re-run, then a fix in the PR or an immediate report; the bundle budget is not raised without the
+  user (make room: catalogue, reuse, lazy-loaded files).
+
 - **What next, after H-05 to H-15 merged.** Chosen: _polish H-16 to H-23_ (#413 to #420) and
   #425's follow-ups. Turned down: planning ROADMAP-3; branch protection (#421) steps; pause.
 
