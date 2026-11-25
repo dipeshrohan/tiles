@@ -243,3 +243,30 @@ export const toolLabel = (t: Pick<ToolTrace, 'name' | 'input'>): string => {
     .join(', ');
   return `${t.name}(${args})`;
 };
+
+// What the Copilot page says while the API's copilot can't answer (review H-02): the service isn't
+// set up on the API ('service': only whoever runs Tiles can set it up), the site's admins haven't
+// turned it on ('site'), or its status couldn't be read ('unchecked': offline, an error). Only admins
+// are told what it takes (the settings' names, the Settings page). Null while it is on, or still
+// being checked.
+export type CopilotOff = { why: 'service' | 'site' | 'unchecked'; admin: boolean } | null;
+
+export function copilotOff(
+  s: { configured: boolean | null; enabled: boolean; failed?: boolean },
+  role: string | null | undefined,
+): CopilotOff {
+  const admin = role === 'admin';
+  if (s.failed) return { why: 'unchecked', admin };
+  if (s.configured === false) return { why: 'service', admin };
+  if (s.configured && !s.enabled) return { why: 'site', admin };
+  return null;
+}
+
+// The message for each case: its catalogue key (chat.*).
+export type CopilotOffKey = 'serviceOff' | 'serviceNotSetUp' | 'siteOff' | 'notSetUp' | 'checkFailed';
+
+export function copilotOffKey(off: NonNullable<CopilotOff>): CopilotOffKey {
+  if (off.why === 'unchecked') return 'checkFailed';
+  if (off.why === 'service') return off.admin ? 'serviceOff' : 'serviceNotSetUp';
+  return off.admin ? 'siteOff' : 'notSetUp';
+}

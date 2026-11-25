@@ -5,7 +5,7 @@ import { dumbbell, fitWidth, hbars, lineChart } from '../lib/svg.ts';
 import { esc, fmt, need, onAll, signed, bound } from '../lib/dom.ts';
 import type { Material } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
-import { pageHead, term } from '../lib/ui.ts';
+import { demoNotice, pageHead, term } from '../lib/ui.ts';
 import { t, tHtml } from '../lib/i18n.ts';
 
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
@@ -67,6 +67,7 @@ const view: View = {
           <button data-split="1" class="${ui.split ? 'active' : ''}">${esc(t('quality.split'))}</button>
         </div>`,
       })}
+      ${ctx.api ? demoNotice(t('quality.demoNotice')) : ''}
 
       <div class="grid g2 mb-4">
         <div class="card">

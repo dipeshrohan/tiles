@@ -767,7 +767,8 @@ document.addEventListener('tiles:ux', (e) => {
 
 function badges(): Record<string, NavBadge> {
   const out: Record<string, NavBadge> = {};
-  const open = demoReady() ? state.detection.alerts.length : 0;
+  // The demo plant's warnings, only without the API: with it, a count here would read as the site's (H-01).
+  const open = demoReady() && !ctx.api ? state.detection.alerts.length : 0;
   if (open) out.physics = { count: open, tone: 'bad', says: t('app.badge.demoWarnings', { count: open }) };
   const staged = state.repo.staged.length;
   const issues = staged ? 0 : graphHealth(ctx.graph).issues.filter((i) => i.level !== 'info').length;
