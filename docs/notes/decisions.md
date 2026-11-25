@@ -4,6 +4,28 @@ Every answer the user gave the lead, dated, with the options they turned down. O
 own words or chosen options go here; the lead's recommendations are marked as such. Correct a
 wrong entry the same day and say so.
 
+## 2026-11-25
+
+- **Time zone for times given to the user.** Chosen (typed): _"Cet"_, read by the lead as
+  Central European Time, UTC+1 now; whether summer times follow CEST wasn't asked. Turned down: India (IST), UK (London), US Eastern, keep
+  UTC.
+- **The lead's context past 80 %.** Chosen: _/compact here_ (the user runs it). Turned down: a
+  fresh lead session from the notes (the lead's recommendation); keep going as is.
+- **What next, after H-01 to H-04** ("Continue tasks", then the question). Chosen: _the usability
+  review's H-05 to H-15_ (the severity-2 findings). Turned down: all of H-05 to H-23; the
+  Dependabot PRs #399 to #406; planning ROADMAP-3.
+- **The "three times the return" rule when v1.0's return is zero or below** (sign-off pack).
+  Asked twice; the user's words: _"I do not understand the question at all"_, then _"Again no
+  context I do not understand the question"_. Not answered. Parked until a partner exists; the
+  pack already leaves it to the sign-off meeting. Don't ask again before then.
+- **Dependabot PRs #399 to #406.** Chosen: _review and merge_ (each checked for the two-week age
+  rule, green CI and breaking changes; held ones reported). Turned down: only the minor updates;
+  leave them.
+- **Which follow-up issues to create.** Chosen: _usability polish H-16 to H-23_ (one issue each,
+  label `ui`) and _tracker drift_ (#15 and #51 closed or unticked as the code shows; an issue for
+  the branch-protection mismatch). Turned down: ROADMAP-3's 30 tasks (held until the user approves
+  the roadmap). Recording them starts no work.
+
 ## 2026-11-24
 
 - **UI 1 and UI 2's draft PRs** (#408: engineers' Home warnings and Shopfloor placement; #409:
@@ -59,9 +81,3 @@ Recorded from the conversation's summary, not from the user's words verbatim:
 
 ## Waiting for the user
 
-- The rule for "three times the return" when v1.0's return is zero or negative
-  ([sign-off.md](../pilot/sign-off.md)). Lead's recommendation: the ratio when v1.0 is above zero,
-  else a minimum amount agreed with the partner beforehand.
-- Which follow-up issues to create: the usability review's 14, the tracker drift, ROADMAP-3's 30.
-- The user's time zone.
-- The lead's own context is past 80 %: a fresh lead from these notes, or `/compact`.
