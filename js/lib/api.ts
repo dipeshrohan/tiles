@@ -588,6 +588,7 @@ export interface WarningInfo {
   detector: string;
   signal_id: string;
   signal_tag: string;
+  asset: string | null; // the machine it is on, as the MES names it: its detector's asset, else its signal's
   started_at: string;
   last_at: string;
   ended_at: string | null; // when the signal came back; null while it is still out

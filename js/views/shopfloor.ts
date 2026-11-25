@@ -1,7 +1,7 @@
 import { announce, bound, esc, onAll, onNavigate, routeOf } from '../lib/dom.ts';
 import type { WarningOutcome } from '../lib/api.ts';
 import { OUTCOMES, when } from '../lib/warnings.ts';
-import { CONTRAST_KEY, freshness, headline, machineBoard, type FloorItem } from '../lib/shopfloor.ts';
+import { CONTRAST_KEY, freshness, headline, floorBoard, subtitleOf, type FloorItem } from '../lib/shopfloor.ts';
 import { load, save } from '../lib/store.ts';
 import type { Graph } from '../lib/types.ts';
 import {
@@ -149,7 +149,13 @@ function actions(ctx: Context, item: FloorItem, ui: Ui): string {
 
 function card(ctx: Context, item: FloorItem, ui: Ui, now: number): string {
   const [cls, label] = STATE_LABEL[item.state];
-  const where = item.path.length ? `<div class="floor-where">${esc(item.path.join(' › '))}</div>` : '';
+  // Where it is; a warning no machine is found for says so, under its tag as the title.
+  const where = item.path.length
+    ? `<div class="floor-where">${esc(item.path.join(' › '))}</div>`
+    : item.machineId === null && !item.id.startsWith('demo-')
+      ? `<div class="floor-where">${esc(t('shopfloor.unplaced'))}</div>`
+      : '';
+  const sub = subtitleOf(item);
   // Who has it, unless the badge already says nobody does.
   const who = item.assignee
     ? `<p>${tHtml('shopfloor.hasIt', { name: `<b>${esc(item.assignee)}</b>` })}</p>`
@@ -161,7 +167,7 @@ function card(ctx: Context, item: FloorItem, ui: Ui, now: number): string {
   return `<article class="floor-card s-${item.state}" aria-label="${esc(`${item.machine}: ${label}`)}">
       ${where}
       <h2>${esc(item.machine)}</h2>
-      <div class="mono floor-tag">${esc(item.tag)}</div>
+      ${sub ? `<div class="mono floor-tag">${esc(sub)}</div>` : ''}
       <p class="floor-state"><span class="badge ${cls}">${label}</span> ${since(item, now)}</p>
       <p class="small">${esc(item.detail)}</p>
       ${who}
@@ -171,19 +177,31 @@ function card(ctx: Context, item: FloorItem, ui: Ui, now: number): string {
 }
 
 function board(graph: Graph, list: FloorItem[]): string {
-  const tiles = machineBoard(graph, list);
-  if (!tiles.length) return `<p class="small soft">${esc(t('shopfloor.noMachines'))}</p>`;
-  return `<div class="floor-board">${tiles
-    .map((tile) => {
-      const [cls, label] = STATE_LABEL[tile.state];
-      const count = t('shopfloor.warnings', { count: tile.warnings });
-      return `<div class="floor-tile s-${tile.state}">
+  // Every machine, and the open warnings no machine is found for as a tile of their own, so the
+  // board doesn't read as all clear while they are open; worst first.
+  const tiles = floorBoard(graph, list);
+  const none = tiles.every((tile) => tile.id === null);
+  const html = tiles.length
+    ? `<div class="floor-board">${tiles
+        .map((tile) => {
+          const [cls, label] = STATE_LABEL[tile.state];
+          const count = esc(t('shopfloor.warnings', { count: tile.warnings }));
+          const badge = `<span class="badge ${cls}">${esc(tile.state === 'ok' ? t('floor.state.ok') : label)}</span>`;
+          return tile.id === null
+            ? `<div class="floor-tile s-${tile.state}" data-floor-unplaced>
+          <div class="floor-where">${esc(t('shopfloor.unplacedWhere'))}</div>
+          <b>${esc(t('shopfloor.unplaced'))}</b>
+          <span>${badge} <span class="small">${count}</span></span>
+        </div>`
+            : `<div class="floor-tile s-${tile.state}">
           <div class="floor-where">${esc(tile.path.join(' › '))}</div>
           <b>${esc(tile.label)}</b>
-          <span><span class="badge ${cls}">${esc(tile.state === 'ok' ? t('floor.state.ok') : label)}</span> <span class="small">${esc(count)}</span></span>
+          <span>${badge} <span class="small">${count}</span></span>
         </div>`;
-    })
-    .join('')}</div>`;
+        })
+        .join('')}</div>`
+    : '';
+  return none ? `${html}<p class="small soft">${esc(t('shopfloor.noMachines'))}</p>` : html;
 }
 
 async function take(ctx: Context, id: string): Promise<void> {

@@ -1,6 +1,8 @@
 import { ux } from '../lib/analytics.ts';
 import { ask, suggestions } from '../lib/copilot.ts';
 import {
+  copilotOff,
+  copilotOffKey,
   answerHtml,
   applyEvent,
   emptyAnswer,
@@ -40,6 +42,7 @@ let remote: {
   site: string;
   configured: boolean | null;
   enabled: boolean;
+  failed?: boolean; // the status couldn't be read (offline, an error): not the same as "not set up"
   conversations: CopilotConversation[] | null;
 } | null = null;
 let thread: { key: string; exchanges: Exchange[] } | null = null;
@@ -80,7 +83,7 @@ async function loadRemote(ctx: Context): Promise<void> {
     const conversations = configured && enabled ? await ctx.api.copilot.conversations(site) : [];
     if (remote?.site === site) remote = { site, configured, enabled, conversations };
   } catch {
-    if (remote?.site === site) remote = { site, configured: false, enabled: false, conversations: [] };
+    if (remote?.site === site) remote = { site, configured: false, enabled: false, failed: true, conversations: [] };
   }
   ctx.rerender();
 }
@@ -436,7 +439,8 @@ function localRender(ctx: Context, note = ''): string {
       <div class="chat">
         <div class="chat-log" id="chat-log">${messages}</div>
         <div>
-          <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples">${suggestions()
+          ${ctx.api ? `<p class="small soft mt-2_5" id="chat-demo-label" data-demo-questions>${esc(t('chat.demoQuestions'))}</p>` : ''}
+          <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples"${ctx.api ? ' role="group" aria-labelledby="chat-demo-label"' : ''}>${suggestions()
             .map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`)
             .join('')}</div>
           <form class="composer" id="composer" data-tour="chat-ask">
@@ -500,15 +504,28 @@ const view: View = {
           !on && ctx.state.chat.length ? button(t('chat.clear'), { size: 'sm', attrs: { 'data-clear': true } }) : '',
       })}`;
     if (on) return head + remoteRender(ctx);
-    const checking = ctx.api && remote?.configured === null;
-    const note =
-      ctx.api && remote?.configured === false
-        ? `<p class="small soft mb-2" data-copilot-off>${esc(t('chat.serviceOff', { key: 'TILES_ANTHROPIC_API_KEY', model: 'TILES_COPILOT_MODEL' }))}</p>`
-        : ctx.api && remote?.configured && !remote.enabled
-          ? `<p class="small soft mb-2" data-copilot-site-off>${tHtml('chat.siteOff', { settings: `<a href="#/settings">${esc(t('chat.settings'))}</a>` })}</p>`
-          : checking
-            ? `<p class="small soft">${esc(t('chat.checking'))}</p>`
-            : '';
+    // Only what was read for this site: after a switch, the last site's answer isn't shown meanwhile.
+    const mine = ctx.api && remote?.site === siteId(ctx) ? remote : null;
+    const checking = ctx.api && (!mine || mine.configured === null);
+    const off = mine ? copilotOff(mine, ctx.ontology.role) : null;
+    const key = off ? copilotOffKey(off) : null;
+    const mark =
+      off?.why === 'site'
+        ? 'data-copilot-site-off'
+        : off?.why === 'unchecked'
+          ? 'data-copilot-unchecked'
+          : 'data-copilot-off';
+    const note = !key
+      ? checking && ctx.ontology.status === 'ready'
+        ? `<p class="small soft">${esc(t('chat.checking'))}</p>`
+        : ''
+      : key === 'serviceOff'
+        ? `<p class="small soft mb-2" ${mark}>${esc(t('chat.serviceOff', { key: 'TILES_ANTHROPIC_API_KEY', model: 'TILES_COPILOT_MODEL' }))}</p>`
+        : key === 'siteOff'
+          ? `<p class="small soft mb-2" ${mark}>${tHtml('chat.siteOff', { settings: `<a href="#/settings">${esc(t('chat.settings'))}</a>` })}</p>`
+          : key === 'checkFailed'
+            ? `<p class="small mb-2 row gap-2 wrap" role="alert" ${mark}><span>${esc(t('chat.checkFailed'))}</span>${button(t('chat.checkAgain'), { size: 'sm', attrs: { 'data-copilot-retry': true } })}</p>`
+            : `<p class="small soft mb-2" ${mark}>${esc(t(key === 'notSetUp' ? 'chat.notSetUp' : 'chat.serviceNotSetUp'))}</p>`;
     return head + localRender(ctx, note);
   },
   bind(root, ctx) {
@@ -516,6 +533,11 @@ const view: View = {
     if (ctx.api && ctx.ontology.status === 'ready' && site && remote?.site !== site) void loadRemote(ctx);
     if (remoteOn(ctx)) remoteBind(root, ctx);
     else localBind(root, ctx);
+    onAll(root, '[data-copilot-retry]', 'click', () => {
+      remote = null; // check again from the start
+      void loadRemote(ctx);
+      ctx.rerender();
+    });
     takeFocus(root);
   },
 };

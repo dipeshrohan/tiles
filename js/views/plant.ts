@@ -4,6 +4,7 @@ import {
   findPlaces,
   machineSheet,
   machinesUnder,
+  parentPlace,
   placeFromHash,
   placeLink,
   placesIn,
@@ -12,7 +13,7 @@ import {
   trail,
 } from '../lib/plant.ts';
 import { HIERARCHY } from '../lib/ontology.ts';
-import type { FloorItem } from '../lib/shopfloor.ts';
+import { unplaced, type FloorItem } from '../lib/shopfloor.ts';
 import type { Graph, OntologyNode } from '../lib/types.ts';
 import { when } from '../lib/warnings.ts';
 import { ensureFloor, floorItems, linkedSignals, refreshFloor, STATE_LABEL } from './floor-data.ts';
@@ -159,7 +160,7 @@ function placeCard(graph: Graph, node: OntologyNode, items: FloorItem[] | null):
     </a>`;
 }
 
-function warningsCard(items: FloorItem[], now: number, onMachine = false): string {
+function warningsCard(items: FloorItem[], now: number, onMachine = false, title = t('plant.openWarnings')): string {
   if (!items.length) return '';
   const rows = items
     .map((i) => {
@@ -175,7 +176,7 @@ function warningsCard(items: FloorItem[], now: number, onMachine = false): strin
         </li>`;
     })
     .join('');
-  return `<div class="card"><div class="card-head"><h2>${esc(t('plant.openWarnings'))}</h2><a class="btn sm" href="#/shopfloor">${esc(t('plant.shopfloor'))}</a></div><ul class="plant-list">${rows}</ul></div>`;
+  return `<div class="card"><div class="card-head"><h2>${esc(title)}</h2><a class="btn sm" href="#/shopfloor">${esc(t('plant.shopfloor'))}</a></div><ul class="plant-list">${rows}</ul></div>`;
 }
 
 const reading = (s: SignalInfo | undefined, now: number): string => {
@@ -301,7 +302,9 @@ function placePage(ctx: Context, graph: Graph, id: string, items: FloorItem[] | 
           action: linkButton(t('plant.openOntology'), '#/ontology', { size: 'sm', icon: 'network' }),
         }),
       );
-  return `${cards}${warningsCard(warnings, now)}${ctx.api && inside.length ? coverageCard(ctx, id) + lifeCard(ctx, id) + templatesCard(ctx, id) : ''}`;
+  // At the top of the plant, the open warnings no machine is found for, which belong to no place.
+  const lost = items && parentPlace(graph, id) === null ? unplaced(items).warnings : [];
+  return `${cards}${warningsCard(warnings, now)}${warningsCard(lost, now, true, t('plant.unplaced'))}${ctx.api && inside.length ? coverageCard(ctx, id) + lifeCard(ctx, id) + templatesCard(ctx, id) : ''}`;
 }
 
 function searchResults(graph: Graph, query: string): string {
@@ -370,7 +373,9 @@ const view: View = {
       return `${head}${results}<div class="card" role="alert"><p>${tHtml('plant.gone', { link: `<a href="#/plant">${esc(t('plant.startFromTop'))}</a>` })}</p></div>`;
     if (!node) {
       const cards = tops.map((top) => placeCard(graph, graph.nodes[top] as OntologyNode, items)).join('');
-      return `${head}${results}<div class="place-grid">${cards}</div>`;
+      // Open warnings no machine is found for belong to no place: listed at the top, on their own.
+      const lost = items ? unplaced(items).warnings : [];
+      return `${head}${results}<div class="place-grid">${cards}</div>${warningsCard(lost, now, true, t('plant.unplaced'))}`;
     }
     const body =
       node.type === 'Machine' ? machinePage(ctx, graph, node, items, now) : placePage(ctx, graph, node.id, items, now);

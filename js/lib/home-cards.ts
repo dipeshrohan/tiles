@@ -9,7 +9,7 @@ import { t, type MessageKey } from './i18n.ts';
 import { zonedParts, zonedTime } from './format.ts';
 
 export type CardId =
-  'my-warnings' | 'machines-out' | 'shift' | 'reviews' | 'insights' | 'freshness' | 'agents' | 'quality';
+  'my-warnings' | 'untaken' | 'machines-out' | 'shift' | 'reviews' | 'insights' | 'freshness' | 'agents' | 'quality';
 
 // What a card reads from the API: Home fetches what its cards need, nothing more.
 export type Need =
@@ -44,6 +44,7 @@ const card = (id: CardId, title: MessageKey, summary: MessageKey, needs: readonl
 
 export const CARDS: readonly CardDef[] = [
   card('my-warnings', 'homeCards.myWarnings.title', 'homeCards.myWarnings.summary', ['my-warnings']),
+  card('untaken', 'homeCards.untaken.title', 'homeCards.untaken.summary', ['open-warnings']),
   card('machines-out', 'homeCards.machinesOut.title', 'homeCards.machinesOut.summary', ['open-warnings', 'links']),
   card('shift', 'homeCards.shift.title', 'homeCards.shift.summary', ['recent-warnings']),
   card('reviews', 'homeCards.reviews.title', 'homeCards.reviews.summary', ['reviews']),
@@ -59,7 +60,7 @@ export type HomeRole = 'maintenance' | 'engineer' | 'shift-lead' | 'admin';
 
 export const ROLE_CARDS: Readonly<Record<HomeRole, readonly CardId[]>> = {
   maintenance: ['my-warnings', 'machines-out'],
-  engineer: ['reviews', 'insights', 'freshness'],
+  engineer: ['untaken', 'reviews', 'insights', 'freshness'], // open warnings first (review H-03)
   'shift-lead': ['shift', 'machines-out', 'my-warnings'],
   admin: ['agents', 'quality', 'reviews'],
 };
@@ -113,6 +114,16 @@ export function myWarnings(warnings: readonly WarningInfo[], userId: string | nu
   if (!userId) return [];
   return warnings
     .filter((w) => w.assignee_id === userId && unresolved(w))
+    .sort(
+      (a, b) => Number(a.ended_at !== null) - Number(b.ended_at !== null) || b.started_at.localeCompare(a.started_at),
+    );
+}
+
+// Open warnings nobody has taken (not acknowledged, nobody assigned): still out first, then the
+// newest, as the Shopfloor works through them.
+export function untakenWarnings(warnings: readonly WarningInfo[]): WarningInfo[] {
+  return warnings
+    .filter((w) => w.status === 'raised' && w.assignee_id === null)
     .sort(
       (a, b) => Number(a.ended_at !== null) - Number(b.ended_at !== null) || b.started_at.localeCompare(a.started_at),
     );

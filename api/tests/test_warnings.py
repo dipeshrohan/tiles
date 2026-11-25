@@ -234,3 +234,24 @@ def test_the_detector_keeps_updating_a_warning_people_are_working_on(
     assert after["ended_at"] is not None and after["peak"] == FIXTURE["alerts"][0]["peak"]
     assert (after["status"], after["outcome"], after["assignee"]) == ("resolved", "true_alarm", "eng")
     assert listed(api, site, state="ended", status="resolved") == [listed(api, site, status="resolved")[0]]
+
+
+def test_a_warning_names_the_machine_its_detector_watches_else_its_signals(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+) -> None:
+    """The app places a warning whose signal has no Signal node by this asset (review H-04)."""
+    first, *_ = raise_warnings(api, site)
+    path = f"/sites/{site}/warnings"
+    assert {w["asset"] for w in listed(api, site)} == {None}
+    detail = api.get(f"{path}/{first}", headers=VIEWER).json()
+    signal, detector = detail["signal_id"], detail["detector_id"]
+    # The signal's asset, while its detector has none.
+    res = api.patch(f"/sites/{site}/signals/{signal}", json={"asset": "DC-01 cell"}, headers=ENG)
+    assert res.status_code == 200, res.text
+    assert {w["asset"] for w in listed(api, site)} == {"DC-01 cell"}
+    # The detector's wins.
+    res = api.patch(f"/sites/{site}/detectors/{detector}", json={"asset": "DC-01"}, headers=ENG)
+    assert res.status_code == 200, res.text
+    assert {w["asset"] for w in listed(api, site)} == {"DC-01"}
+    assert api.get(f"{path}/{first}", headers=VIEWER).json()["asset"] == "DC-01"

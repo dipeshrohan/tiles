@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { workingGraph } from '../js/lib/ontology.ts';
 import { seedOntology } from '../js/lib/data.ts';
 import {
+  floorBoard,
   freshness,
   floorOrder,
   headline,
@@ -14,6 +15,8 @@ import {
   pathOf,
   placeWarning,
   stateOf,
+  subtitleOf,
+  unplaced,
 } from '../js/lib/shopfloor.ts';
 
 const graph = workingGraph(seedOntology());
@@ -24,6 +27,7 @@ const warning = (over = {}) => ({
   detector: 'friction',
   signal_id: 's1',
   signal_tag: 'dc02.velocity',
+  asset: null,
   started_at: '2026-10-09T10:00:00Z',
   last_at: '2026-10-09T10:05:00Z',
   ended_at: null,
@@ -99,6 +103,78 @@ test('a warning is placed on its machine, or named by its tag when nothing place
   assert.equal(loose.machine, 'line9.temp');
   assert.equal(loose.machineId, null);
   assert.deepEqual(loose.path, []);
+});
+
+test("a warning its signal can't place goes on its detector's machine: the asset property, else the label (H-04)", () => {
+  const g = structuredClone(graph);
+  g.nodes['m-dc02'].props.asset = 'DC-02';
+  const links = new Map();
+  // No Signal node for the tag: placed by the asset the API gives (the detector's).
+  const byAsset = placeWarning(g, warning({ signal_tag: 'dc02.plunger_friction', asset: 'DC-02' }), links, '');
+  assert.equal(byAsset.machineId, 'm-dc02');
+  assert.equal(byAsset.machine, 'Die-caster DC-02');
+  assert.deepEqual(byAsset.path, ['Housing Casting', 'Die-cast Line 1']);
+  // A machine without an `asset` property is matched by its label, exactly as written.
+  const byLabel = placeWarning(g, warning({ signal_tag: 'x.y', asset: 'Tab Welder W-03' }), links, '');
+  assert.equal(byLabel.machineId, 'm-weld03');
+  assert.equal(placeWarning(g, warning({ signal_tag: 'x.y', asset: 'dc-02' }), links, '').machineId, null); // exact
+  // The signal's own node wins over the asset.
+  const both = placeWarning(g, warning({ asset: 'Tab Welder W-03' }), new Map([['dc02.velocity', 'sig-vel']]), '');
+  assert.equal(both.machineId, 'm-dc02');
+  // Neither: not on a machine.
+  assert.equal(placeWarning(g, warning({ signal_tag: 'x.y', asset: 'Nowhere' }), links, '').machineId, null);
+});
+
+test("warnings no machine is found for are their own group, never left out; the tag isn't repeated (H-04)", () => {
+  const links = new Map([['dc02.velocity', 'sig-vel']]);
+  const place = (over) => placeWarning(graph, warning(over), links, '');
+  const items = [
+    place({ id: 'on' }),
+    place({ id: 'lost', signal_tag: 'dc01.plunger_friction', ended_at: '2026-10-09T10:10:00Z' }),
+    place({ id: 'lost-out', signal_tag: 'dc01.other' }),
+    place({ id: 'lost-done', signal_tag: 'dc01.done', status: 'resolved' }),
+  ];
+  const lost = unplaced(items);
+  assert.deepEqual(
+    lost.warnings.map((i) => i.id),
+    ['lost', 'lost-out'],
+  );
+  assert.equal(lost.state, 'out');
+  assert.deepEqual(unplaced([place({ id: 'on' })]), { state: 'ok', warnings: [] });
+  // Placed: the machine is the title and the tag its subtitle; unplaced: the tag is the title alone.
+  assert.equal(subtitleOf(items[0]), 'dc02.velocity');
+  assert.equal(subtitleOf(items[1]), null);
+});
+
+test('the board puts the not-on-a-machine tile by its worst state, not always first (H-04)', () => {
+  const links = new Map([['dc02.velocity', 'sig-vel']]);
+  const place = (over) => placeWarning(graph, warning(over), links, '');
+  const back = '2026-10-09T10:10:00Z';
+  const ids = (tiles) => tiles.slice(0, 3).map((tile) => [tile.id, tile.state]);
+  // Every unplaced warning taken (amber): after the machine with a signal still out (red).
+  const taken = floorBoard(graph, [
+    place({ id: 'on' }),
+    place({ id: 'lost', signal_tag: 'x.y', status: 'acknowledged', ended_at: back }),
+  ]);
+  assert.deepEqual(ids(taken), [
+    ['m-dc02', 'out'],
+    [null, 'taken'],
+    [taken[2].id, 'ok'],
+  ]);
+  assert.equal(taken.length, Object.values(graph.nodes).filter((n) => n.type === 'Machine').length + 1);
+  // Still out: first, ahead of a machine in the same state.
+  const out = floorBoard(graph, [place({ id: 'on' }), place({ id: 'lost', signal_tag: 'x.y' })]);
+  assert.deepEqual(ids(out).slice(0, 2), [
+    [null, 'out'],
+    ['m-dc02', 'out'],
+  ]);
+  // None unplaced: the machines alone.
+  assert.ok(floorBoard(graph, [place({ id: 'on' })]).every((tile) => tile.id !== null));
+  // No machines: the tile alone.
+  assert.deepEqual(
+    floorBoard({ nodes: {}, edges: {} }, [place({ id: 'lost', signal_tag: 'x.y' })]).map((t) => t.id),
+    [null],
+  );
 });
 
 test("a warning's state: out while its signal is, then new until someone takes it", () => {

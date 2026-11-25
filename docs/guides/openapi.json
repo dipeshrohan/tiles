@@ -11496,6 +11496,17 @@
             "title": "Activity",
             "type": "array"
           },
+          "asset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset"
+          },
           "assignee": {
             "anyOf": [
               {
@@ -11652,6 +11663,7 @@
           "detector",
           "signal_id",
           "signal_tag",
+          "asset",
           "started_at",
           "last_at",
           "ended_at",
@@ -11699,6 +11711,17 @@
               }
             ],
             "title": "Acknowledged By"
+          },
+          "asset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset"
           },
           "assignee": {
             "anyOf": [
@@ -11851,6 +11874,7 @@
           "detector",
           "signal_id",
           "signal_tag",
+          "asset",
           "started_at",
           "last_at",
           "ended_at",
