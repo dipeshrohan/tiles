@@ -7,7 +7,6 @@ import { VERSION } from './version.ts';
 import { icon, type IconName } from './icons.ts';
 import { illustration, type IllustrationName } from './illustrations.ts';
 import { GLOSSARY, type GlossaryKey } from './glossary-data.ts';
-import { termTip } from './glossary.ts';
 import { t } from './i18n.ts';
 import { time } from './format.ts';
 
@@ -156,11 +155,12 @@ export function iconButton(name: IconName, label: string, o: Omit<ButtonOptions,
 
 // A glossary term (U4.05) where it first appears on a page: its words, dotted, with the definition
 // from docs/ui/glossary.md in a tooltip on hover, focus or a tap. `text` is the words shown when
-// they aren't the term itself ("d" for Cohen's d); then the tooltip names the term first. Until the
-// definitions are loaded (js/lib/glossary.ts) the tooltip asks for them (js/lib/tooltip.ts).
+// they aren't the term itself ("d" for Cohen's d); then the tooltip names the term first.
 export function term(key: GlossaryKey, text?: string): string {
-  const shown = text ?? GLOSSARY[key].term;
-  return `<button${attrs({ class: 'term', type: 'button', 'data-tooltip': termTip(key, shown), 'data-term': key })}>${esc(shown)}</button>`;
+  const t = GLOSSARY[key];
+  const shown = text ?? t.term;
+  const tip = shown.toLowerCase() === t.term.toLowerCase() ? t.text : `${t.term}: ${t.text}`;
+  return `<button${attrs({ class: 'term', type: 'button', 'data-tooltip': tip, 'data-term': key })}>${esc(shown)}</button>`;
 }
 
 // A term's name inside a sentence: lower case when it is plain words ("Recall" → "recall"), as written

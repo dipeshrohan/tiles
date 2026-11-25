@@ -679,9 +679,6 @@ test('glossary terms explain themselves where they appear; the Glossary page lis
   await page.waitForSelector('#view h1');
   const robust = page.locator('.term[data-term="robust-σ"]').first();
   const tip = page.locator('#tooltip');
-  // The definitions aren't in the bundle: loaded the first time one is wanted (js/glossary-data.js).
-  assert.equal(await page.evaluate(() => 'tilesGlossary' in window), false);
-  assert.equal(await robust.getAttribute('data-tooltip'), null);
   // Pointed at: the definition after a moment (scrolled to first: a scroll hides a tooltip).
   await robust.scrollIntoViewIfNeeded();
   await page.waitForTimeout(200);
@@ -729,39 +726,6 @@ test('glossary terms explain themselves where they appear; the Glossary page lis
   await page.waitForTimeout(500);
   assert.ok(await tip.isVisible(), 'still shown after the hover timer');
   assert.deepEqual(errors, []);
-  await page.close();
-});
-
-test("the glossary's definitions load when wanted: a failure says so, Try again and file:// work (U4.05)", async () => {
-  const { page, errors } = await openPage();
-  // The file missing: a term's tooltip and the Glossary page say so.
-  await page.route('**/js/glossary-data.js', (r) => r.abort());
-  await page.goto(`${httpBase}#/physics`);
-  const median = page.locator('.term[data-term="median"]').first();
-  await median.scrollIntoViewIfNeeded();
-  await median.focus();
-  await page.keyboard.press('Shift+Tab');
-  await page.keyboard.press('Tab');
-  await page.waitForSelector('#tooltip:not([hidden]):has-text("The glossary couldn’t be loaded")');
-  await page.evaluate(() => (location.hash = '#/glossary'));
-  await page.waitForSelector('#view :text("The glossary couldn’t be loaded")');
-  // Back: Try again loads it.
-  await page.unroute('**/js/glossary-data.js');
-  await page.click('[data-glossary-retry]');
-  await page.waitForSelector('.glossary dt');
-  assert.ok((await page.locator('.glossary dt').count()) >= 60);
-  assert.ok((await page.locator('.glossary dd').first().innerText()).length > 10);
-  // From disk too, with the palette's terms grouped once loaded.
-  await page.goto(`${fileBase}#/glossary/baseline`);
-  await page.waitForFunction(() => document.activeElement?.id === 'term-baseline');
-  assert.match(await page.locator('#term-baseline + dd').innerText(), /^The usual level of a signal/);
-  await page.keyboard.press('Control+k');
-  await page.locator('dialog.palette input').fill('cohen');
-  await page.locator('dialog.palette [role=option]:has-text("Cohen\'s d"):has-text("Analysis")').first().waitFor();
-  assert.deepEqual(
-    errors.filter((e) => !/glossary-data\.js|ERR_FAILED/.test(e)),
-    [],
-  );
   await page.close();
 });
 
