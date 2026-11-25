@@ -12,6 +12,7 @@ anything.
 | TILES · Lead (product manager) | `session_01UPWFCtJ41TYMJrwEyic6Pe` | coordination, reviews, merges | — | context past 80 % (user: /compact) |
 | TILES · UI 5 | `session_01AqW5DHhA39a5rAW2pwvEM4` | H-19, H-20, H-21, H-23 (Warnings, Home), #425: Warnings, Home, Settings, menu, top bar, reset | `review-h16-h23-a` | started 2026-11-25 |
 | TILES · UI 6 | `session_01AqW5DHobjTtR4d5c28JXLD` | H-16, H-17, H-18, H-22, H-23 (correlation finder): ontology, copilot heading, physics, quality, explorer, design, correlation, performance | `review-h16-h23-b` | started 2026-11-25 |
+| TILES · QA 1 | `session_01AqW5DHCtRuZug414TpkzKM` | independent quality check of each reported PR head (three-fold check) | — | started 2026-11-25 |
 
 On 2026-11-25 the user chose the polish findings H-16 to H-23 and #425 next: UI 5 and UI 6 split them
 by page. H-01 to H-04 were merged on 2026-11-24 (#408, #409); H-05 to H-15 on
@@ -58,6 +59,18 @@ The merge flow for a child's PR:
    the user's to change; children make room instead. 2026-11-25: #427 and #428 together were
    0.03 kB over the 200 kB bundle budget; UI 5 moves the glossary data (4.2 kB gzipped) to a lazily
    loaded classic script like help-data.js.
+9. Three-fold check (the user, 2026-11-25), no step repeating another: (a) the child: full suite
+   before every push, its counts in the report; (b) QA 1 (standing quality session): the lead sends
+   it each reported PR and head SHA; it runs the suite itself, uses the change at widths, languages,
+   file://, keyboard and print, checks claims against findings, plants bugs, checks Docker context
+   and CI health, and reports; no code review; (c) the lead: deep code review (agent; targeted
+   checks only, no whole-suite re-runs), verify, merge only when all three are clean.
+8. No push without the full local suite green on that exact head (the user, 2026-11-25: "Why are
+   ci runs failing are not doing quality check through a child session"): lint, typecheck, unit,
+   the whole e2e suite (smoke unfiltered, a11y, print, morph), perf, visual (or a diff against CI's
+   images), API/edge checks if touched; Docker context and COPY lines checked locally when the
+   images change. Reports list the suites and counts for the pushed head. A red CI the child
+   didn't name in advance is a miss.
 
 Docs-only PRs (these notes, decisions): check the diff, CI green, merge the same way.
 

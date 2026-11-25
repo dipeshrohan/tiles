@@ -6,6 +6,18 @@ wrong entry the same day and say so.
 
 ## 2026-11-25
 
+- **"Quality check must be three fold , child session, quality session, lead session. Avoid
+  repeating tasks but three fold check avoids gaps"** (the user's words). Set up as: the child runs
+  the full local suite before every push; a standing quality session (QA 1) checks each reported
+  head independently (its own suite run, real use at widths, languages, file://, keyboard and
+  print, claims against findings, planted bugs, Docker context, CI health), no code review; the
+  lead's deep review covers code, rules and design and no longer re-runs whole suites.
+
+- **"Why are ci runs failing are not doing quality check through a child session"** (the user's
+  words). The lead's answer: children ran partial local checks; Docker can't run in their
+  sandboxes. Rule sent to UI 5 and UI 6 and kept in lead.md: the full local suite green before
+  every push, the suites listed in each report.
+
 - **"Make sure the child sessions follow rules, I do not want work stopped because ci doesn't
   work."** (the user's words). The lead's reading, sent to UI 5 and UI 6: a red CI job is the
   child's to root-cause and fix at once, never to wait on; an infrastructure failure gets one
