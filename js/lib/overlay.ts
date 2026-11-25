@@ -192,8 +192,6 @@ export interface SheetOptions {
 // A side sheet (U4.04's help), after shadcn/ui's Sheet: a modal panel from the right, its content
 // scrolling, closed with its ✕, Escape, a click beside it, or a link in it followed. `opened` gets the
 // dialog once shown; the promise resolves once it is gone.
-// Its body scrolls when it is long (What's new, the help): it takes the focus, so a keyboard
-// scrolls it too (WCAG 2.1.1, axe's scrollable-region-focusable).
 export function sheet(o: SheetOptions, opened?: (dialog: HTMLDialogElement, close: () => void) => void): Promise<void> {
   const id = nextId();
   const dialog = document.createElement('dialog');
@@ -207,7 +205,7 @@ export function sheet(o: SheetOptions, opened?: (dialog: HTMLDialogElement, clos
       </div>
       <button class="btn ghost icon sm" type="button" data-sheet-close aria-label="${esc(t('overlay.close'))}">${icon('x', { size: 16 })}</button>
     </div>
-    <div class="sheet-body" tabindex="0" role="region" aria-labelledby="${id}-title">${o.contentHtml}</div>
+    <div class="sheet-body">${o.contentHtml}</div>
     ${o.footHtml ? `<div class="sheet-foot">${o.footHtml}</div>` : ''}`;
   return new Promise((resolve) => {
     let closed = false;

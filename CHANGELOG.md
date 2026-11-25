@@ -17,7 +17,6 @@ What comes after 1.0.0.
 - **Home and the Shopfloor:** an engineer's Home starts with a new card, **Warnings nobody has taken**, so open warnings are among what needs you now (a layout you kept is unchanged; add the card with Customise). The Shopfloor and the Plant page place a warning whose signal has no Signal node on the machine its detector watches (the machine's `asset` property, else its name), list any they still can't place as **Not on a machine** rather than showing every machine OK, and no longer repeat a warning's tag under it. Warnings from the API now carry that `asset`. (Heuristic review H-03, H-04.)
 - **Warnings:** beside an open warning the list is compact, each row named by its machine; the record names its machine too, and its chart keeps its text size (review H-05 to H-07).
 - **Settings, Home and the menu:** Settings says what Reset workspace clears with the API, without developer pointers; Data freshness says what stale means; without the API the menu marks the pages that need it (review H-12, H-13, H-15).
-- **What's new and the help sheet:** a long sheet scrolls with the keyboard.
 
 ### Security
 

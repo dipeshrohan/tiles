@@ -216,7 +216,7 @@
       </div>
       <button class="btn ghost icon sm" type="button" data-sheet-close aria-label="${x(k(`overlay.close`))}">${P(`x`,{size:16})}</button>
     </div>
-    <div class="sheet-body" tabindex="0" role="region" aria-labelledby="${n}-title">${e.contentHtml}</div>
+    <div class="sheet-body">${e.contentHtml}</div>
     ${e.footHtml?`<div class="sheet-foot">${e.footHtml}</div>`:``}`,new Promise(e=>{let n=!1,i=()=>{n||(n=!0,mu(r).then(e))};r.querySelector(`[data-sheet-close]`)?.addEventListener(`click`,i),gu(r,()=>n,()=>{n=!0,e()}),hu(r,i),_u(r),t?.(r,i)})}function xu(e,t){let n=pu(),r=document.createElement(`dialog`);return r.className=e.wide?`dialog wide`:`dialog`,r.setAttribute(`aria-labelledby`,`${n}-title`),e.body&&r.setAttribute(`aria-describedby`,`${n}-body`),r.innerHTML=`
     <div class="dialog-panel">
       <div class="dialog-head">
