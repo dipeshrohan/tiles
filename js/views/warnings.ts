@@ -216,7 +216,8 @@ const openButton = (ui: Ui, w: WarningInfo): string =>
   `<button class="row-open mono" type="button"${ui.selected === w.id ? ' aria-current="true"' : ''}>${esc(w.signal_tag)}</button>`;
 
 // The list beside an open record (H-05): too narrow for the table's columns, so each row is one
-// cell: its signal and status, then its machine and when it started, in the full table's order.
+// cell: its signal, status and outcome, then its machine, when it started and who has it, in the
+// full table's order.
 function compactTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string): TableOptions<WarningInfo> {
   const bulk = bulkActions(ctx);
   return {
@@ -229,10 +230,11 @@ function compactTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string)
         fixed: true,
         cell: (w) => {
           const machine = machineOf(ctx, w)?.label;
-          const second = machine
+          const started = machine
             ? t('warnings.machineStarted', { machine, when: ago(w.started_at) })
             : t('warnings.startedAgo', { when: ago(w.started_at) });
-          return `<div class="stack gap-1"><span class="row gap-2 wrap">${openButton(ui, w)}${statusBadge(w)}</span><span class="small soft">${esc(second)}</span></div>`;
+          const second = w.assignee ? `${started} · ${t('warnings.detail.for', { name: w.assignee })}` : started;
+          return `<div class="stack gap-1"><span class="row gap-2 wrap">${openButton(ui, w)}${statusBadge(w)}${w.outcome ? `<span class="small">${esc(OUTCOMES[w.outcome])}</span>` : ''}</span><span class="small soft">${esc(second)}</span></div>`;
         },
       },
     ],
