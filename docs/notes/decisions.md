@@ -4,6 +4,12 @@ Every answer the user gave the lead, dated, with the options they turned down. O
 own words or chosen options go here; the lead's recommendations are marked as such. Correct a
 wrong entry the same day and say so.
 
+## 2026-11-25
+
+- **Time zone for times given to the user.** Chosen (typed): _"Cet"_, read by the lead as
+  Central European Time, UTC+1 now; whether summer times follow CEST wasn't asked. Turned down: India (IST), UK (London), US Eastern, keep
+  UTC.
+
 ## 2026-11-24
 
 - **UI 1 and UI 2's draft PRs** (#408: engineers' Home warnings and Shopfloor placement; #409:
@@ -63,5 +69,4 @@ Recorded from the conversation's summary, not from the user's words verbatim:
   ([sign-off.md](../pilot/sign-off.md)). Lead's recommendation: the ratio when v1.0 is above zero,
   else a minimum amount agreed with the partner beforehand.
 - Which follow-up issues to create: the usability review's 14, the tracker drift, ROADMAP-3's 30.
-- The user's time zone.
 - The lead's own context is past 80 %: a fresh lead from these notes, or `/compact`.
