@@ -17,8 +17,18 @@ describe('similar past warnings (T10.02)', () => {
     expect(summary(s(3, { true_alarm: 2, false_alarm: 0, unknown: 1, open: 0 }, 2))).toBe(
       'The 3 most similar: 2 true alarms, 0 false alarms, 1 open or unknown; an event followed 2.',
     );
-    expect(summary(s(1, { true_alarm: 1, false_alarm: 0, unknown: 0, open: 0 }, 0))).toBe(
-      'The most similar warning: 1 true alarm, 0 false alarms, 0 open or unknown; no event followed any.',
+    // One is said as one (review H-23).
+    expect(summary(s(1, { true_alarm: 0, false_alarm: 0, unknown: 0, open: 1 }, 0))).toBe(
+      '1 similar warning, still open; no event followed it.',
+    );
+    expect(summary(s(1, { true_alarm: 1, false_alarm: 0, unknown: 0, open: 0 }, 1))).toBe(
+      '1 similar warning, a true alarm; an event followed it.',
+    );
+    expect(summary(s(1, { true_alarm: 0, false_alarm: 1, unknown: 0, open: 0 }, 0))).toBe(
+      '1 similar warning, a false alarm; no event followed it.',
+    );
+    expect(summary(s(1, { true_alarm: 0, false_alarm: 0, unknown: 1, open: 0 }, 0))).toBe(
+      '1 similar warning, resolved as unknown; no event followed it.',
     );
   });
   it('says why a batch table is suggested', () => {

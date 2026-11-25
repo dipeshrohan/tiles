@@ -21,6 +21,7 @@ import {
   machineFor,
   OUTCOMES,
   payload,
+  primaryAction,
   queryFor,
   SHOW_LABELS,
   STATUS,
@@ -444,9 +445,10 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
       ? [[w.assignee_id, w.assignee ?? t('warnings.currentAssignee')]]
       : [];
   const has = (a: string) => actions.includes(a as never);
-  const actButton = (label: string, a: string, variant?: 'primary') =>
+  const primary = primaryAction(actions);
+  const actButton = (label: string, a: string) =>
     button(label, {
-      variant,
+      variant: a === primary ? 'primary' : undefined,
       busy: busy === a,
       attrs: {
         'data-act': a,
@@ -473,12 +475,12 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
     : '';
   const outcomes = (Object.keys(OUTCOMES) as WarningOutcome[]).map((o) => [o, OUTCOMES[o]] as const);
   const resolve = has('resolve')
-    ? `<span class="row gap-1_5">${field(t('warnings.outcome'), select('outcome', outcomes, '', { attrs: keyAttrs('r') }), { inline: true })}${actButton(t('warnings.resolve'), 'resolve', 'primary')}</span>`
+    ? `<span class="row gap-1_5">${field(t('warnings.outcome'), select('outcome', outcomes, '', { attrs: keyAttrs('r') }), { inline: true })}${actButton(t('warnings.resolve'), 'resolve')}</span>`
     : '';
   return `<form class="stack gap-2 mt-2_5 no-print" id="warning-form" data-tour="warning-actions">
       <textarea name="note" rows="2" maxlength="2000" placeholder="${esc(t('warnings.notePlaceholder'))}" aria-label="${esc(t('warnings.note'))}">${draft.key === detailKey(ctx) ? esc(draft.text) : ''}</textarea>
       <fieldset class="row gap-y-2 gap-x-4 border-0 p-0 m-0 wrap" ${busy ? 'disabled' : ''}>
-        ${has('acknowledge') ? actButton(t('warnings.acknowledge'), 'acknowledge', 'primary') : ''}
+        ${has('acknowledge') ? actButton(t('warnings.acknowledge'), 'acknowledge') : ''}
         ${assign}
         ${resolve}
         ${has('reopen') ? actButton(t('warnings.reopen'), 'reopen') : ''}

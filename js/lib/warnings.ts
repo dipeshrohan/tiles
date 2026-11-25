@@ -102,6 +102,13 @@ export function actionsFor(w: Pick<WarningInfo, 'status'>, role: string | null):
   return [...(w.status === 'raised' ? (['acknowledge'] as const) : []), 'assign', 'resolve', 'comment'];
 }
 
+// The one primary action in a warning's form (review H-19): Acknowledge while it is new, then Resolve.
+export function primaryAction(actions: readonly Action[]): Action | null {
+  if (actions.includes('acknowledge')) return 'acknowledge';
+  if (actions.includes('resolve')) return 'resolve';
+  return null;
+}
+
 const MINUTE = 60_000;
 const HOUR = 3_600_000;
 

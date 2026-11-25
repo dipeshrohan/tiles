@@ -638,6 +638,10 @@ const ctx: Context = {
     borrowed = false;
     waitingVisits = [];
     forgetTables();
+    // And the preferences in effect (#425): back to what a reload would read now, the defaults (the
+    // language the browser's); kept with the person on the API, theirs come back once the site
+    // answers (firstRun), and nothing is sent to it from here.
+    applyPreferences(keptPreferences(), currentPreferences());
     Object.assign(state, freshState(), { ui: {} });
     localRepo = state.repo;
     persist();

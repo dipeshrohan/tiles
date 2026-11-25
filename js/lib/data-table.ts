@@ -156,7 +156,7 @@ function ordered<T>(o: TableOptions<T>, s: Live): T[] {
 // A table's rows in the order it shows them (its sort), all of them, drawn or not.
 export const tableOrder = <T>(o: TableOptions<T>): T[] => ordered(o, stateOf(o));
 
-// Forgets every table's state held in memory (Reset workspace, after clearing what is kept), so a
+// Forgets every table's state held in this tab (Reset workspace, after clearing what is kept), so a
 // table's next change doesn't write back the settings just cleared.
 export const forgetTables = (): void => live.clear();
 
@@ -189,9 +189,6 @@ export function setTablePrefs(id: string, t: Pick<TablePrefs, 'sort' | 'hidden' 
   }
   save(`table:${id}`, next);
 }
-
-// Forgets every table's state in this tab (tests).
-export const resetTables = (): void => live.clear();
 
 // ---- the pure parts ----
 

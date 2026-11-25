@@ -17,6 +17,7 @@ import { bindUx, uxCard } from './ux-analytics.ts';
 import { bindFeedback, feedbackCard } from './feedback-admin.ts';
 import type { Context, View } from './types.ts';
 import { emptyState, linkButton, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
+import { helpHref } from '../lib/help.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { bindTable, dataTable, type TableOptions } from '../lib/data-table.ts';
 import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
@@ -506,7 +507,7 @@ export function tokenStillShown(
 function agentsCard(admin: boolean): string {
   return `<div class="card stack gap-3 span-all" id="agents">
       <h2>${esc(t('settings.agents.title'))}</h2>
-      <p class="small soft">${esc(t('settings.agents.lead'))}${admin ? ` ${tHtml('settings.agents.install', { help: `<a href="#/help/edge-agents">${esc(t('settings.agents.installHelp'))}</a>` })}` : ''}</p>
+      <p class="small soft">${esc(t('settings.agents.lead'))}${admin ? ` ${tHtml('settings.agents.install', { help: `<a href="${esc(helpHref('edge-agents'))}">${esc(t('settings.agents.installHelp'))}</a>` })}` : ''}</p>
       <div data-agent-token aria-live="polite"></div>
       <div data-agent-rows aria-live="polite">${skeleton.table(2, 5, t('settings.agents.loading'))}</div>
       ${

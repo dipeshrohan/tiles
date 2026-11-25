@@ -21,6 +21,9 @@ What comes after 1.0.0.
 - **Set up a site:** **Map the tags** is done once every tag of readings is mapped (review H-08).
 - **Ontology builder:** **Request review** names the change request, with a link, and the page lists yours still waiting (review H-09). Columns widen to their longest name; a longer one ends in "…" (review H-14).
 - **Correlation finder:** a name taken is said under **Name**, and a free one is offered (review H-10). **Split by** offers only columns with a few values, and a pooled run that finds nothing tries them (review H-11).
+- **Warnings:** a warning's form has one filled button, **Acknowledge** while it is new, then **Resolve** (review H-19); one similar warning is said as one ("1 similar warning, still open; no event followed it.") (review H-23).
+- **The menu and the top bar:** a page's name in the menu is no longer cut beside its count: the pin, shown when pointed at, covers the count, and a long name takes two lines (review H-20). On a phone the top bar shows the page in full, after an arrow back to the page above (review H-21). Home's lead reads "Cards for engineers. Customise to change them." (review H-23).
+- **Reset workspace:** the preferences in effect (theme, table rows, number format, clock, motion, language, shortcuts) go back to the defaults too, so a later change no longer writes the old ones back (#425).
 
 ### Security
 

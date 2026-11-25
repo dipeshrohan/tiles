@@ -527,9 +527,8 @@ button.nav-group .icon {
   min-width: 0;
 }
 .nav-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* A long name takes a second line rather than an ellipsis (review H-20). */
+  overflow-wrap: break-word;
 }
 .nav-pin {
   position: absolute;
@@ -553,9 +552,6 @@ button.nav-group .icon {
 .nav-pin:hover {
   color: var(--ink);
   background: var(--hover);
-}
-.nav-row:has(.nav-pin) .nav-link .badge {
-  margin-right: var(--space-6);
 }
 .nav-rail-toggle {
   align-self: flex-end;
@@ -695,7 +691,9 @@ button.nav-group .icon {
   margin-left: auto;
   color: var(--soft);
 }
-.nav-row:has(.nav-pin) .nav-link .nav-hint {
+/* Room for the pin only where it always shows (a pinned page); otherwise the name has the row and
+   the pin, shown on pointing or focus, covers the count (review H-20). */
+.nav-row:has(.nav-pin[aria-pressed='true']) .nav-link :is(.badge, .nav-hint) {
   margin-right: var(--space-6);
 }
 .user {
@@ -774,12 +772,45 @@ button.nav-group .icon {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* On a phone (review H-21): this place in full, after a back arrow to the place above (named for
+   screen readers); a long name takes two lines. */
+.crumb-back {
+  display: none;
+}
 @media (max-width: 640px) {
   .crumbs li:not(:last-child):not(:nth-last-child(2)) {
     display: none;
   }
-  .crumbs li:nth-last-child(2) .crumb-sep {
+  .crumbs li:nth-last-child(-n + 2) .crumb-sep {
     display: none;
+  }
+  .crumbs li:nth-last-child(2) {
+    flex: none;
+  }
+  .crumbs li:nth-last-child(2) .crumb-back {
+    display: inline-grid;
+    place-items: center;
+    min-width: var(--target-min);
+  }
+  .crumbs li:nth-last-child(2) .crumb-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .crumbs li:last-child {
+    white-space: normal;
+  }
+  .crumbs b {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    padding-inline: var(--space-1_5);
+    line-height: var(--leading-tight);
+    overflow-wrap: anywhere;
+    hyphens: auto;
   }
 }
 .crumbs a {
@@ -4041,6 +4072,7 @@ body.floor-full .topbar {
     padding: var(--space-4);
   }
   .topbar {
+    gap: var(--space-2);
     padding: 0 var(--space-4);
   }
   .g2,

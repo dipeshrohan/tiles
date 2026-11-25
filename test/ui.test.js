@@ -276,6 +276,13 @@ test('breadcrumbs link each place above, and mark this one current', () => {
     new RegExp(`<li><span class="crumb-sep"[^]*?</span><b aria-current="page">${SAFE}</b></li></ol>$`),
   );
   assert.equal(html.match(/aria-current/g)?.length, 1);
+  // The place just above has a back arrow (shown on a phone in place of its name, review H-21); the
+  // link keeps its name for screen readers.
+  assert.match(
+    html,
+    /<a href="#\/plant"><span class="crumb-back" aria-hidden="true"><svg class="icon icon-arrow-left"[^]*?<\/span><span class="crumb-text">Plant<\/span><\/a>/,
+  );
+  assert.equal(html.match(/crumb-back/g)?.length, 1);
   // A place without a link of its own is plain text.
   assert.match(breadcrumbs([{ label: 'New app' }, { label: 'x' }]), /<li><span>New app<\/span><\/li>/);
 });

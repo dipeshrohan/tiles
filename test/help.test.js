@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { PAGE_HELP, blocks, generate, inline, pageIds, sections } from '../scripts/help.js';
 import { chapter, helpHref, helpItems, pageSection, parentOf, sectionAt } from '../js/lib/help.ts';
 
@@ -26,6 +26,24 @@ test('links in the help land on a section of the guide', () => {
   for (const l of links) assert.ok(slugs.has(l), `#/help/${l} goes nowhere`);
   assert.ok(!slugs.has('contents'), 'the table of contents is left out');
   assert.equal(all[0].level, 1, 'the introduction comes first');
+});
+
+test("the app's links into the help (helpHref with a written slug) land on a heading the guide has", () => {
+  const slugs = new Set(sections(read('../docs/guides/user.md')).map((s) => s.slug));
+  const files = [
+    'app.ts',
+    ...readdirSync(new URL('../js/views', import.meta.url)).map((f) => `views/${f}`),
+    ...readdirSync(new URL('../js/lib', import.meta.url)).map((f) => `lib/${f}`),
+  ].filter((f) => f.endsWith('.ts'));
+  const used = files.flatMap((f) => [...read(`../js/${f}`).matchAll(/helpHref\('([^']+)'\)/g)].map((m) => [f, m[1]]));
+  assert.ok(
+    used.some(([f, slug]) => f === 'views/settings.ts' && slug === 'edge-agents'),
+    'Settings links to Edge agents',
+  );
+  for (const [f, slug] of used) assert.ok(slugs.has(slug), `${f}: #/help/${slug} goes nowhere`);
+  // No link into the help written out by hand: helpHref makes them, so this test sees them.
+  for (const f of files)
+    assert.doesNotMatch(read(`../js/${f}`), /href="#\/help\/[a-z]/, `${f} writes a help link by hand`);
 });
 
 test('inline Markdown: escaped, code kept as written, links into the app', () => {

@@ -9,6 +9,7 @@ import {
   howFar,
   machineFor,
   payload,
+  primaryAction,
   queryFor,
   when,
 } from '../js/lib/warnings.ts';
@@ -40,6 +41,13 @@ test('engineers and admins act as the workflow allows; viewers only look', () =>
   assert.deepEqual(actionsFor({ status: 'resolved' }, 'engineer'), ['reopen', 'comment']);
   assert.deepEqual(actionsFor({ status: 'raised' }, 'viewer'), []);
   assert.deepEqual(actionsFor({ status: 'raised' }, null), []);
+});
+
+test("one primary button in a warning's form: Acknowledge while it is new, then Resolve (review H-19)", () => {
+  assert.equal(primaryAction(actionsFor({ status: 'raised' }, 'engineer')), 'acknowledge');
+  assert.equal(primaryAction(actionsFor({ status: 'acknowledged' }, 'engineer')), 'resolve');
+  assert.equal(primaryAction(actionsFor({ status: 'resolved' }, 'admin')), null);
+  assert.equal(primaryAction(actionsFor({ status: 'raised' }, 'viewer')), null);
 });
 
 test('the chart shows the warning with the signal before it and a little after, up to now', () => {
