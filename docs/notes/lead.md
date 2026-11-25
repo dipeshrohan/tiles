@@ -30,6 +30,14 @@ with a recommendation:
 - Tracker drift found by the [retrospective](../retrospective-2026.md): #15 and #51 ticked but
   open; T1.02 and CM-1 disagree on branch protection; T6.09's open half is the pilot deploy.
 - [ROADMAP-3](../ROADMAP-3.md) (a draft: 30 tasks, months 13 to 18).
+- Dependabot held on 2026-11-25 (the two-week rule; review them again when old enough):
+  - #402 (edge), #404 (api) and #406 (pypdf 7.1.0): only the age rule.
+  - #403 (npm): taking playwright or lucide-static also needs ci.yml's Playwright image, `npm run
+    icons`, a build and new visual baselines.
+  - #405 (anthropic 2.x): with a tracer set (`OTEL_EXPORTER_OTLP_ENDPOINT`) the SDK sends trace
+    headers and records spans; pass `open_telemetry=False` where the client is made
+    (`api_copilot.py`, `evaluation/__init__.py`), or say so in the partner review.
+  - Floating action tags (`@v4`) move on their own; the age rule holds only at merge time.
 - #169, TypeScript 7: waits for typescript-eslint to support it.
 
 ## How the lead works
