@@ -19,8 +19,16 @@ export interface OntologyStore {
   commit(repo: Repo, message: string, author: string): Promise<Repo>;
   revert(repo: Repo, commitId: string, author: string): Promise<Repo>;
   // Sends the staged changes (or the revert of a commit) for review instead of
-  // committing them (T2.12). Reviews are shared, so only the API store has them.
-  requestReview(repo: Repo, request: { message?: string; reviewerId?: string; reverts?: string }): Promise<Repo>;
+  // committing them (T2.12). Reviews are shared, so only the API store has them. `sent` hears the
+  // number of the change request made, for the page to name and link it (review H-09).
+  requestReview(repo: Repo, request: ReviewRequest): Promise<Repo>;
+}
+
+export interface ReviewRequest {
+  message?: string;
+  reviewerId?: string;
+  reverts?: string;
+  sent?: (number: number) => void;
 }
 
 export const localStore: OntologyStore = {
@@ -76,12 +84,13 @@ export function remoteStore(api: ApiClient, site: Site): RemoteStore {
       await o.revert(site.id, commitId);
       return load();
     },
-    async requestReview(_repo, { message, reviewerId, reverts }) {
-      await api.reviews.request(site.id, {
+    async requestReview(_repo, { message, reviewerId, reverts, sent }) {
+      const review = await api.reviews.request(site.id, {
         ...(message ? { message } : {}),
         ...(reviewerId ? { reviewer_id: reviewerId } : {}),
         ...(reverts ? { reverts } : {}),
       });
+      sent?.(review.number);
       return load();
     },
   };

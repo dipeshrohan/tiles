@@ -135,9 +135,11 @@ def test_onboarding_follows_the_site_from_created_to_its_first_dashboard(
         node("press", "Machine", "Press 1"),
         node("plc", "PLC", "PLC 1", protocol="OPC UA"),
         node("force", "Signal", "Press force", unit="kN"),
+        node("temp", "Signal", "Press temperature", unit="°C"),
         edge("line", "contains", "press"),
         edge("press", "controlledBy", "plc"),
         edge("plc", "emits", "force"),
+        edge("plc", "emits", "temp"),
     ]
     assert api.post(f"/sites/{site_id}/ontology/staged/batch", json=ops, headers=ENG).status_code == 201
     assert api.post(f"/sites/{site_id}/ontology/commits", json={"message": "outline"}, headers=ENG).status_code == 201
@@ -168,10 +170,28 @@ def test_onboarding_follows_the_site_from_created_to_its_first_dashboard(
     signal = api.get(f"/sites/{site_id}/signals?q=p1.force", headers=ENG).json()["signals"][0]
     res = api.patch(f"/sites/{site_id}/signals/{signal['id']}", json={"node_id": "force"}, headers=ENG)
     assert res.status_code == 200, res.text
+    # One of two isn't the step done (review H-08); the first dashboard is.
     s = steps(api, site_id)
+    assert (s["done"], s["next"], s["details"]["mapping"]) == (
+        ["site", "outline", "agent", "dashboard"],
+        "mapping",
+        "1 of 2 tags mapped",
+    )
+    # An event stream (downtime codes) has no Signal node to map: it isn't counted.
+    downtime = {"samples": [{"signal": "p1.downtime", "at": datetime.now(UTC).isoformat(), "value": 3.0}]}
+    assert api.post("/agent/samples", json=downtime, headers=agent_auth(token)).status_code == 200
+    event = api.get(f"/sites/{site_id}/signals?q=p1.downtime", headers=ENG).json()["signals"][0]
+    res = api.patch(f"/sites/{site_id}/signals/{event['id']}", json={"event_kind": "downtime"}, headers=ENG)
+    assert res.status_code == 200, res.text
+    assert steps(api, site_id)["details"]["mapping"] == "1 of 2 tags mapped"
+    temp = api.get(f"/sites/{site_id}/signals?q=p1.temp", headers=ENG).json()["signals"][0]
+    res = api.patch(f"/sites/{site_id}/signals/{temp['id']}", json={"node_id": "temp"}, headers=ENG)
+    assert res.status_code == 200, res.text
+    s = steps(api, site_id)
+    assert (s["tags"], s["mapped"], s["details"]["mapping"]) == (2, 2, "2 of 2 tags mapped")
     assert (s["done"], s["next"]) == (["site", "outline", "agent", "mapping", "dashboard"], None)
     assert s["dashboard"] == {"id": "press", "label": "Press 1"}
-    assert s["details"]["dashboard"] == "Press 1: 1 mapped signal"
+    assert s["details"]["dashboard"] == "Press 1: 2 mapped signals"
 
     # An agent gone quiet has still called in: the step stays done, and says it isn't online.
     with psycopg.connect(database_url) as conn:

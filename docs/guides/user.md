@@ -181,6 +181,8 @@ Relationships: `contains`, `runs`, `consumes`, `controlledBy`, `emits`, `describ
 - **Find a node**: type in **Find a node**. Matches light up. Press Enter or **Next** to go to each one; Tiles opens any folds above it.
 - **Hide a type**: click a type chip under the canvas to hide or show that type.
 
+Each column is as wide as its longest name, up to a limit. A longer name shows its first words and "…"; point at the node or move to it with Tab to read the whole name.
+
 Nodes with health issues and nodes touched by your staged changes are marked on the canvas.
 
 ### Adding a node
@@ -236,6 +238,8 @@ In API mode you can also send the changes for review instead (see [Change review
 3. Click **Request review**.
 
 If your site requires a review for every change, there is no **Commit** button; **Request review** is the only way.
+
+The message names the change request it made, for example "Sent change request #4 for review", with **Open** to go to it. The change leaves the canvas until it is approved; while it waits, a line above the canvas names each of your open change requests with a link to it.
 
 Tips:
 
@@ -713,15 +717,17 @@ To do the same on your own data, use the [Correlation finder](#correlation-finde
 ### Uploading a batch table (engineers and admins)
 
 1. Under **Upload a batch table**, choose a **CSV file**. It needs one row per batch: its settings and measurements, and a column that says whether it failed.
-2. Give it a **Name**, for example "Cutter batches, September".
+2. Give it a **Name**, for example "Cutter batches, September". The file's name is filled in, or the first free one after it, such as "batches (2)", when a batch table already has it.
 3. Click **Upload**.
+
+If another batch table already has the name, the page says so under **Name**, and keeps the file chosen: change the name and upload again.
 
 ### Finding effects
 
 1. Choose a batch table from the list.
 2. Choose the **Outcome** column.
 3. In **Failed when it is**, type the value that means failed, for example `NG` or `scrap` (for a true/false column, `true` by default).
-4. Choose **Split by** a column (material, line, shift…), or **nothing (pooled)**.
+4. Choose **Split by** a column (material, line, shift…), or **nothing (pooled)**. Only text and true/false columns with a few values are offered: at most 50, and on average at least two batches each, so a batch's id never is.
 5. Tick the **Variables** to test.
 6. Click **Find**.
 
@@ -734,7 +740,7 @@ You get:
 
 Tips:
 
-- If nothing stands out pooled, try a split. One setting can fail two materials in opposite directions.
+- If nothing stands out pooled, Tiles tries the splits for you (up to five, fewest values first) and shows the ones that reveal effects, each with **Split by** to run it. One setting can fail two materials in opposite directions, and cancel out pooled.
 - Engineers can click **Save as insight** to keep a result, and **Delete** to remove a batch table.
 
 ---
@@ -950,7 +956,7 @@ Admins see usage on the **Settings** page.
 1. **Create the site.** Organisation admins create another site here: its name, a short name for links (filled in from the name) and its time zone. **Set it up now** opens it.
 2. **Outline the plant** (engineers and admins). Name a line, optionally its workcenter, and its machines, one per line. Each machine gets a controller (PLC), read by the protocol you choose. It goes into the ontology as one commit, or as a change request when the site requires reviews. Commit or discard any changes you have staged first.
 3. **Connect an edge agent** (admins). Register an agent: its token is shown once, with the config file to put beside it and the commands to check and run it. The page notices the agent's first heartbeat by itself.
-4. **Map the tags.** Once readings arrive, the page counts the tags mapped to Signal nodes, and links to the Signals page, where **Suggest mappings** proposes one for each.
+4. **Map the tags.** Once readings arrive, the page counts the tags mapped to Signal nodes, and links to the Signals page, where **Suggest mappings** proposes one for each. The step is done when every tag of readings is mapped; event streams (such as downtime or scrap codes) aren't counted, as they have no Signal node.
 5. **Open the first dashboard:** the Plant page of the machine with the most mapped signals, with their latest readings; and the Shopfloor view.
 
 **Refresh** checks again, the ontology included.

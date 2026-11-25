@@ -935,12 +935,17 @@ export interface CorrelationFinding {
   r: number;
 }
 
+// A batch table with its first rows and the columns worth splitting by (few values; review H-11).
+export type DatasetDetail = Dataset & { preview: Record<string, DatasetValue>[]; splits: string[] };
+
 export interface CorrelationResult {
   rows: number;
   ng: number;
   ok: number;
   findings: CorrelationFinding[];
   explanations: { segment: string; variable: string; text: string }[];
+  // A pooled run with no explanation: the splits that show some (review H-11). Not in older evidence.
+  hints?: { split: string; explanations: { segment: string; variable: string; text: string }[] }[];
 }
 
 // The copilot (T4.01–T4.04): a user's conversations, their stored messages (Messages API content
@@ -1236,6 +1241,8 @@ export const OFFLINE_WRITE = 'client.offline';
 export const STREAM_CUT = 'client.stream_cut';
 export const UNREACHABLE = 'client.unreachable';
 export const NOT_JSON = 'client.not_json';
+// A batch table's name already used on the site (409): said under the name, not as a toast.
+export const NAME_TAKEN = 'dataset.name_taken';
 const offline = () => new ApiError(t('apiClient.offline'), 0, null, [], OFFLINE_WRITE);
 // The "can't reach" words said, in whatever language, with the address each names: pages keep an
 // error's words, and apiUnreachable() knows these by them (U6.01), without reading the words.
@@ -1349,7 +1356,8 @@ export function createApiClient(options: ApiOptions) {
       anonymous?: boolean;
       text?: boolean;
       blob?: boolean;
-      quiet?: boolean;
+      // The caller shows the error (every one, or those the function picks: a field's, U2.07).
+      quiet?: boolean | ((error: ApiError) => boolean);
       // Nothing said at all, success or failure (no toast, no offline banner): UX analytics (U1.09).
       silent?: boolean;
       file?: { body: Blob; type: string };
@@ -1388,7 +1396,8 @@ export function createApiClient(options: ApiOptions) {
         fieldsOf(parsed),
         errorCode(parsed),
       );
-      if (quiet) throw error; // the caller shows it (e.g. a 403 that only means "not for you")
+      // The caller shows it (e.g. a 403 that only means "not for you", or a name taken under its field).
+      if (quiet === true || (quiet && quiet(error))) throw error;
       return (silent ? raise : fail)(error);
     }
     return parsed as T;
@@ -1885,12 +1894,15 @@ export function createApiClient(options: ApiOptions) {
     datasets: {
       list: (siteId: string) => request<Dataset[]>('GET', `/sites/${encodeURIComponent(siteId)}/datasets`),
       get: (siteId: string, id: string) =>
-        request<Dataset & { preview: Record<string, DatasetValue>[] }>(
-          'GET',
-          `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}`,
-        ),
+        request<DatasetDetail>('GET', `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}`),
+      // A name taken (409 dataset.name_taken) is the caller's to show, under the name (review H-10).
       create: (siteId: string, name: string, columns: DatasetColumn[]) =>
-        request<Dataset>('POST', `/sites/${encodeURIComponent(siteId)}/datasets`, { name, columns }),
+        request<Dataset>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/datasets`,
+          { name, columns },
+          { quiet: (e) => e.code === NAME_TAKEN },
+        ),
       // At most 5,000 rows a call, appended in order.
       addRows: (siteId: string, id: string, rows: Record<string, DatasetValue>[]) =>
         request<{ received: number; row_count: number }>(

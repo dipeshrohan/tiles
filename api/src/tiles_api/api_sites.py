@@ -149,8 +149,8 @@ class Onboarding(BaseModel):
     machines: int  # in the committed ontology
     agents: int  # registered and not revoked
     agents_seen: int  # that have called in
-    tags: int  # the site's tags (not a model's derived signals)
-    mapped: int  # linked to a Signal node
+    tags: int  # the site's tags that are readings (not a model's derived signals, nor event streams)
+    mapped: int  # of those, linked to a Signal node
     dashboard: dict[str, str] | None  # the machine to open first: {id, label}
 
 
@@ -215,9 +215,13 @@ def onboarding(ctx: Ctx) -> Onboarding:
             [ctx.site_id],
         )
     ]
+    # The tags to map are the readings: event streams (downtime, scrap codes) have no Signal node to
+    # link (review H-08), so the step is done once every reading is mapped.
     tags = one(
         conn.execute(
-            "SELECT count(*) AS n FROM signals WHERE site_id = %s AND source NOT LIKE 'model:%%'", [ctx.site_id]
+            "SELECT count(*) AS n, count(node_id) AS mapped FROM signals"
+            " WHERE site_id = %s AND source NOT LIKE 'model:%%' AND event_kind IS NULL",
+            [ctx.site_id],
         ).fetchone()
     )
     # The machine with the most mapped signals: its page on Plant is the first dashboard.
@@ -228,7 +232,7 @@ def onboarding(ctx: Ctx) -> Onboarding:
             counts[m] = counts.get(m, 0) + 1
     best = min(counts, key=lambda m: (-counts[m], head["nodes"][m]["label"], m)) if counts else None
     dashboard = {"id": best, "label": head["nodes"][best]["label"]} if best else None
-    n_agents, n_tags, mapped = len(listed), int(tags["n"]), len(linked)
+    n_agents, n_tags, mapped = len(listed), int(tags["n"]), int(tags["mapped"])
     seen = sum(1 for a in listed if a.last_seen_at is not None)
     steps = [
         Step(key="site", done=True, detail="Created"),
@@ -248,7 +252,7 @@ def onboarding(ctx: Ctx) -> Onboarding:
         ),
         Step(
             key="mapping",
-            done=mapped > 0,
+            done=n_tags > 0 and mapped == n_tags,
             detail=f"{mapped} of {plural(n_tags, 'tag')} mapped" if n_tags else "No tags have arrived yet",
         ),
         Step(

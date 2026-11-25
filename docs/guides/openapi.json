@@ -2125,6 +2125,14 @@
             "title": "Findings",
             "type": "array"
           },
+          "hints": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SplitHint"
+            },
+            "title": "Hints",
+            "type": "array"
+          },
           "ng": {
             "title": "Ng",
             "type": "integer"
@@ -2435,6 +2443,13 @@
           "row_count": {
             "title": "Row Count",
             "type": "integer"
+          },
+          "splits": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Splits",
+            "type": "array"
           }
         },
         "required": [
@@ -2445,7 +2460,8 @@
           "row_count",
           "created_by",
           "created_at",
-          "preview"
+          "preview",
+          "splits"
         ],
         "title": "DatasetDetail",
         "type": "object"
@@ -9782,6 +9798,27 @@
         "title": "Span",
         "type": "object"
       },
+      "SplitHint": {
+        "properties": {
+          "explanations": {
+            "items": {
+              "$ref": "#/components/schemas/Explanation"
+            },
+            "title": "Explanations",
+            "type": "array"
+          },
+          "split": {
+            "title": "Split",
+            "type": "string"
+          }
+        },
+        "required": [
+          "split",
+          "explanations"
+        ],
+        "title": "SplitHint",
+        "type": "object"
+      },
       "Spread": {
         "properties": {
           "count": {
@@ -16536,7 +16573,7 @@
         ]
       },
       "get": {
-        "description": "A dataset with its columns and its first 20 rows.",
+        "description": "A dataset with its columns, its first 20 rows and the columns worth splitting by.",
         "operationId": "get_dataset_sites__site_id__datasets__dataset_id__get",
         "parameters": [
           {
@@ -16590,7 +16627,7 @@
     },
     "/sites/{site_id}/datasets/{dataset_id}/correlate": {
       "post": {
-        "description": "Which variables separate the failed batches from the good ones: Cohen's d with its 95%\nconfidence interval and r, per segment of `split` if given, largest effect first.",
+        "description": "Which variables separate the failed batches from the good ones: Cohen's d with its 95%\nconfidence interval and r, per segment of `split` if given, largest effect first. A pooled run\nthat finds no large, clear effect also tries the dataset's splits (at most five) and gives, as\n`hints`, those that show one: an effect in opposite directions per segment cancels out pooled.",
         "operationId": "correlate_dataset_sites__site_id__datasets__dataset_id__correlate_post",
         "parameters": [
           {

@@ -1,7 +1,15 @@
 import { esc, fmt, onAll, onSubmit, onNavigate, routeOf, bound } from '../lib/dom.ts';
 import { detectDelimiter, parseCsv } from '../lib/csv.ts';
-import { forestPlot, inferColumns, parseNgValues, typedRows } from '../lib/datasets.ts';
-import type { CorrelationResult, Dataset, DatasetValue, InsightSource } from '../lib/api.ts';
+import { forestPlot, freeName, inferColumns, parseNgValues, typedRows } from '../lib/datasets.ts';
+import {
+  ApiError,
+  NAME_TAKEN,
+  type CorrelationResult,
+  type Dataset,
+  type DatasetDetail,
+  type InsightSource,
+} from '../lib/api.ts';
+import { showApiErrors } from '../lib/forms.ts';
 import { bindDraft, correlationDraft, draftForm, insightLink, readDraft, type DraftText } from '../lib/insights.ts';
 import type { Context, View } from './types.ts';
 import { t, tHtml } from '../lib/i18n.ts';
@@ -25,7 +33,7 @@ const uiState = (ctx: Context) =>
   ctx.ui<Ui>('correlate', { selected: null, outcome: '', ngText: '', variables: null, split: '' });
 
 let listing: { site: string; items: Dataset[] | null } | null = null;
-let detail: { id: string; data: Dataset & { preview: Record<string, DatasetValue>[] } } | null = null;
+let detail: { id: string; data: DatasetDetail } | null = null;
 let result: { key: string; data: CorrelationResult; split: boolean; source: InsightSource; dataset: string } | null =
   null;
 let saving: { key: string; text: DraftText } | null = null; // the insight being saved from the result
@@ -133,9 +141,11 @@ function analysisCard(ctx: Context, ui: Ui): string {
         <div class="row gap-3 wrap items-end">
           <label class="field">${esc(t('correlate.form.outcome'))}<select name="outcome">${d.columns.map((c) => option(c.name, outcome?.name ?? '')).join('')}</select></label>
           <label class="field">${esc(t(outcome?.kind === 'bool' ? 'correlate.form.failedWhenBool' : 'correlate.form.failedWhen'))}<input type="text" name="ng" value="${esc(ui.ngText)}" placeholder="${outcome?.kind === 'bool' ? TRUE : esc(t('correlate.form.ngPlaceholder'))}" class="w-12em"></label>
-          <label class="field">${esc(t('correlate.form.splitBy'))}<select name="split"><option value="">${esc(t('correlate.form.pooled'))}</option>${d.columns
-            .filter((c) => c.kind !== 'number' && c.name !== outcome?.name)
-            .map((c) => option(c.name, ui.split))
+          <label class="field">${esc(t('correlate.form.splitBy'))}<select name="split"><option value="">${esc(t('correlate.form.pooled'))}</option>${splitsOf(
+            d,
+            outcome?.name,
+          )
+            .map((name) => option(name, ui.split))
             .join('')}</select></label>
           <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(t('correlate.form.find'))}</button>
         </div>
@@ -152,10 +162,29 @@ function analysisCard(ctx: Context, ui: Ui): string {
     </div>`;
 }
 
+// The columns offered as splits (review H-11): those the API finds have few values, not the outcome.
+const splitsOf = (d: DatasetDetail, outcome: string | undefined): string[] =>
+  (d.splits ?? []).filter((name) => name !== outcome);
+
+// A pooled run that found nothing large: the splits that do show effects, each with a way to it.
+function hintsBlock(r: CorrelationResult): string {
+  const hints = r.hints ?? [];
+  if (r.explanations.length || !hints.length) return '';
+  return `<div class="stack gap-2_5" data-hints>${hints
+    .map(
+      (h) => `<div class="stack gap-1" data-key="hint-${esc(h.split)}">
+        <p>${esc(t('correlate.hint.lead', { column: h.split }))}</p>
+        <ul class="stack gap-1">${h.explanations.map((e) => `<li>${esc(e.text)}</li>`).join('')}</ul>
+        <div><button class="btn sm" type="button" data-split-by="${esc(h.split)}" ${busy ? 'disabled' : ''}>${esc(t('correlate.hint.button', { column: h.split }))}</button></div>
+      </div>`,
+    )
+    .join('')}</div>`;
+}
+
 function resultBlock(r: CorrelationResult, split: boolean): string {
   const said = r.explanations.length
     ? `<ul class="stack gap-1" data-explanations>${r.explanations.map((e) => `<li>${esc(e.text)}</li>`).join('')}</ul>`
-    : `<p class="small soft" data-explanations>${tHtml('correlate.noEffect', { d: term('cohens-d', 'd'), interval: term('confidence-interval', t('correlate.term.interval')) })}</p>`;
+    : `<p class="small soft" data-explanations>${tHtml('correlate.noEffect', { d: term('cohens-d', 'd'), interval: term('confidence-interval', t('correlate.term.interval')) })}</p>${hintsBlock(r)}`;
   const rows = r.findings
     .slice(0, 50)
     .map(
@@ -204,11 +233,14 @@ async function uploadFile(ctx: Context, file: File, name: string): Promise<void>
       }),
     );
     Object.assign(uiState(ctx), { selected: d.id, outcome: '', ngText: '', variables: null, split: '' });
+    chosen = { file: null, name: '' };
     detail = null;
     listing = null;
     created = null;
-  } catch {
-    // The client showed why. A half-uploaded table would mislead: remove it.
+  } catch (e) {
+    // A name taken is said under the name, the file kept to send again (review H-10); anything
+    // else the client showed. A half-uploaded table would mislead: remove it.
+    if (e instanceof ApiError && e.code === NAME_TAKEN) showApiErrors([{ name: 'name', message: e.message }]);
     if (created) await api.datasets.remove(site, created).catch(() => undefined);
     listing = null;
   } finally {
@@ -284,7 +316,7 @@ async function find(ctx: Context): Promise<void> {
   const outcome =
     d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === 'bool') ?? d.columns[0];
   if (!outcome) return;
-  const split = ui.split && ui.split !== outcome.name ? ui.split : null;
+  const split = ui.split && splitsOf(d, outcome.name).includes(ui.split) ? ui.split : null;
   const ng = parseNgValues(ui.ngText, outcome.kind);
   if (typeof ng === 'string') {
     ctx.toast(ng);
@@ -355,16 +387,21 @@ const view: View = {
       'change',
       (e) => {
         const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+        // The file's name, or the first free one after it ("batches (2)"): never one taken (H-10).
+        const taken = (listing?.items ?? []).map((d) => d.name);
         chosen = {
           file,
           name:
             chosen.name ||
             (file
-              ? file.name
-                  .replace(/\.[^.]+$/, '')
-                  .trim()
-                  .slice(0, 200)
-                  .trim()
+              ? freeName(
+                  file.name
+                    .replace(/\.[^.]+$/, '')
+                    .trim()
+                    .slice(0, 200)
+                    .trim(),
+                  taken,
+                )
               : ''),
         };
         ctx.rerender();
@@ -382,9 +419,7 @@ const view: View = {
       const name = chosen.name.trim();
       if (!chosen.file) return void ctx.toast(t('correlate.toast.noFile'));
       if (!name) return void ctx.toast(t('correlate.toast.noName'));
-      const file = chosen.file;
-      chosen = { file: null, name: '' };
-      return uploadFile(ctx, file, name);
+      return uploadFile(ctx, chosen.file, name);
     });
     // Every choice is kept as it is made, so a re-render never loses it.
     const form = root.querySelector<HTMLFormElement>('#correlate-form');
@@ -414,6 +449,11 @@ const view: View = {
       { signal: bound() },
     );
     onSubmit(root, '#correlate-form', () => find(ctx));
+    // A hint's split, chosen and run (review H-11).
+    onAll(root, '[data-split-by]', 'click', (el) => {
+      ui.split = el.dataset.splitBy ?? '';
+      void find(ctx);
+    });
     onAll(root, '[data-save-insight]', 'click', () => {
       if (!result || !detail) return;
       saving = { key: result.key, text: correlationDraft(result.dataset, result.data) };

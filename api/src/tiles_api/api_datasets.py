@@ -23,6 +23,7 @@ MAX_ROWS = 200_000  # per dataset
 MAX_BATCH = 5_000  # rows per request
 MAX_WORK = 2_000_000  # rows x variables one correlation may read
 MAX_SEGMENTS = 50
+MAX_HINTS = 5  # splits tried when a pooled run finds no large effect
 NAME = r"^\S(.*\S)?$"
 Value = StrictFloat | StrictInt | StrictBool | Annotated[StrictStr, Field(max_length=1000)] | None
 
@@ -59,6 +60,8 @@ class Dataset(BaseModel):
 
 class DatasetDetail(Dataset):
     preview: list[dict[str, Any]]  # the first 20 rows
+    # The columns worth splitting by (review H-11): text or true/false, fewest values first.
+    splits: list[str]
 
 
 class RowsIn(BaseModel):
@@ -107,12 +110,19 @@ class Explanation(BaseModel):
     text: str
 
 
+class SplitHint(BaseModel):
+    split: str  # a column the pooled run wasn't split by
+    explanations: list[Explanation]  # what splitting by it shows (never empty)
+
+
 class CorrelateOut(BaseModel):
     rows: int  # with an outcome
     ng: int
     ok: int
     findings: list[FindingOut]  # by |d|, largest first
     explanations: list[Explanation]  # per segment, its strongest clear effect that is large (|d| >= 0.8)
+    # A pooled run with no explanation: the splits that show some (review H-11), most first.
+    hints: list[SplitHint] = []
 
 
 DATASETS = """
@@ -148,20 +158,50 @@ def create_dataset(ctx: Editor, body: DatasetIn) -> dict[str, Any]:
     ).fetchone()
     if row is None:
         raise Problem(
-            status.HTTP_409_CONFLICT, "dataset.name_taken", f"A dataset is already called {body.name}", name=body.name
+            status.HTTP_409_CONFLICT,
+            "dataset.name_taken",
+            f"A batch table is already called {body.name}. Choose another name.",
+            name=body.name,
         )
     ctx.audit("dataset.create", "dataset", str(row["id"]), after={"name": body.name, "columns": len(body.columns)})
     return find_dataset(ctx, row["id"])
 
 
+def split_columns(columns: list[dict[str, str]], values: dict[str, int], rows: int) -> list[str]:
+    """The columns worth splitting by: text or true/false ones with 2 to MAX_SEGMENTS values (a
+    blank counts as one), and no more values than half the rows, so a segment has two batches on
+    average; an id, a value per batch, never is. Fewest values first, then by name."""
+    fit = [
+        c["name"]
+        for c in columns
+        if c["kind"] != "number" and 2 <= values.get(c["name"], 0) <= min(MAX_SEGMENTS, rows // 2)
+    ]
+    return sorted(fit, key=lambda name: (values[name], name))
+
+
+def splits_of(ctx: SiteContext, d: dict[str, Any]) -> list[str]:
+    """`split_columns` of a stored dataset: each column's values counted as segments (`segment_of`)."""
+    names = [c["name"] for c in d["columns"] if c["kind"] != "number"]
+    if not names or not d["row_count"]:
+        return []
+    counts = ctx.conn.execute(
+        """
+        SELECT k AS name, count(DISTINCT coalesce(r.row -> k, 'null'::jsonb)) AS n
+        FROM dataset_rows r CROSS JOIN unnest(%s::text[]) AS k WHERE r.dataset_id = %s GROUP BY k
+        """,
+        [names, d["id"]],
+    ).fetchall()
+    return split_columns(d["columns"], {c["name"]: int(c["n"]) for c in counts}, d["row_count"])
+
+
 @router.get("/sites/{site_id}/datasets/{dataset_id}", response_model=DatasetDetail)
 def get_dataset(ctx: Ctx, dataset_id: uuid.UUID) -> dict[str, Any]:
-    """A dataset with its columns and its first 20 rows."""
+    """A dataset with its columns, its first 20 rows and the columns worth splitting by."""
     d = find_dataset(ctx, dataset_id)
     preview = ctx.conn.execute(
         "SELECT row FROM dataset_rows WHERE dataset_id = %s ORDER BY i LIMIT 20", [dataset_id]
     ).fetchall()
-    return d | {"preview": [r["row"] for r in preview]}
+    return d | {"preview": [r["row"] for r in preview], "splits": splits_of(ctx, d)}
 
 
 def _fits(kind: str, value: Any) -> bool:
@@ -263,8 +303,19 @@ def correlate_dataset(
     min_effect: Annotated[float, Query(ge=0, le=10)] = 0.8,
 ) -> dict[str, Any]:
     """Which variables separate the failed batches from the good ones: Cohen's d with its 95%
-    confidence interval and r, per segment of `split` if given, largest effect first."""
-    return run(ctx, find_dataset(ctx, dataset_id), body, min_effect)
+    confidence interval and r, per segment of `split` if given, largest effect first. A pooled run
+    that finds no large, clear effect also tries the dataset's splits (at most five) and gives, as
+    `hints`, those that show one: an effect in opposite directions per segment cancels out pooled."""
+    d = find_dataset(ctx, dataset_id)
+    out = run(ctx, d, body, min_effect)
+    if body.split is None and not out["explanations"]:
+        hints = []
+        for column in [c for c in splits_of(ctx, d) if c != body.outcome][:MAX_HINTS]:
+            split = run(ctx, d, body.model_copy(update={"split": column}), min_effect)
+            if split["explanations"]:
+                hints.append({"split": column, "explanations": split["explanations"]})
+        out["hints"] = sorted(hints, key=lambda h: -len(h["explanations"]))  # stable: fewest values first
+    return out
 
 
 def run(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: float = 0.8) -> dict[str, Any]:

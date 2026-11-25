@@ -16,6 +16,10 @@ What comes after 1.0.0.
 - **The copilot with its service off:** people who aren't admins read who can turn it on, without the API's setting names; a status that can't be read says so, and the built-in skills' questions say they answer on the demo plant (review H-02).
 - **Home and the Shopfloor:** an engineer's Home starts with a new card, **Warnings nobody has taken**, so open warnings are among what needs you now (a layout you kept is unchanged; add the card with Customise). The Shopfloor and the Plant page place a warning whose signal has no Signal node on the machine its detector watches (the machine's `asset` property, else its name), list any they still can't place as **Not on a machine** rather than showing every machine OK, and no longer repeat a warning's tag under it. Warnings from the API now carry that `asset`. (Heuristic review H-03, H-04.)
 
+- **Set up a site:** **Map the tags** is done once every tag of readings is mapped (review H-08).
+- **Ontology builder:** **Request review** names the change request, with a link, and the page lists yours still waiting (review H-09). Columns widen to their longest name; a longer one ends in "…" (review H-14).
+- **Correlation finder:** a name taken is said under **Name**, and a free one is offered (review H-10). **Split by** offers only columns with a few values, and a pooled run that finds nothing tries them (review H-11).
+
 ### Security
 
 - **Dependencies:** pypdf 6.21.4, certifi 2026.10.23 (the API and the edge agent) and uv 0.13.7 in the images, for their advisories, with the month's other minor and patch updates of the API, the edge agent and the build tools.

@@ -11,6 +11,18 @@ const FALSE = new Set(['false', 'no']);
 
 // Each column's kind, from its cells: numbers if every filled one is a number, true/false if every
 // one is true/false or yes/no, otherwise text. Names are trimmed, and made unique.
+// The name to suggest for a new batch table (review H-10): `base` if no table has it, else the
+// first of "base (2)", "base (3)"… that is free, within the API's 200 characters.
+export function freeName(base: string, taken: readonly string[], most = 200): string {
+  const used = new Set(taken);
+  if (!base || !used.has(base)) return base;
+  for (let n = 2; ; n++) {
+    const suffix = ` (${n})`; // i18n-ok: a number, not words
+    const name = `${base.slice(0, most - suffix.length).trimEnd()}${suffix}`;
+    if (!used.has(name)) return name;
+  }
+}
+
 export function inferColumns(header: string[], rows: string[][]): DatasetColumn[] {
   const used = new Set<string>();
   return header.map((raw, i) => {

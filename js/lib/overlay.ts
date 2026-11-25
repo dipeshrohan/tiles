@@ -225,8 +225,21 @@ export function sheet(o: SheetOptions, opened?: (dialog: HTMLDialogElement, clos
     );
     closeOutside(dialog, done);
     open(dialog);
+    focusableWhenScrolled(dialog, id);
     opened?.(dialog, done);
   });
+}
+
+// A sheet's body that scrolls with nothing in it to Tab to (a long What's new) takes the focus
+// itself, named by the sheet's title, so it can be scrolled from the keyboard (WCAG 2.1.1; axe's
+// scrollable-region-focusable).
+function focusableWhenScrolled(dialog: HTMLDialogElement, id: string): void {
+  const body = dialog.querySelector<HTMLElement>('.sheet-body');
+  if (!body || body.scrollHeight <= body.clientHeight) return;
+  if (body.querySelector('a[href], button, input, select, textarea, [tabindex]')) return;
+  body.tabIndex = 0;
+  body.setAttribute('role', 'region');
+  body.setAttribute('aria-labelledby', `${id}-title`);
 }
 
 export interface PanelOptions {

@@ -4,6 +4,7 @@ import {
   BOX,
   canvasHeight,
   centerOn,
+  fitLabel,
   fitView,
   focusView,
   inBox,
@@ -17,6 +18,7 @@ import {
   layout,
   revealPath,
   searchNodes,
+  widthOf,
   zoomAt,
 } from '../js/lib/canvas.ts';
 import { largePlantGraph } from './fixtures/large-plant.js';
@@ -213,4 +215,54 @@ test('a drag between two nodes suggests the relationship the data model uses for
   assert.equal(likelyRel('Model', 'Signal'), 'reads');
   assert.equal(likelyRel('Model', 'Machine'), 'monitors');
   assert.equal(likelyRel('Machine', 'Machine'), 'feeds');
+});
+
+test('a column is as wide as its longest label, up to a limit, and the rest moves over (review H-14)', () => {
+  const lines = {
+    nodes: {
+      l1: { id: 'l1', type: 'Line', label: 'L1', props: {} },
+      l2: { id: 'l2', type: 'Line', label: 'Line two, long', props: {} },
+      m: { id: 'm', type: 'Machine', label: 'M', props: {} },
+      p: { id: 'p', type: 'PLC', label: 'P'.repeat(80), props: {} },
+    },
+    edges: {},
+  };
+  const need = (n) => n.label.length * 12;
+  const { pos, width } = layout(lines, () => true, undefined, need);
+  assert.equal(pos.get('l1').w, 14 * 12); // the column's longest label
+  assert.equal(pos.get('l2').w, 14 * 12);
+  assert.equal(pos.get('m').w, BOX.w); // never narrower
+  assert.equal(pos.get('p').w, BOX.maxW); // never wider
+  // The gap between columns stays as it was.
+  assert.equal(pos.get('m').x, pos.get('l1').x + 14 * 12 + BOX.colGap - BOX.w);
+  assert.equal(pos.get('p').x, pos.get('m').x + BOX.colGap);
+  assert.equal(width, pos.get('p').x + BOX.maxW + BOX.pad);
+  // Box selection, focus, the minimap and centring use each node's width.
+  assert.deepEqual(inBox(pos, { x: pos.get('l1').x + 150, y: 0, w: 1, h: 100 }), ['l1', 'l2']); // past BOX.w
+  assert.ok(minimapPath(pos).includes(`h${14 * 12}v${BOX.h}`));
+  assert.equal(focusView(pos, ['p'], 1, 0).x + focusView(pos, ['p'], 1, 0).w / 2, pos.get('p').x + BOX.maxW / 2);
+  assert.equal(centerOn({ x: 0, y: 0, w: 100, h: 100 }, pos.get('p')).x, pos.get('p').x + BOX.maxW / 2 - 50);
+  assert.equal(widthOf({ x: 0, y: 0 }), BOX.w); // a place without a width is a box's narrowest
+  // Without `need`, every node is BOX.w wide, as before.
+  assert.ok([...layout(lines, () => true).pos.values()].every((p) => p.w === BOX.w));
+});
+
+test('a label too long for its room keeps whole words from its start, for an ellipsis after them (H-14)', () => {
+  const measure = (text) => text.length * 10;
+  assert.deepEqual(fitLabel('DC-01 die-casting cell', 300, measure, 10), {
+    text: 'DC-01 die-casting cell',
+    cut: false,
+  });
+  // Words that fit with the ellipsis: never part of a word (the name's words, for screen readers).
+  assert.deepEqual(fitLabel('DC-01 die-casting cell', 200, measure, 10), { text: 'DC-01 die-casting', cut: true });
+  assert.deepEqual(fitLabel('DC-01 die-casting cell', 150, measure, 10), { text: 'DC-01', cut: true });
+  // A first word too long is kept whole (the page clips it).
+  assert.deepEqual(fitLabel('Hydraulikdruckspeicher links', 100, measure, 10), {
+    text: 'Hydraulikdruckspeicher',
+    cut: true,
+  });
+  assert.deepEqual(fitLabel('Hydraulikdruckspeicher', 100, measure, 10), { text: 'Hydraulikdruckspeicher', cut: true });
+  // Spaces doubled or leading don't make empty words.
+  assert.deepEqual(fitLabel(' A  bb cc', 70, measure, 10), { text: ' A  bb', cut: true });
+  assert.deepEqual(fitLabel(' A  bb cc', 69, measure, 10), { text: ' A', cut: true });
 });

@@ -40,6 +40,8 @@ def test_a_batch_table_gives_the_browsers_findings_with_intervals(api: TestClien
     detail = api.get(f"/sites/{site}/datasets/{dataset}", headers=VIEWER).json()
     assert (detail["row_count"], len(detail["preview"]), detail["preview"][0]["id"]) == (720, 20, "B0001")
     assert detail["created_by"] == "eng"
+    # Splits are the columns with few values: never id, one per batch (review H-11).
+    assert detail["splits"] == ["material", "ng"]
     variables = FIXTURE["variables"]
     res = run(api, site, dataset, outcome="ng", variables=variables, split="material")
     assert res.status_code == 200, res.text
@@ -58,11 +60,34 @@ def test_a_batch_table_gives_the_browsers_findings_with_intervals(api: TestClien
     ]
     assert out["explanations"][0]["text"].startswith("anode: failed batches ran tension higher (")
     assert "lower" in out["explanations"][1]["text"]
+    assert out["hints"] == []  # split already
 
-    # Pooled, with every number column by default: the tension effect cancels out.
+    # Pooled, with every number column by default: the tension effect cancels out, and the split
+    # that shows it is given as a hint, with what it shows (review H-11).
     pooled = run(api, site, dataset, outcome="ng").json()
     assert {f["variable"] for f in pooled["findings"]} == {*variables, "tabDev"}
     assert next(f for f in pooled["findings"] if f["variable"] == "tension")["clear"] is False
+    assert pooled["hints"] == []  # tabDev stands out pooled: nothing tried
+    pooled = run(api, site, dataset, outcome="ng", variables=variables).json()
+    assert pooled["explanations"] == []
+    assert [h["split"] for h in pooled["hints"]] == ["material"]
+    assert pooled["hints"][0]["explanations"] == out["explanations"]
+
+
+def test_splits_are_columns_with_few_values() -> None:
+    columns = [
+        {"name": "id", "kind": "text"},
+        {"name": "shift", "kind": "text"},
+        {"name": "line", "kind": "text"},
+        {"name": "night", "kind": "bool"},
+        {"name": "one", "kind": "text"},
+        {"name": "speed", "kind": "number"},
+    ]
+    values = {"id": 10, "shift": 3, "line": 2, "night": 2, "one": 1, "speed": 4}
+    assert api_datasets.split_columns(columns, values, rows=10) == ["line", "night", "shift"]
+    assert api_datasets.split_columns(columns, values, rows=5) == ["line", "night"]  # 3 > 5 // 2
+    assert api_datasets.split_columns(columns, values | {"id": 51}, rows=1000) == ["line", "night", "shift"]
+    assert api_datasets.split_columns(columns, values | {"id": 50}, rows=1000)[-1] == "id"
 
 
 def test_outcomes_named_by_their_values(api: TestClient, site: str) -> None:  # noqa: F811
@@ -103,7 +128,10 @@ def test_uploads_and_requests_are_checked(
         assert api.post(path, json=bad, headers=ENG).status_code == 422, bad
     dataset = upload(api, site)
     again = api.post(path, json={"name": "cutter batches", "columns": COLUMNS}, headers=ENG)
-    assert (again.status_code, again.json()["detail"]) == (409, "A dataset is already called cutter batches")
+    assert (again.status_code, again.json()["detail"]) == (
+        409,
+        "A batch table is already called cutter batches. Choose another name.",
+    )
     rows = f"{path}/{dataset}/rows"
     for row, detail in (
         ({"color": "red"}, "Row 1: no column 'color' in this dataset"),
@@ -172,6 +200,7 @@ def test_each_segment_is_explained_by_its_strongest_clear_effect(api: TestClient
     assert out["explanations"][0]["text"].startswith("true: failed batches ran b higher (")
     pooled = run(api, site, dataset, outcome="ng").json()
     assert [e["segment"] for e in pooled["explanations"]] == ["all"]
+    assert pooled["hints"] == []  # found pooled: nothing tried
     assert pooled["explanations"][0]["text"].startswith("failed batches ran ")  # no segment named
 
     res = run(api, site, dataset, outcome="ng", split="ng")

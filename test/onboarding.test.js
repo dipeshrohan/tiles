@@ -138,7 +138,16 @@ test('on the demo plant: its tags are suggested Signal nodes, and mapping them s
   graph = applyOps(graph, mappingOps(graph, [vel])).graph;
   assert.equal(mappedTo(graph, 'dc02.plunger_vel'), 'sig-vel');
   p = localProgress(graph, { agent: true });
-  assert.equal(p.next, null);
+  // One of six isn't the step done (review H-08), though the first dashboard is.
+  assert.deepEqual(
+    p.steps.slice(3).map((s) => [s.key, s.done]),
+    [
+      ['mapping', false],
+      ['dashboard', true],
+    ],
+  );
+  assert.equal(p.next, 'mapping');
+  assert.equal(p.steps[3].detail, '1 of 6 demo tags mapped');
   assert.deepEqual(p.dashboard, { id: 'm-dc02', label: 'Die-caster DC-02' });
   assert.equal(p.steps[4].detail, 'Die-caster DC-02: 1 mapped signal');
 
@@ -167,6 +176,8 @@ test('on the demo plant: its tags are suggested Signal nodes, and mapping them s
   assert.equal(mappingOps(graph, DEMO_TAGS).length, 0);
   p = localProgress(graph, { agent: true });
   assert.equal(p.mapped, 6);
+  assert.equal(p.steps[3].done, true);
+  assert.equal(p.next, null);
   assert.deepEqual(p.dashboard, { id: 'm-dc02', label: 'Die-caster DC-02' }); // 4 of the 6
 
   // A node taken by another tag, or a machine gone: no link to it.

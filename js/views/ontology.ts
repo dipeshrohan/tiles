@@ -6,6 +6,7 @@ import {
   canvasHeight,
   centerOn,
   collapsible,
+  fitLabel,
   fitView,
   focusView,
   inBox,
@@ -22,6 +23,7 @@ import {
   revealPath,
   searchNodes,
   zoomAt,
+  widthOf,
   type Hierarchy,
   type Layout,
   type View as ViewBox,
@@ -43,8 +45,8 @@ import {
   bound,
 } from '../lib/dom.ts';
 import { describeChanges } from '../lib/review.ts';
-import type { OntologyImport } from '../lib/api.ts';
-import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '../lib/types.ts';
+import type { OntologyImport, ReviewSummary } from '../lib/api.ts';
+import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op, Repo } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 import { pageHead } from '../lib/ui.ts';
 import { keyAttr, typing } from '../lib/shortcuts.ts';
@@ -258,6 +260,55 @@ function nodeName(n: { type: string; label: string }, fold: number): string {
   return name;
 }
 
+// Text widths on the canvas (review H-14), in drawing units: a node's text is --text-xs in the
+// app's font, measured once per label on a 2D canvas (2,000 labels in a few milliseconds), or
+// estimated where there is none. A column is as wide as its longest label, up to BOX.maxW.
+const TEXT_X = 13; // where a label starts in its box
+const TEXT_END = 8; // the room kept after it
+const ELLIPSIS = 10; // the room the ellipsis after a cut label takes
+const widths = new Map<string, number>();
+let measuring: { font: string; ctx: CanvasRenderingContext2D | null; loaded: boolean } | null = null;
+const fontsLoaded = (): boolean => typeof document.fonts === 'undefined' || document.fonts.status === 'loaded';
+function textWidth(text: string): number {
+  // Measured before the font loaded: measured again, once, with the font the labels draw in.
+  if (measuring && !measuring.loaded && fontsLoaded()) {
+    measuring = null;
+    widths.clear();
+  }
+  if (!measuring) {
+    const style = getComputedStyle(document.documentElement);
+    const font = `${style.getPropertyValue('--text-xs').trim() || '12px'} ${style.getPropertyValue('--font').trim() || 'sans-serif'}`;
+    let ctx: CanvasRenderingContext2D | null;
+    try {
+      ctx = document.createElement('canvas').getContext('2d');
+      if (ctx) ctx.font = font;
+    } catch {
+      ctx = null; // no canvas (a test's DOM): estimated
+    }
+    measuring = { font, ctx, loaded: fontsLoaded() };
+  }
+  let w = widths.get(text);
+  if (w === undefined) {
+    if (widths.size > 20_000) widths.clear();
+    w = measuring.ctx ? measuring.ctx.measureText(text).width : text.length * 6.6;
+    widths.set(text, w);
+  }
+  return w;
+}
+const foldRoom = (fold: number): number => (fold ? Math.max(24, textWidth(`+${fold}`) + 14) : 0);
+// The clip paths named `node-clip-<width>-<room>`: the box's text area (to the fold count's left).
+const clipDefs = (ids: Set<string>): string =>
+  [...ids]
+    .map((id) => {
+      const [, , w = '0', room = '0'] = id.split('-');
+      const width = Number(room) ? Number(room) + TEXT_X - 8 + TEXT_END / 2 : Number(w) - 14;
+      return `<clipPath id="${id}" clipPathUnits="userSpaceOnUse"><rect x="8" width="${width}" height="${BOX.h}"/></clipPath>`;
+    })
+    .join('');
+// The ellipsis after a cut label: three dots drawn as a shape, not text (its words stay the name's).
+const ellipsisAt = (x: number): string =>
+  `<path class="more" d="${[0, 3.5, 7].map((dx) => `M${x + dx} 16.5h1.6v1.6h-1.6z`).join('')}"/>`;
+
 function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi): string {
   const hidden = new Set(ui.hidden);
   const h = hierarchyOf(graph);
@@ -267,13 +318,18 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
     const n = graph.nodes[id];
     return n !== undefined && !hidden.has(n.type) && !folded.has(id);
   };
-  const placed = layout(graph, show, h);
+  const counts = foldedCounts(collapsed, folded, h);
+  const placed = layout(
+    graph,
+    show,
+    h,
+    (n) => TEXT_X + textWidth(n.label) + TEXT_END + foldRoom(counts.get(n.id) ?? 0),
+  );
   const { pos, width, height } = placed;
   // A view of another drawing (nodes folded, opened or added since) would show the wrong part.
   const size = `${width}x${height}`;
   if (ui.viewFor !== size) ui.view = null;
   ui.viewFor = size;
-  const counts = foldedCounts(collapsed, folded, h);
   drawn = { ...placed, graph, counts };
   const issueIds = new Set(health.issues.filter((i) => i.level !== 'info').map((i) => i.ref));
   const stagedIds = new Set(ctx.state.repo.staged.flatMap(touchedIds));
@@ -286,8 +342,8 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       const b = pos.get(e.to);
       if (!a || !b) return '';
       const fwd = b.x >= a.x;
-      const x1 = fwd ? a.x + BOX.w : a.x;
-      const x2 = fwd ? b.x : b.x + BOX.w;
+      const x1 = fwd ? a.x + a.w : a.x;
+      const x2 = fwd ? b.x : b.x + b.w;
       const y1 = a.y + BOX.h / 2;
       const y2 = b.y + BOX.h / 2;
       const dx = Math.max(40, Math.abs(x2 - x1) / 2) * (fwd ? 1 : -1);
@@ -295,11 +351,17 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       return `<path class="edge ${hl ? 'hl' : ''}" data-edge="${esc(e.id)}" d="M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}"/>`;
     })
     .join('');
+  const clips = new Set<string>(); // the clip paths the nodes use: one per width, with a fold or not
   const nodes = [...pos.entries()]
     .map(([id, p]) => {
       const n = graph.nodes[id];
       if (!n) return '';
       const fold = counts.get(id) ?? 0; // the hidden nodes below it
+      const w = p.w;
+      const room = w - TEXT_X - TEXT_END - foldRoom(fold);
+      const label = fitLabel(n.label, room, textWidth, ELLIPSIS);
+      const clip = `node-clip-${w}-${fold ? Math.round(room) : 0}`;
+      clips.add(clip);
       const cls = [
         'node',
         picked.has(id) && 'sel',
@@ -312,10 +374,12 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
         .join(' ');
       // No white space between the tags and no <title>s (added on pointing, `titleOnHover`): a
       // large plant draws a third fewer nodes into the page each time it folds (U3.07).
-      // The whole label is drawn, clipped to the box, so its words are those of the node's name.
-      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${nodeName(n, fold)}"><rect width="${BOX.w}" height="${BOX.h}" rx="6"/><rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/><text x="13" y="18" clip-path="url(#${fold ? 'node-clip-fold' : 'node-clip'})">${esc(n.label)}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
+      // A label too long for its box shows its first words and an ellipsis (a shape: the words shown
+      // are words of the node's name), clipped to the box should a first word not fit (H-14).
+      const dots = label.cut ? ellipsisAt(TEXT_X + Math.min(textWidth(label.text) + 2, room - ELLIPSIS + 2)) : '';
+      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${nodeName(n, fold)}"${label.cut ? ` data-tooltip="${esc(n.label)}"` : ''}><rect width="${w}" height="${BOX.h}" rx="6"/><rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/><text x="${TEXT_X}" y="18" clip-path="url(#${clip})">${esc(label.text)}</text>${dots}${fold ? `<text class="fold" x="${w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
         editor && id === ui.selected && picked.size === 1
-          ? `<circle class="handle" data-handle cx="${BOX.w}" cy="${BOX.h / 2}" r="6"><title>${esc(t('ontology.node.handle'))}</title></circle>`
+          ? `<circle class="handle" data-handle cx="${w}" cy="${BOX.h / 2}" r="6"><title>${esc(t('ontology.node.handle'))}</title></circle>`
           : ''
       }</g>`;
     })
@@ -367,7 +431,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
             </span>
           </div>
           <div class="canvas-wrap" data-tour="onto-canvas">
-            <svg data-canvas data-morph="replace" viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet"><defs><clipPath id="node-clip" clipPathUnits="userSpaceOnUse"><rect x="8" width="${BOX.w - 14}" height="${BOX.h}"/></clipPath><clipPath id="node-clip-fold" clipPathUnits="userSpaceOnUse"><rect x="8" width="${BOX.w - 38}" height="${BOX.h}"/></clipPath></defs>${edges}${nodes}</svg>
+            <svg data-canvas data-morph="replace" viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet"><defs>${clipDefs(clips)}</defs>${edges}${nodes}</svg>
             <svg class="minimap" data-minimap data-morph="replace" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="mini-nodes" d="${minimapPath(pos)}"/><rect class="mini-view" data-mini-view x="${view.x}" y="${view.y}" width="${view.w}" height="${view.h}"/></svg>
           </div>
           <div class="statusbar">
@@ -581,7 +645,8 @@ function reveal(graph: Graph, ui: OntologyUi, id: string): void {
 // The <title> of the node or relationship pointed at, the first time: the browser shows it as a tooltip.
 function titleOnHover(target: EventTarget | null, on: NonNullable<typeof drawn>): void {
   const el = target instanceof Element ? target.closest('[data-node], [data-edge]') : null;
-  if (!el || [...el.children].some((c) => c.tagName === 'title')) return;
+  // A cut label's node has its name as a tooltip already, on hover and focus (H-14).
+  if (!el || el.hasAttribute('data-tooltip') || [...el.children].some((c) => c.tagName === 'title')) return;
   const { graph } = on;
   let text = '';
   if (el instanceof SVGElement && el.dataset.node !== undefined) {
@@ -806,7 +871,7 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
       }
       const p = drag.from ? layoutNow.pos.get(drag.from) : undefined;
       if (p) {
-        mark.setAttribute('x1', String(p.x + BOX.w / 2));
+        mark.setAttribute('x1', String(p.x + widthOf(p) / 2));
         mark.setAttribute('y1', String(p.y + BOX.h / 2));
       }
       mark.setAttribute('x2', String(at.x));
@@ -1107,6 +1172,53 @@ function sourceBar(ctx: Context): string {
     </div>`;
 }
 
+// Your open change requests (review H-09): what Request review sent leaves the canvas until it is
+// approved, so the page says where it waits. Asked once per repository loaded (each change loads one).
+const WAITING_SHOWN = 3;
+let waiting: { site: string; user: string; list: ReviewSummary[] } | null = null;
+const askedWaiting = new WeakSet<Repo>();
+
+function waitingBar(ctx: Context): string {
+  const o = ctx.ontology;
+  if (o.status !== 'ready' || !waiting || waiting.site !== o.site?.id || waiting.user !== o.userId) return '';
+  const { list } = waiting;
+  if (!list.length) return '';
+  const lines = list.slice(0, WAITING_SHOWN).map(
+    (r) =>
+      `<li data-key="request-${r.number}">${tHtml('ontology.waiting.line', {
+        request: `<a href="#/reviews/${r.number}">${esc(t('ontology.waiting.request', { number: r.number }))}</a>`,
+        message: esc(r.message),
+      })}</li>`,
+  );
+  const more = list.length - WAITING_SHOWN;
+  return `<div class="card source-bar small" data-waiting>
+      <ul class="waiting-list">${lines.join('')}${more > 0 ? `<li>${esc(t('ontology.waiting.more', { count: more }))}</li>` : ''}</ul>
+      <a class="btn sm" href="#/reviews">${esc(t('ontology.source.reviews'))}</a>
+    </div>`;
+}
+
+function askWaiting(ctx: Context): void {
+  const o = ctx.ontology;
+  const repo = ctx.state.repo;
+  const site = o.site;
+  const user = o.userId;
+  if (!ctx.api || o.status !== 'ready' || !site || !user || askedWaiting.has(repo)) return;
+  askedWaiting.add(repo);
+  ctx.api.reviews
+    .list(site.id, 'open')
+    .then((all) => {
+      const list = all.filter((r) => r.author_id === user);
+      const same =
+        waiting?.site === site.id &&
+        waiting.user === user &&
+        waiting.list.map((r) => `${r.number}:${r.message}`).join() ===
+          list.map((r) => `${r.number}:${r.message}`).join();
+      waiting = { site: site.id, user, list };
+      if (!same && ctx.state.repo === repo) ctx.rerender();
+    })
+    .catch(() => undefined); // the client already showed why
+}
+
 // How long a click waits to be sure it isn't the first of a double click.
 const DOUBLE_CLICK_MS = 400;
 let inspectorTimer: ReturnType<typeof setTimeout> | undefined;
@@ -1195,6 +1307,7 @@ const view: View = {
     return `
       ${ontologyHead()}
       ${source}
+      ${waitingBar(ctx)}
       ${stagedBar}
       ${importCard(ctx)}
       <div class="tabs" role="tablist" data-tour="onto-tabs">${tabs.map(([id, label]) => `<button class="tab ${ui.tab === id ? 'active' : ''}" data-tab="${id}" role="tab">${label}</button>`).join('')}</div>
@@ -1205,6 +1318,25 @@ const view: View = {
     const ui = uiState(ctx);
     if (ctx.ontology.role === 'viewer') root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
     const author = ctx.state.user.email;
+    askWaiting(ctx);
+    // Sends for review, then names the change request made, with a way to it (review H-09).
+    const sendForReview = async (
+      request: { message?: string; reviewerId?: string; reverts?: string },
+      done: (number: number) => string,
+    ): Promise<boolean> => {
+      let number: number | null = null;
+      const ok = await ctx.ontology.act((store, repo) =>
+        store.requestReview(repo, { ...request, sent: (n) => (number = n) }),
+      );
+      if (ok && number !== null) {
+        const n: number = number;
+        ctx.toast(done(n), {
+          type: 'success',
+          action: { label: t('ontology.toast.openRequest'), run: () => (location.hash = `#/reviews/${n}`) },
+        });
+      }
+      return ok;
+    };
     // Each action staged is one step to undo (U5.05); a new one drops what could be redone.
     // The steps are kept as the change lands, before the page is drawn with it (its Undo and Redo
     // buttons and the note then show the new state, drawn once).
@@ -1375,7 +1507,7 @@ const view: View = {
       if (!(await stageOps(ops))) return;
       const message = t('ontology.demo.message');
       if (ctx.ontology.reviewRequired)
-        await ctx.ontology.act((store, repo) => store.requestReview(repo, { message }), t('ontology.demo.review'));
+        await sendForReview({ message }, (number) => t('ontology.demo.reviewRequest', { number }));
       else await ctx.ontology.act((store, repo) => store.commit(repo, message, author), t('ontology.demo.imported'));
     });
     const selected = (): string | null => ui.selected;
@@ -1450,7 +1582,7 @@ const view: View = {
         } else selectOnly(ui, next);
         const p = drawn?.pos.get(next);
         const v = ui.view;
-        if (p && v && (p.x < v.x || p.y < v.y || p.x + BOX.w > v.x + v.w || p.y + BOX.h > v.y + v.h))
+        if (p && v && (p.x < v.x || p.y < v.y || p.x + widthOf(p) > v.x + v.w || p.y + BOX.h > v.y + v.h))
           centerAfterRender = next;
         ctx.rerender();
         document.querySelector<SVGGElement>(`#view [data-node="${CSS.escape(next)}"]`)?.focus({ preventScroll: true });
@@ -1546,10 +1678,7 @@ const view: View = {
       const id = el.dataset.revert;
       if (!id) return;
       if (ctx.ontology.reviewRequired)
-        void ctx.ontology.act(
-          (store, repo) => store.requestReview(repo, { reverts: id }),
-          t('ontology.toast.revertSent'),
-        );
+        void sendForReview({ reverts: id }, (number) => t('ontology.toast.revertSentRequest', { number }));
       else void ctx.ontology.act((store, repo) => store.revert(repo, id, author), t('ontology.toast.reverted'));
     });
 
@@ -1563,9 +1692,9 @@ const view: View = {
           .then((ok) => ok && ux('task', 'ontology.committed'));
       }
       const reviewerId = field(form, 'reviewer') || undefined;
-      return ctx.ontology
-        .act((store, repo) => store.requestReview(repo, { message, reviewerId }), t('ontology.toast.sent'))
-        .then((ok) => ok && ux('task', 'ontology.review-requested'));
+      return sendForReview({ message, ...(reviewerId ? { reviewerId } : {}) }, (number) =>
+        t('ontology.toast.sentRequest', { number }),
+      ).then((ok) => ok && ux('task', 'ontology.review-requested'));
     });
     onSubmit(root, '#prop-form', (form) => {
       const id = selected();

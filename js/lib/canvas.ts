@@ -3,7 +3,7 @@
 // and pan as a view box). Pure, so it is unit-tested; the Ontology page draws
 // the result as SVG.
 
-import type { Graph, NodeType } from './types.ts';
+import type { Graph, NodeType, OntologyNode } from './types.ts';
 
 // Node types by column, left to right: the plant hierarchy, then what hangs off it.
 export const COLUMNS: NodeType[][] = [
@@ -15,7 +15,9 @@ export const COLUMNS: NodeType[][] = [
   ['Material', 'Signal'],
   ['Document', 'Model'],
 ];
-export const BOX = { w: 134, h: 28, colGap: 152, subGap: 146, rowGap: 38, pad: 16 };
+// A node's box: `w` is a column's narrowest; a column widens to its longest label, up to `maxW`
+// (review H-14), keeping the gaps between columns (colGap − w) and sub-columns (subGap − w).
+export const BOX = { w: 134, maxW: 240, h: 28, colGap: 152, subGap: 146, rowGap: 38, pad: 16 };
 
 // Relationships that make a hierarchy: collapsing a node hides what these lead to from it
 // (a line's machines, a machine's PLC, a PLC's signals).
@@ -108,9 +110,12 @@ export function collapsible(h: Hierarchy): string[] {
 }
 
 export type Point = { x: number; y: number };
+// A node's place: its box's top left, and its width (its column's; BOX.w when not given).
+export type Placed = Point & { w?: number };
+export const widthOf = (p: Placed): number => p.w ?? BOX.w;
 
 export interface Layout {
-  pos: Map<string, Point>;
+  pos: Map<string, Point & { w: number }>;
   width: number;
   height: number;
 }
@@ -121,9 +126,16 @@ export function rowsPerColumn(visible: number): number {
 }
 
 // Places the visible nodes in their type's column, each ordered by the average row of its
-// already-placed neighbours (fewer crossings), wrapping long columns into sub-columns.
-export function layout(graph: Graph, show: (id: string) => boolean, h = hierarchy(graph)): Layout {
-  const pos = new Map<string, Point>();
+// already-placed neighbours (fewer crossings), wrapping long columns into sub-columns. `need` is
+// the width a node's box needs to show its label whole: its column is as wide as the widest of
+// them, between BOX.w and BOX.maxW.
+export function layout(
+  graph: Graph,
+  show: (id: string) => boolean,
+  h = hierarchy(graph),
+  need?: (n: OntologyNode) => number,
+): Layout {
+  const pos = new Map<string, Point & { w: number }>();
   const visible = Object.values(graph.nodes).filter((n) => show(n.id));
   const rows = rowsPerColumn(visible.length);
   let x = BOX.pad;
@@ -150,17 +162,43 @@ export function layout(graph: Graph, show: (id: string) => boolean, h = hierarch
     const ordered = col
       .map((n) => ({ n, w: weight(n.id), t: types.indexOf(n.type) }))
       .sort((a, b) => a.t - b.t || a.w - b.w || a.n.label.localeCompare(b.n.label));
+    let w = BOX.w;
+    if (need) for (const n of col) w = Math.max(w, Math.ceil(need(n)));
+    w = Math.min(w, BOX.maxW);
+    const subGap = w + BOX.subGap - BOX.w;
     ordered.forEach(({ n }, i) => {
       const sub = Math.floor(i / rows);
       const y = BOX.pad + (i % rows) * BOX.rowGap;
-      pos.set(n.id, { x: x + sub * BOX.subGap, y });
-      maxX = Math.max(maxX, x + sub * BOX.subGap);
+      pos.set(n.id, { x: x + sub * subGap, y, w });
+      maxX = Math.max(maxX, x + sub * subGap + w);
       maxY = Math.max(maxY, y);
     });
-    x += BOX.colGap + (Math.ceil(ordered.length / rows) - 1) * BOX.subGap;
+    x += w + BOX.colGap - BOX.w + (Math.ceil(ordered.length / rows) - 1) * subGap;
   }
   // As wide as the rightmost node: types with no nodes leave no blank strip.
-  return { pos, width: maxX + BOX.w + BOX.pad, height: maxY + BOX.h + BOX.pad };
+  return { pos, width: maxX + BOX.pad, height: maxY + BOX.h + BOX.pad };
+}
+
+// A label as drawn in `room` units of width (review H-14): whole when it fits; else the most whole
+// words from its start that fit with `ellipsis` after them, and `cut` (the page draws the ellipsis
+// as a shape). Words, not letters: a node's visible words stay words of its accessible name (axe's
+// label-content-name-mismatch). A first word too long for the room is kept whole, to be clipped.
+export function fitLabel(
+  label: string,
+  room: number,
+  measure: (text: string) => number,
+  ellipsis: number,
+): { text: string; cut: boolean } {
+  if (measure(label) <= room) return { text: label, cut: false };
+  const ends: number[] = [];
+  for (let i = label.indexOf(' '); i !== -1; i = label.indexOf(' ', i + 1)) if (i > 0) ends.push(i);
+  let text = label.slice(0, ends[0] ?? label.length).trimEnd();
+  for (const end of ends.slice(1)) {
+    const longer = label.slice(0, end).trimEnd();
+    if (measure(longer) + ellipsis > room) break;
+    text = longer;
+  }
+  return { text, cut: true };
 }
 
 // ---- the visible part: a view box in drawing coordinates ------------------------
@@ -205,10 +243,10 @@ export function panBy(view: View, dx: number, dy: number): View {
 }
 
 // The view moved so `p` is at its centre, zoomed in enough to read labels.
-export function centerOn(view: View, p: Point, readableWidth = 1400): View {
+export function centerOn(view: View, p: Placed, readableWidth = 1400): View {
   const w = Math.min(view.w, readableWidth);
   const h = view.h * (w / view.w);
-  return { x: p.x + BOX.w / 2 - w / 2, y: p.y + BOX.h / 2 - h / 2, w, h };
+  return { x: p.x + widthOf(p) / 2 - w / 2, y: p.y + BOX.h / 2 - h / 2, w, h };
 }
 
 // ---- search ------------------------------------------------------------------------
@@ -256,7 +294,7 @@ export type Direction = 'left' | 'right' | 'up' | 'down';
 
 // The node an arrow key moves to from `from`: the nearest one on that side, a node straight
 // across counting for more than one off to the side. Null at the edge.
-export function stepFrom(pos: ReadonlyMap<string, Point>, from: string, dir: Direction): string | null {
+export function stepFrom(pos: ReadonlyMap<string, Placed>, from: string, dir: Direction): string | null {
   const a = pos.get(from);
   if (!a) return null;
   let best: string | null = null;
@@ -285,20 +323,20 @@ export interface Box {
 }
 
 // Nodes a dragged box touches, in drawing coordinates (the box from any corner).
-export function inBox(pos: ReadonlyMap<string, Point>, box: Box): string[] {
+export function inBox(pos: ReadonlyMap<string, Placed>, box: Box): string[] {
   const x0 = Math.min(box.x, box.x + box.w);
   const x1 = Math.max(box.x, box.x + box.w);
   const y0 = Math.min(box.y, box.y + box.h);
   const y1 = Math.max(box.y, box.y + box.h);
   const out: string[] = [];
-  for (const [id, p] of pos) if (p.x < x1 && p.x + BOX.w > x0 && p.y < y1 && p.y + BOX.h > y0) out.push(id);
+  for (const [id, p] of pos) if (p.x < x1 && p.x + widthOf(p) > x0 && p.y < y1 && p.y + BOX.h > y0) out.push(id);
   return out;
 }
 
 // The view that shows the given nodes (focus selection), with a margin, in a viewport of
 // `aspect`; never closer than MIN_VIEW_WIDTH. Null when none of them is drawn.
 export function focusView(
-  pos: ReadonlyMap<string, Point>,
+  pos: ReadonlyMap<string, Placed>,
   ids: Iterable<string>,
   aspect: number,
   margin = 48,
@@ -312,7 +350,7 @@ export function focusView(
     if (!p) continue;
     x0 = Math.min(x0, p.x);
     y0 = Math.min(y0, p.y);
-    x1 = Math.max(x1, p.x + BOX.w);
+    x1 = Math.max(x1, p.x + widthOf(p));
     y1 = Math.max(y1, p.y + BOX.h);
   }
   if (x0 === Infinity) return null;
@@ -323,9 +361,12 @@ export function focusView(
 }
 
 // The minimap's nodes as one path (2,000 rectangles as one element stay cheap to draw).
-export function minimapPath(pos: ReadonlyMap<string, Point>): string {
+export function minimapPath(pos: ReadonlyMap<string, Placed>): string {
   let d = '';
-  for (const p of pos.values()) d += `M${p.x} ${p.y}h${BOX.w}v${BOX.h}h-${BOX.w}z`;
+  for (const p of pos.values()) {
+    const w = widthOf(p);
+    d += `M${p.x} ${p.y}h${w}v${BOX.h}h-${w}z`;
+  }
   return d;
 }
 
