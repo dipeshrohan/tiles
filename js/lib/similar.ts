@@ -23,11 +23,13 @@ export const match = (w: SimilarWarning): string => percent(w.score);
 // One line over the list: how the similar ones ended, and how many an event followed.
 export function summary(s: SimilarWarnings): string {
   const o = s.outcomes;
-  return t('similar.summary', {
+  // One warning is said as one, not counted as a list (review H-23).
+  return t(s.similar.length === 1 ? 'similar.summaryOne' : 'similar.summary', {
     count: s.similar.length,
     trueAlarms: o.true_alarm,
     falseAlarms: o.false_alarm,
     open: o.open + o.unknown,
+    unknown: o.unknown,
     followed: s.followed,
   });
 }

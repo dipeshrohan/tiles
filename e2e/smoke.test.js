@@ -818,6 +818,26 @@ test("the glossary's definitions after a failure: the page drawn again doesn't a
   await page.close();
 });
 
+test("the glossary's definitions after a failure: back online, the page drawn again asks again (U4.05)", async () => {
+  const { page } = await openPage();
+  let asked = 0;
+  await page.route('**/js/glossary-data.js', (r) => {
+    asked++;
+    return r.abort();
+  });
+  await page.goto(`${httpBase}#/physics`);
+  await page.waitForSelector('.term');
+  await waitFor(() => asked === 1);
+  // Within the wait after a failure a redraw doesn't ask; back online, the next one does.
+  await page.click('#theme');
+  await page.waitForTimeout(500);
+  assert.equal(asked, 1);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await page.click('#theme');
+  await waitFor(() => asked === 2);
+  await page.close();
+});
+
 test("the glossary's definitions: a failure says so; a new visit and Try again ask again; file:// works (U4.05)", async () => {
   const { page, errors } = await openPage();
   // The file missing: a term focused says so, aloud too, and the Glossary page says so.
@@ -2121,7 +2141,7 @@ test("home by role: the role's cards answer what needs you now; customised, kept
   // An engineer by site role, with no role chosen: the engineers' cards.
   const { page, errors } = await openAs(t, apiUrl, null, '');
   await page.waitForSelector('#view h1:has-text("Home")');
-  await page.waitForSelector('#view .page-head p.soft:has-text("The cards for engineers")');
+  await page.waitForSelector('#view .page-head p.soft:has-text("Cards for engineers. Customise to change them.")');
   const ids = () => page.$$eval('#view [data-card]', (els) => els.map((e) => e.dataset.card));
   assert.deepEqual(await ids(), ['untaken', 'reviews', 'insights', 'freshness']);
   // The open warning nobody has taken comes first; the one assigned to me isn't in it.
@@ -2176,7 +2196,7 @@ test("home by role: the role's cards answer what needs you now; customised, kept
   // Back to the role's.
   await page.click('[data-home-reset]');
   await waitFor(() => !fake.homeLayouts.has(me));
-  await page.waitForSelector('#view .page-head p.soft:has-text("The cards for engineers")');
+  await page.waitForSelector('#view .page-head p.soft:has-text("Cards for engineers. Customise to change them.")');
   // Someone who kept the engineers' cards from before keeps them: only the default changed.
   fake.homeLayouts.set(me, { cards: ['reviews', 'insights', 'freshness'], updated_at: new Date().toISOString() });
   await page.reload();
@@ -2191,7 +2211,7 @@ test("home by role: the role's cards answer what needs you now; customised, kept
     me,
   );
   await page.reload();
-  await page.waitForSelector('#view .page-head p.soft:has-text("The cards for maintenance")');
+  await page.waitForSelector('#view .page-head p.soft:has-text("Cards for maintenance")');
   assert.deepEqual(await ids(), ['my-warnings', 'machines-out']);
   await page.waitForSelector('[data-card="my-warnings"] .home-figure:has-text("1 warning assigned to you")');
   await page.waitForSelector('[data-card="machines-out"] a[href="#/plant/m-dc1"]:has-text("DC-01")');
@@ -3995,7 +4015,7 @@ test('a warning shows its similar past warnings, how they ended and what followe
   await page.waitForSelector('[data-similar] table');
   assert.match(
     await page.locator('[data-similar] > p').first().innerText(),
-    /The most similar warning: 1 true alarm, 0 false alarms, 0 open or unknown; an event followed one\./,
+    /1 similar warning, a true alarm; an event followed it\./,
   );
   const row = await page.locator('[data-similar] tbody tr').innerText();
   assert.match(
@@ -4295,9 +4315,14 @@ test('warning triage by keyboard: j opens, s assigns to me, a acknowledges, r th
   );
   // a acknowledges it; r goes to its outcome, chosen with the keys, and Resolve.
   await page.waitForSelector('[data-act="acknowledge"]');
+  // One primary button (review H-19): Acknowledge while it is new, then Resolve.
+  const primaries = () => page.locator('#warning-form .btn.primary').evaluateAll((b) => b.map((e) => e.dataset.act));
+  assert.deepEqual(await primaries(), ['acknowledge']);
   await page.keyboard.press('a');
   await page.waitForSelector('#toast:has-text("Acknowledged")');
   await page.waitForSelector('[data-act="resolve"]');
+  await page.waitForSelector('#warning-form:not(:has([data-act="acknowledge"]))');
+  assert.deepEqual(await primaries(), ['resolve']);
   await page.keyboard.press('r');
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'outcome');
   await page.selectOption('#warning-form [name=outcome]', 'false_alarm');
@@ -4367,10 +4392,15 @@ test('the warnings inbox: see a warning on its signal, acknowledge, assign, reso
   assert.equal(await b.page.locator('[data-warning-list] [data-clear-filters]').count(), 1);
   await b.page.click('[data-show=resolved]');
   await b.page.waitForSelector(`[data-warning-list] [data-warning="${out}"]:has-text("True alarm")`);
+  // Resolved: no primary button in its form (review H-19).
+  const primaries = () => b.page.locator('#warning-form .btn.primary').evaluateAll((p) => p.map((e) => e.dataset.act));
+  assert.deepEqual(await primaries(), []);
 
-  // Reopened, it is acknowledged again, and back in "To do".
+  // Reopened, it is acknowledged again, and back in "To do"; Resolve is its primary button.
   await b.page.click('[data-act=reopen]');
   await b.page.waitForSelector('#toast:has-text("Reopened")');
+  await b.page.waitForSelector('#warning-form [data-act=resolve]');
+  assert.deepEqual(await primaries(), ['resolve']);
   await b.page.click('[data-show=unresolved]');
   await b.page.waitForSelector(`[data-warning-list] [data-warning="${out}"]:has-text("eng2")`);
   assert.deepEqual([...a.errors, ...b.errors], []);
@@ -7026,6 +7056,187 @@ test('Reset workspace clears the menu kept in this browser: a pin is gone, and s
   await page.reload();
   await page.waitForSelector('#view h1');
   assert.equal(await page.locator('#nav [data-key^="nav-pinned-"]').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('Reset workspace puts the preferences in effect back to the defaults; a later change keeps them (#425)', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/settings`);
+  await page.waitForSelector('[data-reset]');
+  await page.click('#theme');
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  // Compact table rows and German too.
+  await page.evaluate(() => (location.hash = '#/preferences'));
+  await page.selectOption('#preferences [name=density]', 'compact');
+  await page.selectOption('#preferences [name=language]', 'de');
+  await page.waitForFunction(() => document.documentElement.lang === 'de');
+  await page.evaluate(() => (location.hash = '#/settings'));
+  await page.click('[data-reset]');
+  await confirmIn(page, 'reset');
+  await page.waitForSelector('#toast:has-text("Demo data reset")'); // English already: back to the browser's
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme ?? null), null);
+  await page.waitForFunction(() => document.documentElement.lang === 'en');
+  await page.evaluate(() => (location.hash = '#/preferences'));
+  assert.equal(await page.inputValue('#preferences [name=density]'), 'comfortable');
+  assert.equal(await page.inputValue('#preferences [name=language]'), 'auto');
+  // Another preference changed since doesn't write the dark theme back.
+  await page.selectOption('#preferences [name=numbers]', 'de-DE');
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('tiles:preferences') ?? '{}').numbers === 'de-DE');
+  const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('tiles:preferences') ?? '{}'));
+  assert.equal(kept.theme, 'system');
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme ?? null), null);
+  assert.deepEqual(errors, []);
+});
+
+test('Reset workspace with the API: your preferences stay, here and with your account, and Settings says so (#425)', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openAs(t, apiUrl, null, 'settings');
+  // Every preference the page sends to the account.
+  const sent = [];
+  page.on('request', (r) => {
+    if (r.method() === 'PUT' && r.url().endsWith('/me/preferences')) sent.push(r.postDataJSON());
+  });
+  // Once the site is open, preferences are the account's (before, this browser's).
+  await page.waitForSelector('.card:has([data-reset]):has-text("Your preferences stay with your account")');
+  // The dark theme, chosen just before the reset: its save (sent 300 ms after a change) still waits
+  // when the reset comes, with the page's clock held, and is then sent as made.
+  await page.clock.install();
+  await page.clock.pauseAt(Date.now() + 60_000);
+  await page.click('#theme');
+  await page.click('[data-reset]');
+  assert.match(await page.locator('dialog.dialog[open]').innerText(), /Your preferences stay with your account/);
+  // The account answers late after the reset: what shows meanwhile is what this browser kept.
+  fake.slowNext('GET', /\/me\/preferences$/, 3000);
+  await confirmIn(page, 'reset');
+  await page.waitForSelector('#toast:has-text("Demo data reset")');
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  assert.deepEqual(sent, [], 'sent before the reset');
+  await page.clock.resume();
+  await waitFor(() => fake.userPreferences.get('demo@example.com')?.preferences.theme === 'dark');
+  await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  assert.deepEqual(
+    sent.map((p) => p.theme),
+    ['dark'],
+    'the defaults were sent to the account',
+  );
+  // Kept in this browser too: a reload, before the account answers, is still dark.
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('tiles:preferences')).theme), 'dark');
+  assert.deepEqual(errors, []);
+});
+
+test('Reset workspace without the API says your preferences go back to the defaults (#425)', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/settings`);
+  await page.waitForSelector('[data-reset]');
+  assert.match(
+    await page.locator('.card:has([data-reset])').innerText(),
+    /Reset workspace also puts your preferences back to the defaults/,
+  );
+  await page.click('[data-reset]');
+  assert.match(await page.locator('dialog.dialog[open]').innerText(), /Your preferences go back to the defaults/);
+  assert.deepEqual(errors, []);
+});
+
+test('Reset workspace clears the tables kept in this browser: sort and hidden columns gone, and not written back (#425)', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignals([
+    { tag: 'press1.temp', unit: '°C', description: 'Sensor B' },
+    { tag: 'press2.temp', unit: 'bar', description: 'Sensor A' },
+  ]);
+  const { page, errors } = await openAs(t, apiUrl, null, 'signals');
+  const table = page.locator('[data-table="signals"]');
+  await table.locator('tbody tr').first().waitFor();
+  await table.locator('[data-sort="description"]').click();
+  assert.equal(await table.locator('th[data-col="description"]').getAttribute('aria-sort'), 'ascending');
+  await table.locator('.table-columns summary').click();
+  await table.locator('[data-table-col="source"]').uncheck();
+  assert.equal(await table.locator('th[data-col="source"]').count(), 0);
+  await page.evaluate(() => (location.hash = '#/settings'));
+  await page.click('[data-reset]');
+  await confirmIn(page, 'reset');
+  await page.waitForSelector('#toast:has-text("Demo data reset")');
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await table.locator('tbody tr').first().waitFor();
+  assert.equal(await table.locator('th[data-col="source"]').count(), 1);
+  assert.equal(await table.locator('th[data-col="description"]').getAttribute('aria-sort'), 'none');
+  // The table's next change keeps the cleared settings cleared, after a reload too.
+  await table.locator('[data-sort="unit"]').click();
+  await page.reload();
+  await table.locator('tbody tr').first().waitFor();
+  assert.equal(await table.locator('th[data-col="source"]').count(), 1);
+  assert.equal(await table.locator('th[data-col="description"]').getAttribute('aria-sort'), 'none');
+  assert.equal(await table.locator('th[data-col="unit"]').getAttribute('aria-sort'), 'ascending');
+  assert.deepEqual(errors, []);
+});
+
+test("menu names aren't cut at 1440 px; on a phone the breadcrumb shows this page in full after a back arrow (review H-20, H-21)", async (t) => {
+  const { page, errors } = await openPage({ viewport: { width: 1440, height: 900 } });
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/ontology`);
+  await page.waitForSelector('#nav [data-key="nav-menu-ontology"] .badge');
+  const cut = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('#nav .nav-label')]
+        .filter((l) => l.scrollWidth > l.clientWidth)
+        .map((l) => l.textContent),
+    );
+  assert.deepEqual(await cut(), []);
+  // Room for the pin only on pinned rows: the count has none kept beside it until the page is
+  // pinned (how many lines a name takes depends on the fonts: CI's runner wraps "Ontology builder").
+  const label = page.locator('#nav [data-key="nav-menu-ontology"] .nav-label');
+  const room = () =>
+    page.locator('#nav [data-key="nav-menu-ontology"] .badge').evaluate((b) => getComputedStyle(b).marginRight);
+  assert.equal(await room(), '0px');
+  await page.click('#nav [data-nav-pin="ontology"]', { force: true });
+  await page.waitForSelector('#nav [data-key="nav-pinned-ontology"]');
+  assert.equal(await room(), '24px');
+  await page.click('#nav [data-key="nav-menu-ontology"] [data-nav-pin]', { force: true });
+  await page.waitForSelector('#nav [data-key="nav-pinned-ontology"]', { state: 'detached' });
+  // Pointed at, the pin shows over the count; the name doesn't move.
+  const before = await label.boundingBox();
+  await page.hover('#nav [data-key="nav-menu-ontology"]');
+  assert.deepEqual(await label.boundingBox(), before);
+  // On a phone: the place above as a back arrow, named for screen readers; this page whole.
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const route of ['warnings', 'performance', 'glossary/baseline']) {
+    await page.goto(`${httpBase}#/${route}`);
+    await page.waitForSelector('#view h1');
+    const back = page.locator('#crumbs li:nth-last-child(2) a');
+    const arrow = await back.evaluate((a) => ({
+      mask: getComputedStyle(a, '::before').maskImage,
+      text: getComputedStyle(a).fontSize,
+      name: a.textContent,
+    }));
+    assert.match(arrow.mask, /svg/, `${route}: no back arrow`);
+    assert.equal(arrow.text, '0px', `${route}: the place above is shown in words`);
+    assert.ok(arrow.name, `${route}: the back arrow has no name`);
+    assert.ok(await back.isVisible());
+    const here = page.locator('#crumbs b[aria-current=page]');
+    const fits = await here.evaluate((b) => b.scrollWidth <= b.clientWidth && b.scrollHeight <= b.clientHeight + 1);
+    assert.ok(fits, `${route}: "${await here.innerText()}" is cut`);
+  }
+  // The place above the record: its page (the glossary's crumbs need nothing loaded, unlike a help
+  // section's, which come with the help file).
+  assert.equal(await page.locator('#crumbs li:nth-last-child(2) a').getAttribute('href'), '#/glossary');
+  // At 320 px a long name takes a second line rather than an ellipsis (names that fit two lines in
+  // the runner's fonts and the container's: "Warning performance" may not, the PR's known edge).
+  await page.setViewportSize({ width: 320, height: 700 });
+  for (const route of ['correlate', 'reviews', 'onboarding']) {
+    await page.goto(`${httpBase}#/${route}`);
+    await page.waitForSelector('#view h1');
+    const here = await page.locator('#crumbs b[aria-current=page]').evaluate((b) => ({
+      text: b.textContent,
+      cut: b.scrollWidth > b.clientWidth || b.scrollHeight > b.clientHeight + 1,
+    }));
+    assert.ok(!here.cut, `${route}: "${here.text}" is cut at 320 px`);
+  }
   assert.deepEqual(errors, []);
 });
 

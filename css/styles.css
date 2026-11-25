@@ -527,9 +527,8 @@ button.nav-group .icon {
   min-width: 0;
 }
 .nav-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* A long name takes a second line rather than an ellipsis (review H-20). */
+  overflow-wrap: break-word;
 }
 .nav-pin {
   position: absolute;
@@ -553,9 +552,6 @@ button.nav-group .icon {
 .nav-pin:hover {
   color: var(--ink);
   background: var(--hover);
-}
-.nav-row:has(.nav-pin) .nav-link .badge {
-  margin-right: var(--space-6);
 }
 .nav-rail-toggle {
   align-self: flex-end;
@@ -695,7 +691,9 @@ button.nav-group .icon {
   margin-left: auto;
   color: var(--soft);
 }
-.nav-row:has(.nav-pin) .nav-link .nav-hint {
+/* Room for the pin only where it always shows (a pinned page); otherwise the name has the row and
+   the pin, shown on pointing or focus, covers the count (review H-20). */
+.nav-row:has(.nav-pin[aria-pressed='true']) .nav-link :is(.badge, .nav-hint) {
   margin-right: var(--space-6);
 }
 .user {
@@ -774,12 +772,53 @@ button.nav-group .icon {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* On a phone (review H-21): this place in full, after an arrow back to the place above (its name
+   kept for screen readers); a long name takes two lines, or three in a narrow bar. */
 @media (max-width: 640px) {
   .crumbs li:not(:last-child):not(:nth-last-child(2)) {
     display: none;
   }
-  .crumbs li:nth-last-child(2) .crumb-sep {
+  .crumbs li:nth-last-child(-n + 2) .crumb-sep {
     display: none;
+  }
+  .crumbs li:nth-last-child(2) {
+    flex: none;
+  }
+  .crumbs li:nth-last-child(2) a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--target-min);
+    font-size: 0;
+    /* With no font size its hidden words make no line box: the arrow is centred on the page's name. */
+    line-height: var(--leading-none);
+  }
+  .crumbs li:nth-last-child(2) a::before {
+    content: '';
+    width: 1rem;
+    height: 1rem;
+    background: currentColor;
+    /* Lucide's arrow-left */
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19-7-7 7-7'/%3E%3Cpath d='M19 12H5'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+  }
+  .crumbs li:last-child {
+    white-space: normal;
+  }
+  .crumbs b {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3; /* 3 × 13 px × 1.15, its padding and border: within the bar's 52 px */
+    padding-inline: var(--space-1_5);
+    line-height: var(--leading-snug);
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+}
+/* Forced colours turn a mask's currentColor background into Canvas: the arrow takes LinkText. */
+@media (max-width: 640px) and (forced-colors: active) {
+  .crumbs li:nth-last-child(2) a::before {
+    background: LinkText;
   }
 }
 .crumbs a {
@@ -4048,6 +4087,7 @@ body.floor-full .topbar {
     padding: var(--space-4);
   }
   .topbar {
+    gap: var(--space-2);
     padding: 0 var(--space-4);
   }
   .g2,
@@ -4060,6 +4100,17 @@ body.floor-full .topbar {
   .hero {
     grid-template-columns: 1fr;
     padding: var(--space-5);
+  }
+}
+/* The narrowest phones (review H-21): a little less room around the top bar's controls, so the
+   page's name fits its two lines whatever the font. */
+@media (max-width: 360px) {
+  .topbar {
+    gap: var(--space-1_5);
+    padding: 0 var(--space-3);
+  }
+  .crumbs b {
+    padding-inline: var(--space-1);
   }
 }
 @media (max-width: 480px) {

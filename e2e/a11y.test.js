@@ -600,6 +600,23 @@ test('in forced colours, what is chosen is outlined, not shown by background alo
   assert.deepEqual([...new Set(plain)], []);
 });
 
+// On a phone the place above is an arrow drawn with a mask (review H-21): in forced colours it
+// takes a system colour, so it doesn't vanish into the bar.
+test("in forced colours, the phone breadcrumb's back arrow shows (H-21)", async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, forcedColors: 'active' });
+  await page.goto(`${httpBase}#/help/warnings`);
+  await page.waitForSelector('#crumbs li:nth-last-child(2) a');
+  const colours = await page.evaluate(() => {
+    const a = document.querySelector('#crumbs li:nth-last-child(2) a');
+    return {
+      arrow: getComputedStyle(a, '::before').backgroundColor,
+      bar: getComputedStyle(document.querySelector('.topbar')).backgroundColor,
+    };
+  });
+  assert.notEqual(colours.arrow, colours.bar, `the arrow is ${colours.arrow} on ${colours.bar}`);
+  await page.close();
+});
+
 // WCAG 2.2's target size (2.5.8): a control is 24 by 24 px or more; or it is inline in running text
 // (a link or a glossary term in a sentence); or a 24 px circle on its centre touches no other
 // control and no other small control's circle. The ontology canvas's nodes are the plant's map:

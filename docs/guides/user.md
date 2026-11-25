@@ -122,7 +122,7 @@ The app hides controls you can't use. If you think you need more rights, ask a s
 - **Help on every page:** the **?** button at the top shows the part of this guide about the page you are on, beside it; **Open the full guide** opens the whole guide on the **Help** page (in the menu, at the bottom), at that part. Ctrl K finds the guide's headings too. The help is part of the app: it works offline.
 - **Keyboard shortcuts:** press **?** to see them all. **g** then a letter goes to a page (**g w** Warnings, **g s** Signals, **g e** Data explorer, **g o** Ontology builder…); on a page, **a** acknowledges the warning open (**s** assigns it to you, **r** goes to its outcome, **n** opens the next), **e** edits the insight or app open and **/** goes to its search box. A button with a key shows it when you point at it. Keys do nothing while you type in a field. If single keys get in the way of your screen reader or speech input, turn them off in the **?** list (find it again with Ctrl K, "Keyboard shortcuts").
 - **Printing:** print a page from your browser (Ctrl P, ⌘P on a Mac). Tiles prints the page as a document, on A4 or Letter, light even in the dark theme: without the menu, the buttons and the forms; with a record open, the record alone (not the list beside it); each link's address after its text; folded details opened; and charts in black and white, each line with its own dash and shaded stretches hatched. A list prints the rows on screen. A warning prints with its chart and activity, an insight with its evidence, a change request with its changes, the Design studio with its run history, and a machine's page with its signals.
-- The button at the top switches between light and dark themes. On a phone, the menu button opens the left menu over the page; tap beside it, swipe it to the left or press Escape to close it.
+- The button at the top switches between light and dark themes. On a phone, the menu button opens the left menu over the page; tap beside it, swipe it to the left or press Escape to close it. At the top, a phone shows the page you are on, with an arrow back to the page above it.
 - Short messages ("toasts") appear at the bottom of the screen when something is saved or fails.
 - **Times and numbers:** with the Tiles API, times are the site's own clock (the time zone it was created with), named beside them where a date is shown (15 Oct 2026, 09:30 CEST), so people in other countries read the plant's time; without it, this computer's. Recent moments say how long ago ("3 minutes ago", "yesterday"). Numbers, dates and the order of lists follow the language Tiles is shown in.
 - **With a keyboard:** the first Tab offers **Skip to content**, past the menu. Every control is reachable with Tab and works with Enter or Space; ontology nodes too. **With a screen reader:** each chart is described with the numbers it shows (its span, range, latest value, thresholds and shaded warnings), and toasts and the Shopfloor's headline are announced. Tiles follows the system's reduced-motion setting.
@@ -486,7 +486,7 @@ A warning can be resolved while the signal is still out, and the signal can be b
 
 1. Click a warning in the list. Its record shows beside the list, which then lists each warning on two lines: its signal and status, then its machine and when it started. The record names the machine the warning is on (from its signal's node, else its detector's asset), linked to its page on **Plant**, and shows the signal chart around it, with the threshold and baseline as lines and the warning shaded, how far the signal went, and the activity so far.
 2. Optionally write a note in the text box. It is saved with the step.
-3. Take a step:
+3. Take a step. The filled button is the usual next one: **Acknowledge** while the warning is new, then **Resolve**.
    - **Acknowledge**: you have seen it (only for new warnings).
    - **Assign**: choose a person under **Assign to** and click **Assign**, or **Assign to me**. Choose **nobody** to unassign.
    - **Resolve**: choose an **Outcome**: **True alarm**, **False alarm** or **Unknown**, then click **Resolve**.
@@ -981,7 +981,7 @@ The theme, the language and your other settings for how Tiles works for you are 
 
 ### Demo data
 
-**Reset workspace** resets this browser's ontology history, design runs and chat to the demo defaults, and clears what this browser keeps for you, such as the menu and table settings. It doesn't touch data on a Tiles API, and it keeps your data source choice. With the API, the card is called **This browser's data** and says so.
+**Reset workspace** resets this browser's ontology history, design runs and chat to the demo defaults, and clears what this browser keeps for everyone who uses it, such as the menu and table settings, so the welcome asks again. Without the API your preferences go back to the defaults too; with the API they stay with your account, and you change them under **Your preferences**. It doesn't touch data on a Tiles API, and it keeps your data source choice. With the API, the card is called **This browser's data** and says so.
 
 ### Data source and Account
 

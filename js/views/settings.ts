@@ -17,6 +17,7 @@ import { bindUx, uxCard } from './ux-analytics.ts';
 import { bindFeedback, feedbackCard } from './feedback-admin.ts';
 import type { Context, View } from './types.ts';
 import { emptyState, linkButton, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
+import { helpHref } from '../lib/help.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { bindTable, dataTable, type TableOptions } from '../lib/data-table.ts';
 import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
@@ -483,6 +484,10 @@ let apiCheckSeq = 0;
 let sourceDraft: { base: string; mode: 'local' | 'api'; apiUrl: string } | null = null;
 const sourceKey = (ds: { mode: string; apiUrl: string }): string => `${ds.mode}|${ds.apiUrl}`;
 
+// What Reset workspace does to the preferences (#425): kept with the account (the API, a site
+// open), they stay; otherwise they go back to the defaults.
+const prefsKept = (ctx: Context): 'account' | 'browser' => ctx.preferences.kept;
+
 function readSource(form: HTMLFormElement): { mode: 'local' | 'api'; apiUrl: string } {
   const mode = (form.elements.namedItem('mode') as RadioNodeList).value === 'api' ? 'api' : 'local';
   return { mode, apiUrl: field(form, 'apiUrl') };
@@ -506,7 +511,7 @@ export function tokenStillShown(
 function agentsCard(admin: boolean): string {
   return `<div class="card stack gap-3 span-all" id="agents">
       <h2>${esc(t('settings.agents.title'))}</h2>
-      <p class="small soft">${esc(t('settings.agents.lead'))}${admin ? ` ${tHtml('settings.agents.install', { help: `<a href="#/help/edge-agents">${esc(t('settings.agents.installHelp'))}</a>` })}` : ''}</p>
+      <p class="small soft">${esc(t('settings.agents.lead'))}${admin ? ` ${tHtml('settings.agents.install', { help: `<a href="${esc(helpHref('edge-agents'))}">${esc(t('settings.agents.installHelp'))}</a>` })}` : ''}</p>
       <div data-agent-token aria-live="polite"></div>
       <div data-agent-rows aria-live="polite">${skeleton.table(2, 5, t('settings.agents.loading'))}</div>
       ${
@@ -709,7 +714,7 @@ const view: View = {
         </div>
         <div class="card stack gap-3">
           <h2>${esc(t(ds.mode === 'api' ? 'settings.demo.titleApi' : 'settings.demo.title'))}</h2>
-          <p class="small soft">${esc(t(ds.mode === 'api' ? 'settings.demo.leadApi' : 'settings.demo.lead'))}</p>
+          <p class="small soft">${esc(t(ds.mode === 'api' ? 'settings.demo.leadApi' : 'settings.demo.lead', { prefs: prefsKept(ctx) }))}</p>
           <div><button class="btn danger" data-reset>${esc(t('settings.demo.reset'))}</button></div>
         </div>
         <form class="card stack gap-3" id="datasource">
@@ -803,7 +808,9 @@ const view: View = {
     onAll(root, '[data-reset]', 'click', async () => {
       const yes = await confirmDialog({
         title: t('settings.demo.confirmTitle'),
-        body: t(ctx.dataSource.mode === 'api' ? 'settings.demo.confirmBodyApi' : 'settings.demo.confirmBody'),
+        body: t(ctx.dataSource.mode === 'api' ? 'settings.demo.confirmBodyApi' : 'settings.demo.confirmBody', {
+          prefs: prefsKept(ctx),
+        }),
         confirm: t('settings.demo.reset'),
         tone: 'danger',
         typeToConfirm: 'reset',
