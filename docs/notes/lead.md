@@ -58,6 +58,12 @@ The merge flow for a child's PR:
    the user's to change; children make room instead. 2026-11-25: #427 and #428 together were
    0.03 kB over the 200 kB bundle budget; UI 5 moves the glossary data (4.2 kB gzipped) to a lazily
    loaded classic script like help-data.js.
+9. Three-fold check (the user, 2026-11-25), no step repeating another: (a) the child: full suite
+   before every push, its counts in the report; (b) QA 1 (standing quality session): the lead sends
+   it each reported PR and head SHA; it runs the suite itself, uses the change at widths, languages,
+   file://, keyboard and print, checks claims against findings, plants bugs, checks Docker context
+   and CI health, and reports; no code review; (c) the lead: deep code review (agent; targeted
+   checks only, no whole-suite re-runs), verify, merge only when all three are clean.
 8. No push without the full local suite green on that exact head (the user, 2026-11-25: "Why are
    ci runs failing are not doing quality check through a child session"): lint, typecheck, unit,
    the whole e2e suite (smoke unfiltered, a11y, print, morph), perf, visual (or a diff against CI's
