@@ -57,7 +57,7 @@ To switch the data source yourself:
 
 1. Open **Settings** (bottom of the left menu).
 2. Under **Data source**, choose **This browser only** or **Tiles API**.
-3. For the API, type the **API address**, for example `http://localhost:8000`.
+3. For the API, type the **API address** your admin gives you, for example `https://tiles.example.com`.
 4. Click **Test connection**. You should see "Connected: Tiles API" with its version. "Not reachable" means the address is wrong or the server is down.
 5. Click **Save**.
 
@@ -1004,7 +1004,7 @@ Admins also see:
 
 ### Edge agents
 
-Edge agents run on the plant network and send data out to Tiles. The [admin guide](admin.md#5-edge-agents) says how to install one. Everyone on the site sees the list: each agent's status (online or offline), last heartbeat, host, version, connectors and buffer (readings waiting to be sent; hover for details).
+Edge agents run on the plant network and send data out to Tiles. The [admin guide](admin.md#5-edge-agents), in its chapter “5. Edge agents”, says how to install one (admins find a link to this section beside the list). Everyone on the site sees the list: each agent's status (online or offline), last heartbeat, host, version, connectors and buffer (readings waiting to be sent; hover for details).
 
 Admins can register and revoke agents:
 

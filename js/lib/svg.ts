@@ -234,6 +234,7 @@ export function lineChart({
   const x = scale(0, n - 1, PAD.l, width - PAD.r);
   const y = scale(lo, hi, height - PAD.b, PAD.t);
   const yt = ticks(lo, hi, 4);
+  const yDigits = tickDigits(yt); // only the digits the ticks need (review H-07)
   const xt = ticks(0, n - 1, 6);
   const paths = series.map((s) => {
     let d = '';
@@ -285,7 +286,7 @@ export function lineChart({
   ].filter(Boolean);
   const svg = `${open(width, height, title, summary.join('; '), 'chart', id)}
     ${bands.map((b) => `<rect class="shade" x="${x(b.from)}" y="${PAD.t}" width="${Math.max(2, x(b.to) - x(b.from))}" height="${height - PAD.t - PAD.b}" fill="${b.color}"/>`).join('')}
-    ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(t)}</text>`).join('')}
+    ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(Number(t.toFixed(yDigits)) || 0, yDigits)}</text>`).join('')}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(xFormat(t))}</text>`).join('')}
     ${paths.join('')}
     ${markers.map((m) => `<line class="marker" x1="${x(m.x)}" x2="${x(m.x)}" y1="${PAD.t}" y2="${height - PAD.b}" stroke="${m.color}" stroke-width="${m.width ?? 2}"/><text class="tick strong" x="${x(m.x) + 4}" y="${m.bottom ? height - PAD.b - 6 : PAD.t + 10}" fill="${m.color}">${esc(m.label)}</text>`).join('')}

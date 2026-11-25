@@ -12,7 +12,7 @@ import {
   queryFor,
   when,
 } from '../js/lib/warnings.ts';
-import { fitBox, MIN_CHART, tickDigits, timeChart } from '../js/lib/svg.ts';
+import { fitBox, lineChart, MIN_CHART, tickDigits, timeChart } from '../js/lib/svg.ts';
 import { workingGraph } from '../js/lib/ontology.ts';
 import { seedOntology } from '../js/lib/data.ts';
 
@@ -220,4 +220,11 @@ test("a record's chart is drawn at its card's width, so its text keeps its size 
     globalThis.getComputedStyle = real;
   }
   assert.equal(fitBox(null, 900), 900); // not on the page yet: fitWidth's (the design width in Node)
+});
+
+test("a line chart's value ticks carry the digits they need too (Data explorer's compare, H-07)", () => {
+  const chart = lineChart({ series: [{ values: [0.1, 0.25, 0.4], color: 'red', label: 'a' }] });
+  const ticks = [...chart.matchAll(/text-anchor="end">([^<]+)</g)].map((m) => m[1]);
+  assert.ok(ticks.includes('0.2') && ticks.includes('0.4'), ticks.join(', ')); // not "0"
+  assert.ok(!ticks.includes('0.20'));
 });

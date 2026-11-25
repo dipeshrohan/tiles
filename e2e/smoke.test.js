@@ -4557,6 +4557,64 @@ test('beside an open warning the list is compact; the record names its machine; 
   assert.deepEqual(errors, []);
 });
 
+test('warnings sorted by machine are sorted again when the catalogue places them; its read fails quietly (review H-06)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const node = (id, type, label) => ({ kind: 'addNode', node: { id, type, label, props: {} } });
+  const edge = (from, rel, to) => ({ kind: 'addEdge', edge: { id: `${from}-${rel}-${to}`, from, rel, to } });
+  // Each signal's node is under its machine, and named otherwise than its tag: only the catalogue's
+  // link places it.
+  fake.commitAs(
+    'maria',
+    [
+      node('m-a', 'Machine', 'Alpha press'),
+      node('m-z', 'Machine', 'Zulu press'),
+      node('s-a', 'Signal', 'Press force A'),
+      node('s-z', 'Signal', 'Press force Z'),
+      edge('m-a', 'contains', 's-a'),
+      edge('m-z', 'contains', 's-z'),
+    ],
+    'two presses',
+  );
+  fake.addSignal('a.force', { node_id: 's-a' });
+  fake.addSignal('z.force', { node_id: 's-z' });
+  const at = (m) => new Date(Date.now() - m * 60_000).toISOString();
+  const raise = (tag, m) =>
+    fake.raiseWarning(tag, [], {
+      started_at: at(m),
+      last_at: at(m - 1),
+      peak: 3,
+      baseline: 1,
+      threshold: 2,
+      readings: 4,
+    });
+  raise('a.force', 30); // older: listed second
+  raise('z.force', 10);
+
+  // The catalogue answers late: the list is sorted by machine before the machines are known.
+  fake.slowNext('GET', /\/signals/, 1500);
+  const { page, errors } = await openAs(t, apiUrl, null, 'warnings');
+  await page.waitForSelector('[data-warning-list] [data-warning]');
+  await page.click('[data-warning-list] [data-sort="machine"]');
+  const firstTag = () => page.locator('[data-warning-list] tbody tr .row-open').first().innerText();
+  assert.equal(await firstTag(), 'z.force'); // no machines yet: the list's order
+  await page.waitForSelector('[data-warning-list] [data-warning]:has-text("Alpha press")');
+  assert.equal(await firstTag(), 'a.force'); // Alpha before Zulu
+
+  // A failed read of the catalogue, in the background, says nothing: warnings are placed without it.
+  fake.failNext('GET', /\/signals/, 500, 'The catalogue is down');
+  await page.evaluate(() => (location.hash = '#/help'));
+  await page.evaluate(() => (location.hash = '#/warnings'));
+  await page.waitForSelector('[data-warning-list] [data-warning]');
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('#toast .toast-item').count(), 0);
+  assert.deepEqual(
+    errors.filter((e) => !/Failed to load resource/.test(e)),
+    [],
+  );
+});
+
 test("the shopfloor view in local mode shows the demo detector's warnings, read-only", async (t) => {
   const { page, errors } = await openPage();
   t.after(() => page.close());
@@ -6730,11 +6788,14 @@ test('Settings with the API says what Reset workspace clears, without pointers f
   assert.match(await dialog.innerText(), /The site’s data on the Tiles API doesn’t change/);
   await page.keyboard.press('Escape');
   await page.waitForSelector('dialog.dialog', { state: 'detached' });
-  // Admins are pointed at the admin guide to install an agent.
-  assert.match(
-    await page.locator('#agents').innerText(),
-    /The admin guide’s “Edge agents” chapter says how to install one/,
+  // Admins are pointed at the help's Edge agents, which leads to the admin guide's chapter.
+  assert.match(await page.locator('#agents').innerText(), /To install one, see Edge agents in the help\./);
+  assert.equal(
+    await page.locator('#agents a:text-is("Edge agents in the help")').getAttribute('href'),
+    '#/help/edge-agents',
   );
+  // The example address is a neutral one, not a developer's.
+  assert.equal(await page.getAttribute('#datasource [name=apiUrl]', 'placeholder'), 'https://tiles.example.com');
 
   // Without the API, the card is about the demo, as before.
   const local = await openPage();
@@ -6745,6 +6806,27 @@ test('Settings with the API says what Reset workspace clears, without pointers f
   assert.equal(await card.locator('h2').innerText(), 'Demo data');
   assert.doesNotMatch(await local.page.locator('#view').innerText(), /docker compose/);
   assert.deepEqual([...errors, ...local.errors], []);
+});
+
+test('Reset workspace clears the menu kept in this browser: a pin is gone, and stays gone after a reload', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/help`);
+  await page.click('#nav [data-nav-pin="help"]', { force: true });
+  await page.waitForSelector('#nav [data-key="nav-pinned-help"]');
+  await page.evaluate(() => (location.hash = '#/settings'));
+  await page.click('[data-reset]');
+  await confirmIn(page, 'reset');
+  await page.waitForSelector('#toast:has-text("Demo data reset")');
+  assert.equal(await page.locator('#nav [data-key^="nav-pinned-"]').count(), 0);
+  // Another page visited (which keeps the recent pages) doesn't write the old pin back.
+  await page.evaluate(() => (location.hash = '#/help'));
+  await page.waitForSelector('#view h1');
+  assert.equal(await page.locator('#nav [data-key^="nav-pinned-"]').count(), 0);
+  await page.reload();
+  await page.waitForSelector('#view h1');
+  assert.equal(await page.locator('#nav [data-key^="nav-pinned-"]').count(), 0);
+  assert.deepEqual(errors, []);
 });
 
 test('without the API, the menu marks the pages that need it and Home says what connecting adds (review H-15)', async (t) => {
@@ -6759,7 +6841,7 @@ test('without the API, the menu marks the pages that need it and Home says what 
     els.map((a) => ({ route: a.getAttribute('href'), marked: Boolean(a.querySelector('.nav-hint')) })),
   );
   const marked = menu.filter((m) => m.marked).map((m) => m.route);
-  assert.equal(marked.length, 11, marked.join(' '));
+  assert.ok(marked.length > 0, 'no page is marked'); // which: each page's own needsApi, checked below
   assert.match(await page.locator('#nav a[href="#/warnings"]').innerText(), /needs the Tiles API/);
   assert.equal(await page.locator('#nav a[href="#/warnings"]').getAttribute('data-tooltip'), 'Needs the Tiles API');
   // Each page marked shows only that it needs the API; no page unmarked does.

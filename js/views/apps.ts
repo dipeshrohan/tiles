@@ -294,6 +294,7 @@ async function save(ctx: Context, form: HTMLFormElement): Promise<void> {
 
 const view: View = {
   id: 'apps',
+  needsApi: true,
   get title() {
     return t('apps.title');
   },

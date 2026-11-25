@@ -349,6 +349,7 @@ async function act(ctx: Context, action: string, comment: string): Promise<void>
 
 const view: View = {
   id: 'reviews',
+  needsApi: true,
   get title() {
     return t('reviews.title');
   },

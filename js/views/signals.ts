@@ -820,6 +820,7 @@ function bindMapping(root: HTMLElement, ctx: Context): void {
 
 const view: View = {
   id: 'signals',
+  needsApi: true,
   get title() {
     return t('signals.title');
   },

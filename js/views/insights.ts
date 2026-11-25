@@ -289,6 +289,7 @@ async function act(
 
 const view: View = {
   id: 'insights',
+  needsApi: true,
   get title() {
     return t('insights.title');
   },

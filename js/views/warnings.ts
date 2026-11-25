@@ -701,13 +701,16 @@ async function fetchLinks(ctx: Context): Promise<void> {
   linked = { site, links: null };
   let links: Map<string, string>;
   try {
-    const signals = await allLinks(ctx, site);
+    const signals = await allLinks(ctx, site, true);
     links = new Map(signals.flatMap((s) => (s.node_id ? [[s.tag, s.node_id] as const] : [])));
   } catch {
-    links = new Map(); // the client showed why; warnings are placed by their tags and assets
+    links = new Map(); // a background read: warnings are placed by their tags and assets, quietly
   }
   if (linked?.site !== site) return; // left the page, or another site
   linked = { site, links };
+  // The machines may have changed: a list sorted by them is sorted again (the table keeps its
+  // order until its rows change).
+  if (listing?.items) listing = { ...listing, items: [...listing.items] };
   ctx.rerender();
 }
 
@@ -852,6 +855,7 @@ export function openWarning(ctx: Context, id: string): void {
 
 const view: View = {
   id: 'warnings',
+  needsApi: true,
   get title() {
     return t('warnings.title');
   },

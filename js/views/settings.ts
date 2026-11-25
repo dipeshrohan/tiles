@@ -28,7 +28,7 @@ const AUDIT_ROWS = 200; // the latest changes, in pages of 25
 const TEAMS_EXAMPLE = 'https://….webhook.office.com/…'; // i18n-ok
 const TOKEN_FILE = 'token'; // i18n-ok
 const CONFIG_FILE = 'tiles-edge.toml'; // i18n-ok
-const API_EXAMPLE = 'http://localhost:8000'; // i18n-ok
+const API_EXAMPLE = 'https://tiles.example.com'; // i18n-ok
 
 // Sign-in to the Tiles API, shown in API mode.
 function accountCard(ctx: Context): string {
@@ -506,7 +506,7 @@ export function tokenStillShown(
 function agentsCard(admin: boolean): string {
   return `<div class="card stack gap-3 span-all" id="agents">
       <h2>${esc(t('settings.agents.title'))}</h2>
-      <p class="small soft">${esc(t('settings.agents.lead'))}${admin ? ` ${esc(t('settings.agents.install'))}` : ''}</p>
+      <p class="small soft">${esc(t('settings.agents.lead'))}${admin ? ` ${tHtml('settings.agents.install', { help: `<a href="#/help/edge-agents">${esc(t('settings.agents.installHelp'))}</a>` })}` : ''}</p>
       <div data-agent-token aria-live="polite"></div>
       <div data-agent-rows aria-live="polite">${skeleton.table(2, 5, t('settings.agents.loading'))}</div>
       ${
@@ -749,7 +749,7 @@ const view: View = {
       const apiUrl = normalizeBaseUrl(typedUrl);
       // Only API mode needs an address; local mode keeps the last good one.
       if (mode === 'api' && !isHttpUrl(apiUrl)) {
-        ctx.toast(t('settings.source.needAddress'));
+        ctx.toast(t('settings.source.needAddress', { example: API_EXAMPLE }));
         return;
       }
       apiCheck = '';

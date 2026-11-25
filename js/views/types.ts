@@ -122,6 +122,8 @@ export interface View {
   // A page outside the menu that belongs to another (the style guide to Settings): that page is
   // marked in the menu and comes before it in the breadcrumbs.
   under?: string;
+  // Without the Tiles API, the page shows only that it needs it: the menu marks it then (review H-15).
+  needsApi?: boolean;
   // What the page shows, in its address (U3.05, js/lib/url-state.ts): `read` takes a link's query
   // into the page's state before it is drawn; `write` gives the state as query values (a default
   // left out), which the address then shows, so a copied link or a reload shows the same.

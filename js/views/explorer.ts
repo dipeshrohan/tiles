@@ -752,6 +752,7 @@ function bindCompare(root: HTMLElement, ctx: Context): void {
 
 const view: View = {
   id: 'explorer',
+  needsApi: true,
   get title() {
     return t('explorer.title');
   },

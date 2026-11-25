@@ -142,7 +142,7 @@ import {
   useLanguage,
 } from './lib/language.ts';
 import { cleanPreferences, samePreferences, toApi, type Preferences } from './lib/preferences.ts';
-import { setTableDensity } from './lib/data-table.ts';
+import { forgetTables, setTableDensity } from './lib/data-table.ts';
 
 const VIEWS: View[] = [
   home,
@@ -183,21 +183,6 @@ const NAV: { group?: 'operations' | 'data' | 'design' | ''; items: View[] }[] = 
   { group: 'design', items: [design] },
   { group: '', items: [onboarding, settings, preferencesView, help] },
 ];
-// The pages that show only that they need the Tiles API when this browser has none: the menu marks
-// them then (review H-15; e2e/smoke.test.js checks the list against what each page shows).
-const NEEDS_API: ReadonlySet<View> = new Set([
-  reviews,
-  warnings,
-  performance,
-  workOrders,
-  signals,
-  explorer,
-  correlate,
-  insights,
-  apps,
-  documents,
-  imports,
-]);
 const groupName = (group: string | undefined): string => (group ? t(`app.nav.${group}` as MessageKey) : '');
 
 // index.html's own words (the skip link, the top bar's labels) in the catalogue's language, before
@@ -646,6 +631,13 @@ const ctx: Context = {
     const chosen = load<Partial<DataSource> | null>('datasource', null);
     clearAll();
     if (chosen) save('datasource', chosen);
+    // What is held in memory too, or its next change writes the cleared settings back: the menu's
+    // pins, recent pages, folds and rail, and every table's sort, columns and density.
+    navFor = '';
+    navPrefs = DEFAULT_PREFS;
+    borrowed = false;
+    waitingVisits = [];
+    forgetTables();
     Object.assign(state, freshState(), { ui: {} });
     localRepo = state.repo;
     persist();
@@ -708,7 +700,7 @@ const navGroups = (): NavGroup[] =>
   NAV.map((g, i) => ({
     id: g.group || `g${i}`,
     title: groupName(g.group),
-    pages: g.items.map((v) => ({ id: v.id, title: v.title, icon: v.icon, needsApi: NEEDS_API.has(v) })),
+    pages: g.items.map((v) => ({ id: v.id, title: v.title, icon: v.icon, needsApi: Boolean(v.needsApi) })),
   }));
 const NAV_PAGES = NAV.flatMap((g) => g.items.map((v) => v.id));
 let navFor = '';

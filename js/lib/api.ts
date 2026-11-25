@@ -1649,10 +1649,13 @@ export function createApiClient(options: ApiOptions) {
     },
     // The signal catalogue (T2.08): search it, describe or link a signal, check its quality (engineers).
     signals: {
-      list: (siteId: string, q: SignalQuery = {}) =>
+      // `silent`: a read in the background (the warnings' machines), failing without a word.
+      list: (siteId: string, q: SignalQuery = {}, opts: { silent?: boolean } = {}) =>
         request<{ total: number; signals: SignalInfo[] }>(
           'GET',
           `/sites/${encodeURIComponent(siteId)}/signals${query(q)}`,
+          undefined,
+          { silent: opts.silent ?? false },
         ),
       update: (siteId: string, signalId: string, change: SignalChange) =>
         request<SignalInfo>(

@@ -363,6 +363,7 @@ function roiCard(): string {
 
 const view: View = {
   id: 'performance',
+  needsApi: true,
   get title() {
     return t('performance.title');
   },

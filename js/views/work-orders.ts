@@ -284,6 +284,7 @@ function readDraft(form: HTMLFormElement, d: Draft): Draft {
 
 const view: View = {
   id: 'work-orders',
+  needsApi: true,
   get title() {
     return t('workOrders.title');
   },

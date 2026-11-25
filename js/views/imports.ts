@@ -332,6 +332,7 @@ async function runImport(ctx: Context): Promise<void> {
 
 const view: View = {
   id: 'import',
+  needsApi: true,
   get title() {
     return t('imports.title');
   },

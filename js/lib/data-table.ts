@@ -156,6 +156,10 @@ function ordered<T>(o: TableOptions<T>, s: Live): T[] {
 // A table's rows in the order it shows them (its sort), all of them, drawn or not.
 export const tableOrder = <T>(o: TableOptions<T>): T[] => ordered(o, stateOf(o));
 
+// Forgets every table's state held in memory (Reset workspace, after clearing what is kept), so a
+// table's next change doesn't write back the settings just cleared.
+export const forgetTables = (): void => live.clear();
+
 // Unticks a table's rows (after a bulk action has done its work).
 export const clearSelection = (id: string): void => live.get(id)?.selected.clear();
 

@@ -368,6 +368,7 @@ async function find(ctx: Context): Promise<void> {
 
 const view: View = {
   id: 'correlate',
+  needsApi: true,
   get title() {
     return t('correlate.title');
   },
