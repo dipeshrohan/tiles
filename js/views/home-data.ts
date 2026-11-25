@@ -41,7 +41,8 @@ onNavigate((hash) => {
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 
-async function allLinks(ctx: Context, site: string): Promise<SignalInfo[]> {
+// Every linked signal of a site (they place warnings on machines: Home, and the Warnings page, H-06).
+export async function allLinks(ctx: Context, site: string): Promise<SignalInfo[]> {
   const out: SignalInfo[] = [];
   for (let offset = 0; offset < MAX_LINKS; offset += SIGNALS_PAGE) {
     const page = await ctx.api!.signals.list(site, { linked: 'yes', limit: SIGNALS_PAGE, offset });

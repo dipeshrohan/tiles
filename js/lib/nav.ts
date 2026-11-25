@@ -10,6 +10,7 @@ export interface NavPage {
   id: string;
   title: string;
   icon: IconName;
+  needsApi?: boolean; // it shows only that it needs the Tiles API when this browser has none (H-15)
 }
 
 export interface NavGroup {
@@ -89,12 +90,25 @@ function row(p: NavPage, o: NavDraw, where: 'menu' | 'pinned' | 'recent'): strin
   const marked = current || p.id === o.under;
   // The menu's own link is the one marked current (pinned and recent copies aren't a second "here").
   const aria = current && where === 'menu' ? ' aria-current="page"' : '';
-  const tip = o.prefs.rail ? ` data-tooltip="${esc(p.title)}"` : '';
+  // Without the API, a page that needs it says so (review H-15): a plug after its name, in words to
+  // screen readers and in its tooltip.
+  const needs = Boolean(o.local && p.needsApi);
+  const tipText = o.prefs.rail
+    ? needs
+      ? t('nav.titleNeedsApi', { page: p.title })
+      : p.title
+    : needs
+      ? t('nav.needsApi')
+      : '';
+  const tip = tipText ? ` data-tooltip="${esc(tipText)}"` : '';
+  const hint = needs
+    ? `<span class="nav-hint" aria-hidden="true">${icon('plug', { size: 14 })}</span><span class="sr-only">, ${esc(t('nav.needsApiSaid'))}</span>`
+    : '';
   const pin =
     where === 'recent'
       ? ''
       : `<button class="nav-pin" type="button" data-nav-pin="${esc(p.id)}" aria-pressed="${pinned}" aria-label="${esc(t(pinned ? 'nav.unpin' : 'nav.pin', { page: p.title }))}">${icon(pinned ? 'pin-off' : 'pin', { size: 14 })}</button>`;
-  return `<div class="nav-row" data-key="nav-${where}-${esc(p.id)}"><a class="nav-link${marked ? ' active' : ''}" href="${href(p.id)}"${aria}${tip}><span class="ico">${icon(p.icon)}</span><span class="nav-label">${esc(p.title)}</span>${badgeHtml(o.badges[p.id])}</a>${pin}</div>`;
+  return `<div class="nav-row" data-key="nav-${where}-${esc(p.id)}"><a class="nav-link${marked ? ' active' : ''}" href="${href(p.id)}"${aria}${tip}><span class="ico">${icon(p.icon)}</span><span class="nav-label">${esc(p.title)}</span>${hint}${badgeHtml(o.badges[p.id])}</a>${pin}</div>`;
 }
 
 export interface NavDraw {
@@ -104,6 +118,7 @@ export interface NavDraw {
   prefs: NavPrefs;
   badges: Record<string, NavBadge>;
   views?: NavView[]; // saved views (U5.06): yours and those shared on the site
+  local?: boolean; // no Tiles API: the pages that need it are marked
 }
 
 export interface NavView {

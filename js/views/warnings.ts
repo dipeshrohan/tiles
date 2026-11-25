@@ -1,6 +1,6 @@
 import { ux } from '../lib/analytics.ts';
 import { esc, need, onAll, onNavigate, routeOf, bound, scrollBehavior } from '../lib/dom.ts';
-import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
+import { fitBox, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import {
   ApiError,
   type Membership,
@@ -18,6 +18,7 @@ import {
   filtersFromQuery,
   filtersQuery,
   howFar,
+  machineFor,
   OUTCOMES,
   payload,
   queryFor,
@@ -25,8 +26,10 @@ import {
   STATUS,
   type Filters,
   type Show,
+  type WarningMachine,
   when,
 } from '../lib/warnings.ts';
+import { allLinks } from './home-data.ts';
 import type { Context, View } from './types.ts';
 import { followedText, match, summary, whyText } from '../lib/similar.ts';
 import { draftHref } from '../lib/work-orders.ts';
@@ -77,6 +80,9 @@ let detailFailed: string | null = null; // the detail key whose fetch failed (no
 // The readings around a warning, and the stretch of time they were fetched for (undefined data: loading).
 let series: { key: string; data: SignalSeries | null | undefined; range: ReturnType<typeof chartRange> } | null = null;
 let members: { site: string; people: Membership[] } | null = null;
+// The site's linked signals (tag → Signal node), which place warnings on machines as the Shopfloor
+// does (H-06); null while fetched (warnings are placed by their tags and assets meanwhile).
+let linked: { site: string; links: Map<string, string> | null } | null = null;
 // Similar past warnings (T10.02), for the warning they were asked for (undefined data: loading).
 let similar: { key: string; data: SimilarWarnings | null | undefined } | null = null;
 let similarSeq = 0;
@@ -112,6 +118,7 @@ onNavigate((hash) => {
     series = null;
     similar = null;
     members = null; // roles change, and people join
+    linked = null; // signals are linked meanwhile
   }
 });
 
@@ -122,6 +129,12 @@ const seriesKey = (w: WarningDetail): string => `${w.signal_id}|${w.started_at}|
 function statusBadge(w: Pick<WarningInfo, 'status'>): string {
   const [cls, label] = STATUS[w.status];
   return badge(label, cls);
+}
+
+// The machine a warning is on (H-06), placed as the Shopfloor places it.
+function machineOf(ctx: Context, w: WarningInfo): WarningMachine | null {
+  const links = linked?.site === siteId(ctx) ? linked.links : null;
+  return machineFor(ctx.graph, w, links ?? new Map());
 }
 
 const signalState = (w: WarningInfo): string =>
@@ -188,16 +201,57 @@ function barOptions(ctx: Context): BarOptions {
 
 const STATUS_RANK: Record<WarningInfo['status'], number> = { raised: 0, acknowledged: 1, resolved: 2 };
 
-// The warnings as a table (U5.02): each signal's button opens it beside the list; sorted, its
-// columns chosen, exported; engineers acknowledge the ones selected at once.
-function listTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string): TableOptions<WarningInfo> {
+// What engineers do to the warnings selected at once.
+function bulkActions(ctx: Context): { id: string; label: string; variant?: 'primary' }[] {
   const can = actionsFor({ status: 'raised' }, ctx.ontology.role);
-  const bulk = [
+  return [
     ...(can.includes('acknowledge')
       ? [{ id: 'acknowledge', label: t('warnings.acknowledge'), variant: 'primary' as const }]
       : []),
     ...(can.includes('assign') && ctx.ontology.userId ? [{ id: 'assign-me', label: t('warnings.assignToMe') }] : []),
   ];
+}
+
+const openButton = (ui: Ui, w: WarningInfo): string =>
+  `<button class="row-open mono" type="button"${ui.selected === w.id ? ' aria-current="true"' : ''}>${esc(w.signal_tag)}</button>`;
+
+// The list beside an open record (H-05): too narrow for the table's columns, so each row is one
+// cell: its signal and status, then its machine and when it started, in the full table's order.
+function compactTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string): TableOptions<WarningInfo> {
+  const bulk = bulkActions(ctx);
+  return {
+    id: 'warnings-open',
+    label: t('warnings.title'),
+    columns: [
+      {
+        key: 'warning',
+        label: t('warnings.col.warning'),
+        fixed: true,
+        cell: (w) => {
+          const machine = machineOf(ctx, w)?.label;
+          const second = machine
+            ? t('warnings.machineStarted', { machine, when: ago(w.started_at) })
+            : t('warnings.startedAgo', { when: ago(w.started_at) });
+          return `<div class="stack gap-1"><span class="row gap-2 wrap">${openButton(ui, w)}${statusBadge(w)}</span><span class="small soft">${esc(second)}</span></div>`;
+        },
+      },
+    ],
+    rows: tableOrder(fullTable(ctx, ui, items, empty)),
+    key: (w) => w.id,
+    empty,
+    rowAttrs: (w) => ({ 'data-warning': w.id, class: ui.selected === w.id ? 'sel' : undefined }),
+    select: bulk.length ? { actions: bulk, run: (action, keys) => bulkAct(ctx, action, keys) } : undefined,
+  };
+}
+
+// The warnings as the page lists them: the table, or the compact list beside an open record.
+const listTable = (ctx: Context, ui: Ui, items: WarningInfo[], empty: string): TableOptions<WarningInfo> =>
+  ui.selected === null ? fullTable(ctx, ui, items, empty) : compactTable(ctx, ui, items, empty);
+
+// The warnings as a table (U5.02): each signal's button opens it beside the list; sorted, its
+// columns chosen, exported; engineers acknowledge the ones selected at once.
+function fullTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string): TableOptions<WarningInfo> {
+  const bulk = bulkActions(ctx);
   return {
     id: 'warnings',
     label: t('warnings.title'),
@@ -207,8 +261,13 @@ function listTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string): T
         label: t('warnings.col.signal'),
         value: (w) => w.signal_tag,
         csv: (w) => w.signal_tag,
-        cell: (w) =>
-          `<button class="row-open mono" type="button"${ui.selected === w.id ? ' aria-current="true"' : ''}>${esc(w.signal_tag)}</button>`,
+        cell: (w) => openButton(ui, w),
+      },
+      {
+        key: 'machine',
+        label: t('warnings.col.machine'),
+        value: (w) => machineOf(ctx, w)?.label ?? null,
+        cell: (w) => esc(machineOf(ctx, w)?.label ?? '—'),
       },
       {
         key: 'status',
@@ -300,6 +359,7 @@ async function bulkAct(ctx: Context, action: string, keys: string[]): Promise<vo
       description: t(assigning ? 'warnings.bulk.allYours' : 'warnings.bulk.allAcknowledged'),
     });
   clearSelection('warnings');
+  clearSelection('warnings-open');
   listing = null;
   detail = null;
   ctx.rerender();
@@ -358,7 +418,11 @@ function chartCard(w: WarningDetail): string {
     title: s.unit
       ? t('warnings.chart.titleUnit', { tag: w.signal_tag, unit: s.unit })
       : t('warnings.chart.title', { tag: w.signal_tag }),
-    width: fitWidth(TIME_CHART.width),
+    // As wide as the record's card shows it, so its labels keep their size (H-07).
+    width: fitBox(
+      typeof document === 'undefined' ? null : document.querySelector('[data-warning-detail]'),
+      TIME_CHART.width,
+    ),
     levels: [
       { v: w.threshold, label: t('warnings.chart.threshold') },
       { v: w.baseline, label: t('warnings.chart.baseline') },
@@ -462,6 +526,15 @@ function similarCard(w: WarningDetail): string {
   return `<div data-similar>${head}${list}<h4 class="mt-3 mb-1 m-0 small">${esc(t('similar.correlateHead'))}</h4>${datasets}</div>`;
 }
 
+// Where the warning is (H-06): its machine, linked to its sheet on the Plant page when the ontology
+// has it, and the places above it.
+function machineLine(m: WarningMachine | null): string {
+  if (!m) return '';
+  const name = m.id ? `<a href="#/plant/${encodeURIComponent(m.id)}">${esc(m.label)}</a>` : esc(m.label);
+  const path = m.path.length ? ` <span class="soft">${esc(m.path.join(' › '))}</span>` : '';
+  return `<p class="m-0 mt-1" data-warning-machine>${tHtml('warnings.detail.on', { machine: name })}${path}</p>`;
+}
+
 function detailCard(ctx: Context, ui: Ui): string {
   if (ui.selected === null)
     return card(
@@ -497,6 +570,7 @@ function detailCard(ctx: Context, ui: Ui): string {
       <div class="card-head"><div>
         ${statusBadge(w)} ${w.ended_at ? '' : badge(t('warnings.detail.signalStillOut'), 'bad')}
         <h2 class="mono mt-1_5">${esc(w.signal_tag)}</h2>
+        ${machineLine(machineOf(ctx, w))}
         <div class="small muted">${esc(w.detector)} · ${esc(t('warnings.detail.started', { when: ago(w.started_at) }))} · ${esc(t('warnings.detail.readingsOut', { count: w.readings }))} · ${esc(w.assignee ? t('warnings.detail.for', { name: w.assignee }) : t('warnings.detail.unassigned'))}</div>
       </div></div>
       <p class="small" data-how-far>${esc(howFar(w))}</p>
@@ -616,6 +690,22 @@ async function fetchDetail(ctx: Context): Promise<void> {
     if (e instanceof ApiError && e.status === 404) uiState(ctx).selected = null;
     else detailFailed = key;
   }
+  ctx.rerender();
+}
+
+async function fetchLinks(ctx: Context): Promise<void> {
+  const site = siteId(ctx);
+  if (!ctx.api || !site) return;
+  linked = { site, links: null };
+  let links: Map<string, string>;
+  try {
+    const signals = await allLinks(ctx, site);
+    links = new Map(signals.flatMap((s) => (s.node_id ? [[s.tag, s.node_id] as const] : [])));
+  } catch {
+    links = new Map(); // the client showed why; warnings are placed by their tags and assets
+  }
+  if (linked?.site !== site) return; // left the page, or another site
+  linked = { site, links };
   ctx.rerender();
 }
 
@@ -820,6 +910,7 @@ const view: View = {
     const shown = detail?.key === detailKey(ctx) ? detail.warning : null;
     if (shown && series?.key !== seriesKey(shown)) void fetchSeries(ctx, shown); // once per warning
     if (shown && similar?.key !== shown.id) void fetchSimilar(ctx, shown);
+    if (site && linked?.site !== site) void fetchLinks(ctx);
     if (site && members?.site !== site && actionsFor({ status: 'raised' }, ctx.ontology.role).length)
       void fetchMembers(ctx);
 

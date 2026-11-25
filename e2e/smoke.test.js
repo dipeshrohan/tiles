@@ -1928,6 +1928,15 @@ test("home by role: the role's cards answer what needs you now; customised, kept
   await page.waitForSelector('[data-card="reviews"] a:has-text("#1 Add DC-02")');
   await page.waitForSelector('[data-card="freshness"] .home-figure:has-text("stale")');
   assert.match(await page.locator('[data-card="freshness"]').innerText(), /dc1\.friction\s+Last reading 2 h ago/);
+  // What stale means, and this signal's own limit (review H-13).
+  assert.match(
+    await page.locator('[data-card="freshness"] [data-fresh-rule]').innerText(),
+    /stale after 15 min without a reading, or after 10 of its sample periods when that is longer/,
+  );
+  assert.match(
+    await page.locator('[data-card="freshness"]').innerText(),
+    /Last reading 2 h ago · stale after 15 min · no sample rate set/,
+  );
   await page.waitForSelector('[data-card="insights"] :text("No insights yet")');
 
   // Customise: add one, move it up, remove one and undo; kept by the API.
@@ -4411,6 +4420,90 @@ test("warnings whose signal has no node are placed by their detector's asset, el
   assert.deepEqual(errors, []);
 });
 
+test('beside an open warning the list is compact; the record names its machine; its chart keeps its text size (review H-05, H-06, H-07)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const node = (id, type, label, props = {}) => ({ kind: 'addNode', node: { id, type, label, props } });
+  const edge = (from, rel, to) => ({ kind: 'addEdge', edge: { id: `${from}-${rel}-${to}`, from, rel, to } });
+  fake.commitAs(
+    'maria',
+    [
+      node('ln-dc', 'Line', 'DC line 1'),
+      node('m-dc1', 'Machine', 'DC-01 die-casting cell', { asset: 'DC-01' }),
+      edge('ln-dc', 'contains', 'm-dc1'),
+    ],
+    'the casting line',
+  );
+  const now = Date.now();
+  const at = (m) => new Date(now - m * 60_000).toISOString();
+  // Readings of 10 to 15 kN: ticks that need no decimals.
+  const readings = Array.from({ length: 120 }, (_, i) => ({ at: at(120 - i), value: 10 + (5 * i) / 119 }));
+  const raise = (tag, asset, m, values = []) =>
+    fake.raiseWarning(tag, values, {
+      detector_asset: asset,
+      started_at: at(m),
+      last_at: at(m - 1),
+      peak: 15,
+      baseline: 11,
+      threshold: 14,
+      readings: 4,
+    });
+  const first = raise('dc01.plunger_friction', 'DC-01', 30, readings); // the same tag twice
+  raise('dc01.plunger_friction', 'DC-01', 20);
+  raise('x9.pressure', 'DC-09', 10); // an asset the ontology doesn't have
+
+  const { page, errors } = await openAs(t, apiUrl, null, 'warnings');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // The table names each warning's machine (H-06).
+  await page.waitForSelector('[data-warning-list] [data-warning]:has-text("DC-01 die-casting cell")');
+  assert.equal(await page.locator('[data-warning-list] [data-warning]:has-text("DC-09")').count(), 1);
+
+  await page.click(`[data-warning="${first}"] .row-open`);
+  await page.waitForSelector('[data-warning-detail] .chart .span');
+  // Beside it, one column: signal and status, then machine and when it started; no two rows alike (H-05).
+  const list = page.locator('[data-warning-list]');
+  assert.equal(await list.locator('thead th:not(.select-col)').count(), 1);
+  const rows = await list
+    .locator('[data-warning]')
+    .evaluateAll((els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
+  assert.equal(rows.length, 3);
+  assert.equal(new Set(rows).size, 3, rows.join(' | '));
+  assert.match(rows.find((r) => r.includes('x9.pressure')) ?? '', /New.*DC-09 · started/);
+  assert.ok(rows.filter((r) => /dc01\.plunger_friction.*DC-01 die-casting cell · started/.test(r)).length === 2);
+  const sideways = await list.evaluate((el) => el.scrollWidth - el.clientWidth);
+  assert.ok(sideways <= 0, `the list scrolls sideways by ${sideways}px`);
+  // The row opened is marked as the current one.
+  assert.equal(await page.locator('[data-warning-list] [aria-current="true"]').count(), 1);
+
+  // The record's head names the machine and where it is, linked to the Plant page (H-06).
+  const where = page.locator('[data-warning-machine]');
+  assert.match(await where.innerText(), /On DC-01 die-casting cell\s+DC line 1/);
+  assert.equal(await where.locator('a').getAttribute('href'), '#/plant/m-dc1');
+
+  // The chart is drawn at the width it is shown, so its 11 px labels stay 11 px (H-07)...
+  const chart = page.locator('[data-warning-detail] svg.chart');
+  const { drawn, shown } = await chart.evaluate((svg) => ({
+    drawn: svg.viewBox.baseVal.width,
+    shown: svg.getBoundingClientRect().width,
+  }));
+  assert.ok(Math.abs(drawn - shown) <= 2, `drawn ${drawn} wide, shown ${shown}`);
+  const size = await chart
+    .locator('.tick')
+    .first()
+    .evaluate((el) => {
+      const svg = el.ownerSVGElement;
+      return (
+        parseFloat(getComputedStyle(el).fontSize) * (svg.getBoundingClientRect().width / svg.viewBox.baseVal.width)
+      );
+    });
+  assert.ok(size >= 10.5, `tick labels at ${size}px`);
+  // ...and its value ticks carry no digits they don't need ("10", not "10.00").
+  const ticks = await chart.locator('.tick[text-anchor="end"]').allTextContents();
+  assert.ok(ticks.length >= 3 && ticks.every((v) => /^\d+$/.test(v)), ticks.join(', '));
+  assert.deepEqual(errors, []);
+});
+
 test("the shopfloor view in local mode shows the demo detector's warnings, read-only", async (t) => {
   const { page, errors } = await openPage();
   t.after(() => page.close());
@@ -6472,6 +6565,81 @@ test('the demo pages say so with the API, and the menu has no demo count (review
   await page.goto(`${httpBase}#/physics`);
   await page.waitForSelector('.nav-link[href="#/physics"] .badge');
   assert.equal(await page.locator('#view [data-demo-notice]').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('Settings with the API says what Reset workspace clears, without pointers for developers (review H-12)', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openAs(t, apiUrl, null, 'settings');
+  await page.waitForSelector('#agents');
+  const view = page.locator('#view');
+  assert.doesNotMatch(await view.innerText(), /docker compose|edge\/README|tiles-notify|port 8000/);
+  const demo = page.locator('.card:has([data-reset])');
+  assert.equal(await demo.locator('h2').innerText(), 'This browser’s data');
+  assert.match(await demo.innerText(), /The site’s data is kept by the Tiles API, and nothing here changes it/);
+  await page.click('[data-reset]');
+  const dialog = page.locator('dialog.dialog[open]');
+  await dialog.waitFor();
+  assert.match(await dialog.innerText(), /The site’s data on the Tiles API doesn’t change/);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('dialog.dialog', { state: 'detached' });
+  // Admins are pointed at the admin guide to install an agent.
+  assert.match(
+    await page.locator('#agents').innerText(),
+    /The admin guide’s “Edge agents” chapter says how to install one/,
+  );
+
+  // Without the API, the card is about the demo, as before.
+  const local = await openPage();
+  t.after(() => local.page.close());
+  await local.page.goto(`${httpBase}#/settings`);
+  const card = local.page.locator('.card:has([data-reset])');
+  await card.waitFor();
+  assert.equal(await card.locator('h2').innerText(), 'Demo data');
+  assert.doesNotMatch(await local.page.locator('#view').innerText(), /docker compose/);
+  assert.deepEqual([...errors, ...local.errors], []);
+});
+
+test('without the API, the menu marks the pages that need it and Home says what connecting adds (review H-15)', async (t) => {
+  const { page, errors } = await openPage({ viewport: { width: 1440, height: 900 } });
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/`);
+  await page.waitForSelector('[data-home-connect]');
+  assert.match(await page.locator('[data-home-connect]').innerText(), /the pages marked with\s*in the menu work too/);
+  assert.equal(await page.locator('[data-home-connect] svg[role=img]').getAttribute('aria-label'), 'a plug');
+  const links = page.locator('#nav .nav-section:not(:has([data-nav-fold=pinned], [data-nav-fold=recent])) .nav-link');
+  const menu = await links.evaluateAll((els) =>
+    els.map((a) => ({ route: a.getAttribute('href'), marked: Boolean(a.querySelector('.nav-hint')) })),
+  );
+  const marked = menu.filter((m) => m.marked).map((m) => m.route);
+  assert.equal(marked.length, 11, marked.join(' '));
+  assert.match(await page.locator('#nav a[href="#/warnings"]').innerText(), /needs the Tiles API/);
+  assert.equal(await page.locator('#nav a[href="#/warnings"]').getAttribute('data-tooltip'), 'Needs the Tiles API');
+  // Each page marked shows only that it needs the API; no page unmarked does.
+  for (const { route, marked: needs } of menu) {
+    await page.goto(`${httpBase}${route}`);
+    await page.waitForSelector('#view > *');
+    // The connect state (ui.ts's needsApi), or Import data's own words for it.
+    const dead = await page
+      .locator('#view .empty:has-text("Connect to the Tiles API"), #view :text("Imports go into the Tiles API")')
+      .count();
+    assert.equal(dead > 0, needs, `${route}: ${needs ? 'marked, but works' : 'a dead end, but not marked'}`);
+  }
+  assert.deepEqual(errors, []);
+});
+
+test('with the API, the menu marks nothing as needing it (review H-15)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openAs(t, apiUrl, null, 'warnings');
+  await page.waitForSelector('[data-warning-list]');
+  assert.equal(await page.locator('#nav .nav-hint').count(), 0);
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/`);
+  await page.waitForSelector('#view h1');
+  assert.equal(await page.locator('[data-home-connect]').count(), 0);
   assert.deepEqual(errors, []);
 });
 

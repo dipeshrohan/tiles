@@ -21,7 +21,10 @@ import {
   ROLE_LABELS,
   shiftStart,
   shiftSummary,
+  staleAfter,
   staleSignals,
+  STALE_MS,
+  STALE_PERIODS,
   untakenWarnings,
   type CardId,
 } from '../lib/home-cards.ts';
@@ -32,7 +35,7 @@ import { placeLink } from '../lib/plant.ts';
 import { onAll } from '../lib/dom.ts';
 import { ux } from '../lib/analytics.ts';
 import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
-import { time } from '../lib/format.ts';
+import { duration, time } from '../lib/format.ts';
 
 // Home (U5.01): in local mode, the demo's hero and figures; with the Tiles API, cards set by your
 // role that each answer "what needs me now?", which you can add, remove and order (Customise).
@@ -166,11 +169,20 @@ function cardBody(ctx: Context, id: CardId, now: number): string | null {
       if (!all.length) return nothing(t('home.fresh.none'), t('home.fresh.noneBody'));
       if (!stale.length)
         return `${figure(0, t('home.fresh.stale', { counted }), 'good')}<p class="small soft">${esc(t('home.fresh.allFresh'))}</p>`;
+      // What stale means here, and each signal's own limit (review H-13).
+      const rule = t('home.fresh.rule', { limit: duration(STALE_MS), periods: STALE_PERIODS });
       return `${figure(stale.length, t('home.fresh.stale', { counted }), 'warn')}
+        <p class="small soft" data-fresh-rule>${esc(rule)}</p>
         ${rows(
           stale.map(
             (s) =>
-              `<a href="#/signals?q=${encodeURIComponent(s.tag)}">${esc(s.tag)}</a><span class="small soft">${esc(s.last_at ? t('home.fresh.last', { when: when(s.last_at, now) }) : t('home.fresh.noReading'))}</span>`,
+              `<a href="#/signals?q=${encodeURIComponent(s.tag)}">${esc(s.tag)}</a><span class="small soft">${esc(
+                [
+                  s.last_at ? t('home.fresh.last', { when: when(s.last_at, now) }) : t('home.fresh.noReading'),
+                  t('home.fresh.after', { limit: duration(staleAfter(s)) }),
+                  ...(s.sample_rate_hz ? [] : [t('home.fresh.noRate')]),
+                ].join(' · '),
+              )}</span>`,
           ),
         )}${more(stale.length, '#/signals', t('home.onSignals'))}`;
     }
@@ -345,6 +357,14 @@ function demoHome(ctx: Context): string {
           <div class="pill">${esc(t('home.demo.answers'))}</div>
         </div>
       </section>
+
+      <div class="card row gap-3 wrap justify-between mb-4" data-home-connect>
+        <div class="grow">
+          <h2 class="m-0">${esc(t('home.demo.connectTitle'))}</h2>
+          <p class="small soft m-0 mt-1">${tHtml('home.demo.connectBody', { plug: icon('plug', { size: 14, label: t('home.demo.plugIcon') }) })}</p>
+        </div>
+        <a class="btn" href="#/settings">${icon('plug')} ${esc(t('ui.openSettings'))}</a>
+      </div>
 
       <div class="grid g4 mb-4">
         <a class="card kpi bad text-inherit no-underline" href="#/physics"${friction ? '' : ' aria-busy="true"'}>

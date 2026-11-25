@@ -170,11 +170,15 @@ export const recentInsights = (insights: readonly InsightSummary[]): InsightSumm
 // that is longer (a slow signal isn't stale between readings). Event streams (downtime, scrap) are
 // left out: they are quiet when all is well. Stalest first; never-heard ones last.
 export const STALE_MS = 15 * 60_000;
+export const STALE_PERIODS = 10;
+// How long a signal may be quiet before it is stale (the card says it, review H-13).
+export const staleAfter = (s: Pick<SignalInfo, 'sample_rate_hz'>): number =>
+  Math.max(STALE_MS, s.sample_rate_hz ? (STALE_PERIODS / s.sample_rate_hz) * 1000 : 0);
 export function staleSignals(signals: readonly SignalInfo[], now: number): SignalInfo[] {
   const ageOf = (s: SignalInfo) => (s.last_at ? now - Date.parse(s.last_at) : Infinity);
   return signals
     .filter((s) => !s.event_kind)
-    .filter((s) => ageOf(s) > Math.max(STALE_MS, s.sample_rate_hz ? (10 / s.sample_rate_hz) * 1000 : 0))
+    .filter((s) => ageOf(s) > staleAfter(s))
     .sort((a, b) => {
       const x = ageOf(a);
       const y = ageOf(b);

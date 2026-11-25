@@ -14,6 +14,7 @@ import {
   ROLE_CARDS,
   shiftStart,
   shiftSummary,
+  staleAfter,
   staleSignals,
   untakenWarnings,
 } from '../js/lib/home-cards.ts';
@@ -195,4 +196,10 @@ test('agents and quality: what needs someone, worst first', () => {
     ]).map((s) => s.tag),
     ['y', 'x'],
   );
+});
+
+test("a signal's stale limit: 15 min, or ten sample periods when longer (the card says it, H-13)", () => {
+  assert.equal(staleAfter({ sample_rate_hz: null }), 15 * 60_000);
+  assert.equal(staleAfter({ sample_rate_hz: 1 }), 15 * 60_000); // 10 s is shorter
+  assert.equal(staleAfter({ sample_rate_hz: 1 / 3600 }), 10 * 3_600_000); // hourly: 10 h
 });

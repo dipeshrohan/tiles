@@ -92,6 +92,29 @@ export function fitWidth(design: number, share = 1): number {
   return Math.round(Math.min(design * 3, Math.max(design, available)));
 }
 
+// The width to draw a chart at inside `box` (the card it fills), so that it is shown at the size it
+// is drawn and its text keeps its size (review H-07: a record's chart beside a list): the box's content
+// width, at least MIN_CHART (a narrower box scales it down) and at most three times its design width.
+// Before the box is on the page, fitWidth's.
+export const MIN_CHART = 360;
+export function fitBox(box: Element | null, design: number): number {
+  if (!box || typeof getComputedStyle === 'undefined') return fitWidth(design);
+  const style = getComputedStyle(box);
+  const inner = box.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+  if (!(inner > 0)) return fitWidth(design);
+  return Math.round(Math.min(design * 3, Math.max(MIN_CHART, inner)));
+}
+
+// The decimals that tick values need to be written exactly ("10", "12.5"), none beyond (review H-07:
+// "10.00" to "15.00"); at most `max`.
+export function tickDigits(values: readonly number[], max = 3): number {
+  for (let d = 0; d < max; d++) {
+    const f = 10 ** d;
+    if (values.every((v) => Math.abs(Math.round(v * f) / f - v) <= 1e-9 * Math.max(1, Math.abs(v)))) return d;
+  }
+  return max;
+}
+
 function scale(d0: number, d1: number, r0: number, r1: number): (v: number) => number {
   const span = d1 - d0 || 1;
   return (v: number) => r0 + ((v - d0) / span) * (r1 - r0);
@@ -578,6 +601,7 @@ export function timeChart({
     )
     .join('');
   const yt = ticks(lo, hi, 4);
+  const digits = tickDigits(yt);
   const { step, ticks: xt } = timeTicks(from, to);
   const shade = spans
     .map((s) => [Math.max(s.from, from), Math.min(s.to, to)] as const)
@@ -651,7 +675,7 @@ export function timeChart({
     ...(shade ? [{ part: 'spans', label: t('svg.shaded'), color: 'var(--bad)' }] : []),
   ];
   const svg = `${open(width, height, title, summary.join('; '), 'chart', id)}
-    ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join('')}
+    ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(Number(t.toFixed(digits)) || 0, digits)}</text>`).join('')}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(tickLabel(t, step))}</text>`).join('')}
     ${shade}${band}${lines}${refs}
     ${yLabel ? `<text class="axis" x="4" y="${PAD.t - 10}">${esc(yLabel)}</text>` : ''}
