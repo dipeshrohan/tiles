@@ -35,7 +35,7 @@ const view: View = {
     return `
       ${pageHead({
         eyebrow: t('common.eyebrow.virtualSensor'),
-        title: t('physics.headTitle'),
+        title: t('physics.title'),
         lead: t('physics.lead'),
         actionsHtml: badge(
           t('physics.windows', { count: detection.alerts.length }),

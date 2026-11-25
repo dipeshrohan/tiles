@@ -498,8 +498,8 @@ const view: View = {
     const on = remoteOn(ctx);
     const head = `
       ${pageHead({
-        eyebrow: t('chat.title'),
-        title: t('chat.headTitle'),
+        title: t('chat.title'),
+        lead: t('chat.lead'),
         actionsHtml:
           !on && ctx.state.chat.length ? button(t('chat.clear'), { size: 'sm', attrs: { 'data-clear': true } }) : '',
       })}`;

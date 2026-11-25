@@ -60,7 +60,7 @@ const view: View = {
     return `
       ${pageHead({
         eyebrow: t('quality.eyebrow'),
-        title: t('quality.headTitle'),
+        title: t('quality.title'),
         lead: t('quality.lead', { ng, total: rows.length }),
         actionsHtml: `<div class="seg" role="group" aria-label="${esc(t('quality.segmentation'))}">
           <button data-split="0" class="${ui.split ? '' : 'active'}">${esc(t('quality.pooled'))}</button>

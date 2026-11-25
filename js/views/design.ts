@@ -7,6 +7,7 @@ import type { ApiSweep, DesignProject, DesignRun } from '../lib/api.ts';
 import type { DesignModel, ParamSpec, Params, Run } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 import { emptyState, pageHead, skeleton } from '../lib/ui.ts';
+import { numberRange, percent } from '../lib/format.ts';
 import { t } from '../lib/i18n.ts';
 
 const defaults = (model: DesignModel): Params => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
@@ -14,6 +15,11 @@ const stepFor = (p: ParamSpec): number =>
   (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
 const show = (v: unknown): string => (typeof v === 'number' ? fmt(v, 2) : esc(v));
 const digits = (p: ParamSpec): number => (stepFor(p) < 1 ? Math.max(0, -Math.floor(Math.log10(stepFor(p)))) : 0);
+// A parameter's value as shown: a percentage as the language writes it (80.0%), else the number;
+// `unit` is then written after it, empty for a percentage (writing.md, review H-17).
+const paramValue = (p: ParamSpec, v: number): string =>
+  p.unit === '%' ? percent(v / 100, digits(p)) : fmt(v, digits(p));
+const paramUnit = (p: ParamSpec): string => (p.unit === '%' ? '' : p.unit);
 
 interface DesignUi {
   model: string;
@@ -272,7 +278,7 @@ const view: View = {
             .map(
               (p) => `<div class="param">
                 <span class="name">${esc(p.label)}</span>
-                <span class="val"><span data-val="${p.key}">${fmt(params[p.key] ?? p.default, digits(p))}</span> <span class="muted">${esc(p.unit)}</span></span>
+                <span class="val"><span data-val="${p.key}">${paramValue(p, params[p.key] ?? p.default)}</span>${paramUnit(p) ? ` <span class="muted">${esc(paramUnit(p))}</span>` : ''}</span>
                 <input type="range" data-param="${p.key}" min="${p.min}" max="${p.max}" step="${stepFor(p)}" value="${params[p.key] ?? p.default}" aria-label="${esc(p.label)}" />
               </div>`,
             )
@@ -304,7 +310,7 @@ const view: View = {
 
       <div class="grid g2 mb-4">
         <div class="card">
-          <div class="card-head"><div><h2>${esc(t('design.sweep.title'))}</h2><p>${esc(t('design.sweep.held', { range: `${fmt(sw.min, 2)} – ${fmt(sw.max, 2)} ${unit}` }))}</p></div>
+          <div class="card-head"><div><h2>${esc(t('design.sweep.title'))}</h2><p>${esc(t('design.sweep.held', { range: numberRange(sw.min, sw.max, 2, unit) }))}</p></div>
             <div class="row no-print">
               <select id="sweep-x" aria-label="${esc(t('design.sweep.x'))}">${model.params.map((p) => `<option value="${p.key}" ${p.key === xKey ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
               <span class="muted">×</span>
@@ -453,7 +459,7 @@ const view: View = {
         'input',
         () => {
           params[p.key] = Number(input.value);
-          need(root, `[data-val="${p.key}"]`).textContent = fmt(params[p.key] ?? p.default, digits(p));
+          need(root, `[data-val="${p.key}"]`).textContent = paramValue(p, params[p.key] ?? p.default);
           need(root, '#result').textContent = fmt(evaluate(model.id, ui.versions[model.id] ?? model.latest, params), 2);
         },
         { signal: bound() },

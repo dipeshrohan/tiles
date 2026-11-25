@@ -383,3 +383,17 @@ export function likelyRel(from: NodeType, to: NodeType): string {
   if (from === to) return 'feeds';
   return level(from) < level(to) ? 'contains' : 'feeds';
 }
+
+// The type a new node most likely has under `parent` (review H-22): the next equipment level down,
+// a machine's PLC, a PLC's signal, a process's material; a Machine with no parent or none of these.
+const CHILD: Partial<Record<NodeType, NodeType>> = {
+  Enterprise: 'Site',
+  Site: 'Workcenter',
+  Workcenter: 'Line',
+  Line: 'Machine',
+  Cell: 'Machine',
+  Machine: 'PLC',
+  PLC: 'Signal',
+  Process: 'Material',
+};
+export const likelyChild = (parent: NodeType | null | undefined): NodeType => (parent && CHILD[parent]) || 'Machine';

@@ -21,6 +21,11 @@ What comes after 1.0.0.
 - **Set up a site:** **Map the tags** is done once every tag of readings is mapped (review H-08).
 - **Ontology builder:** **Request review** names the change request, with a link, and the page lists yours still waiting (review H-09). Columns widen to their longest name; a longer one ends in "…" (review H-14).
 - **Correlation finder:** a name taken is said under **Name**, and a free one is offered (review H-10). **Split by** offers only columns with a few values, and a pooled run that finds nothing tries them (review H-11).
+- **Headings:** the Ontology builder, Copilot, Factory physics and Process & quality are headed by their names, as in the menu; what the heading said is now the first words under it (review H-16).
+- **Units and ranges:** the Data explorer's ranges read **Last 1 h** to **Last 30 days**; the Design studio writes a percentage as 80.0% and a range as 2.78–5.53 kN; the Correlation finder writes negative numbers with a minus sign and zero without one, never −0.00 (review H-17).
+- **Date fields:** the Data explorer's **From** and **To**, and Warning performance's planned stops and ROI report, write the chosen date and time out under the fields in Tiles' format and the site's zone, whatever the browser's language (review H-18).
+- **Ontology builder:** a new node starts as a Machine, and choosing **Link from** sets the type and relationship that fit under that node (review H-22).
+- **Correlation finder:** the outcome field reads "A batch failed when this is: (true if empty)" (review H-23).
 
 ### Security
 

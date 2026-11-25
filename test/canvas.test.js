@@ -8,6 +8,7 @@ import {
   fitView,
   focusView,
   inBox,
+  likelyChild,
   likelyRel,
   minimapPath,
   stepFrom,
@@ -265,4 +266,17 @@ test('a label too long for its room keeps whole words from its start, for an ell
   // Spaces doubled or leading don't make empty words.
   assert.deepEqual(fitLabel(' A  bb cc', 70, measure, 10), { text: ' A  bb', cut: true });
   assert.deepEqual(fitLabel(' A  bb cc', 69, measure, 10), { text: ' A', cut: true });
+});
+
+test('a new node starts as a Machine, or as the type that fits under its parent (review H-22)', () => {
+  assert.equal(likelyChild(null), 'Machine');
+  assert.equal(likelyChild('Enterprise'), 'Site');
+  assert.equal(likelyChild('Site'), 'Workcenter');
+  assert.equal(likelyChild('Line'), 'Machine');
+  assert.equal(likelyChild('Machine'), 'PLC');
+  assert.equal(likelyChild('PLC'), 'Signal');
+  assert.equal(likelyChild('Document'), 'Machine');
+  // The relationship the form then suggests is the one a drag would.
+  assert.equal(likelyRel('Line', likelyChild('Line')), 'contains');
+  assert.equal(likelyRel('Machine', likelyChild('Machine')), 'controlledBy');
 });

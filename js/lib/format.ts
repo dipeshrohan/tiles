@@ -82,6 +82,20 @@ export function number(n: number, digits = 0): string {
     : NOT_A_NUMBER;
 }
 
+// A number that can be negative, with a true minus sign: −0.12; one that rounds to zero has no sign
+// (0.00, never −0.00) (writing.md, review H-17).
+export function signedNumber(n: number, digits = 0): string {
+  if (!Number.isFinite(n)) return NOT_A_NUMBER;
+  const shown = number(Math.abs(n), digits);
+  return n < 0 && shown !== number(0, digits) ? `−${shown}` : shown;
+}
+
+// A range of numbers with an en dash and no spaces, then its unit: 2.78–5.53 kN (writing.md).
+export function numberRange(low: number, high: number, digits = 0, unit = ''): string {
+  const range = `${signedNumber(low, digits)}–${signedNumber(high, digits)}`;
+  return unit ? `${range} ${unit}` : range;
+}
+
 // A number with at most `digits` decimals: 2.5, 3 (no trailing zeros).
 export function upTo(n: number, digits: number): string {
   return Number.isFinite(n) ? numbers({ maximumFractionDigits: digits }).format(n) : NOT_A_NUMBER;

@@ -1220,6 +1220,19 @@ test('the ontology builder: relate by dragging, several at once, keys, minimap, 
   const uncommitted = (n) => page.waitForSelector(`.staged-bar .badge:has-text("${n} uncommitted")`);
   const viewBox = async () => (await page.getAttribute('svg[data-canvas]', 'viewBox')).split(' ').map(Number);
 
+  // A new node starts as a Machine; linked from a machine, it becomes its PLC, and a type chosen
+  // stays chosen (review H-22).
+  const typeNow = () => page.inputValue('#node-form [name=type]');
+  assert.equal(await typeNow(), 'Machine');
+  await page.focus('#node-form [name=from]'); // its options come as it is first used (U3.07)
+  await page.selectOption('#node-form [name=from]', 'm-cut01');
+  assert.equal(await typeNow(), 'PLC');
+  assert.equal(await page.inputValue('#node-form [name=rel]'), 'controlledBy');
+  await page.selectOption('#node-form [name=type]', 'Process');
+  await page.selectOption('#node-form [name=from]', 'ln-cut1');
+  assert.equal(await typeNow(), 'Process');
+  await page.selectOption('#node-form [name=from]', '');
+
   // A new machine, then a drag from its line's handle onto it: the relationship its types suggest.
   await page.selectOption('#node-form [name=type]', 'Machine');
   await page.fill('#node-form [name=label]', 'Laser cutter C-02');
@@ -3204,6 +3217,15 @@ test('compare mode: this day against a week earlier, shift-aligned with the diff
   const card = page.locator('[data-compare]');
   await card.waitFor();
   assert.equal(await card.locator('[data-compare-mode="off"]').getAttribute('aria-pressed'), 'true');
+
+  // From and To are drawn in the browser's language; the line under them says the range Tiles'
+  // way, on the site's clock, and follows what is typed (review H-18).
+  const readsAs = page.locator('[data-range-reads-as]');
+  assert.match(await readsAs.innerText(), /^From 7 Sep\S* 2026, 00:00 UTC to 8 Sep\S* 2026, 00:00 UTC$/);
+  assert.equal(await page.getAttribute('#explorer-range [name=to]', 'aria-describedby'), 'reads-as-to');
+  await page.fill('#explorer-range [name=to]', '2026-09-07T12:30');
+  assert.match(await readsAs.innerText(), /to 7 Sep\S* 2026, 12:30 UTC$/);
+  await page.fill('#explorer-range [name=to]', '2026-09-08T00:00');
 
   // Two ranges: this day against the same day a week earlier, each from its own start.
   await card.locator('[data-compare-mode="ranges"]').click();
@@ -5292,6 +5314,7 @@ test('the ROI report: the periods and costs asked for, the numbers shown, the Ma
 
   // A baseline that ends before it starts is refused on the form.
   await a.page.fill('#roi-form [name=baselineFrom]', '2026-05-01');
+  assert.equal(await a.page.locator('#reads-as-baselineFrom').innerText(), '1 May 2026'); // review H-18
   await a.page.fill('#roi-form [name=baselineTo]', '2026-04-01');
   await a.page.fill('#roi-form [name=pilotFrom]', '2026-06-01');
   await a.page.fill('#roi-form [name=pilotTo]', '2026-06-30');
@@ -6758,7 +6781,7 @@ test('the demo pages say so with the API, and the menu has no demo count (review
   assert.match(await notice.innerText(), /Demo data[\s\S]*built-in demo plant .*not this site’s data/);
   assert.equal(await a.page.locator('.nav-link[href="#/physics"] .badge').count(), 0);
   await a.page.evaluate(() => (location.hash = '#/quality'));
-  await a.page.waitForSelector('#view h1:has-text("cutter batches")');
+  await a.page.waitForSelector('#view h1:has-text("Process & quality")');
   assert.match(await a.page.locator('#view [data-demo-notice]').innerText(), /built-in demo plant/);
   assert.deepEqual(a.errors, []);
 
