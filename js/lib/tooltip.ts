@@ -4,10 +4,14 @@
 // A button or link with a keyboard shortcut (aria-keyshortcuts, U4.03) shows its key there too, after
 // its tooltip or, without one, its name; screen readers have the key from the attribute already.
 import { keyLabel } from './shortcuts.ts';
+import { loadGlossary, termTip } from './glossary.ts';
+import type { GlossaryKey } from './glossary-data.ts';
+import { t as say } from './i18n.ts';
 
 let tip: HTMLElement | null = null;
 let target: HTMLElement | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
+let wanted: HTMLElement | null = null; // a glossary term whose definition is on its way
 
 function element(): HTMLElement {
   if (!tip) {
@@ -23,8 +27,26 @@ function element(): HTMLElement {
 
 const nameOf = (el: HTMLElement): string => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim();
 
-function show(el: HTMLElement): void {
-  const text = el.dataset.tooltip ?? '';
+// A glossary term drawn before the definitions were loaded (js/lib/glossary.ts): they are loaded,
+// and its tooltip shown if it is still wanted (pointed at, focused or tapped); kept on it until the
+// page is drawn again, by then with them. A failure says so in the tooltip.
+function showTerm(el: HTMLElement): void {
+  wanted = el;
+  const ready = (text: string): void => {
+    if (wanted === el && el.isConnected) show(el, text);
+  };
+  loadGlossary().then(
+    () => {
+      const text = termTip(el.dataset.term as GlossaryKey, el.textContent ?? '');
+      if (text) el.dataset.tooltip = text;
+      ready(text ?? '');
+    },
+    () => ready(say('glossary.fileFailed')),
+  );
+}
+
+function show(el: HTMLElement, text = el.dataset.tooltip ?? ''): void {
+  if (!text && el.matches('.term[data-term]')) return showTerm(el);
   const keys = el.getAttribute('aria-keyshortcuts') ?? '';
   const key = /^\S$/.test(keys) ? keys : null; // one key (Ctrl K and the like are written beside them)
   if (!text && !key) return;
@@ -75,6 +97,7 @@ function watch(): void {
 
 function hide(): void {
   clearTimeout(timer);
+  wanted = null;
   if (target) {
     const rest = (target.getAttribute('aria-describedby') ?? '').split(/\s+/).filter((t) => t && t !== 'tooltip');
     if (rest.length) target.setAttribute('aria-describedby', rest.join(' '));
@@ -90,7 +113,7 @@ function hide(): void {
 // A field's key isn't shown: its tooltip would cover what is typed (? lists it).
 const owner = (e: Event): HTMLElement | null =>
   e.target instanceof Element
-    ? e.target.closest<HTMLElement>('[data-tooltip], button[aria-keyshortcuts], a[aria-keyshortcuts]')
+    ? e.target.closest<HTMLElement>('[data-tooltip], .term, button[aria-keyshortcuts], a[aria-keyshortcuts]')
     : null;
 
 export function installTooltips(root: Document = document): void {
@@ -130,7 +153,7 @@ export function installTooltips(root: Document = document): void {
   let tapped = false;
   root.addEventListener('pointerdown', (e) => (tapped = e.pointerType === 'touch'));
   root.addEventListener('click', (e) => {
-    const word = e.target instanceof Element ? e.target.closest<HTMLElement>('.term[data-tooltip]') : null;
+    const word = e.target instanceof Element ? e.target.closest<HTMLElement>('.term') : null;
     if (!word) return hide();
     if (word !== target) {
       hide();

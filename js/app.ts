@@ -112,6 +112,7 @@ import { INBOX_POLL_MS, announcement, arrivals, bellCount, bellLabel, inboxHtml 
 import { installPalette, type PaletteItem } from './lib/palette.ts';
 import { installShortcuts, setShortcutsOn, shortcutsOn } from './lib/shortcuts.ts';
 import { helpHref, helpItems, helpLoaded, loadHelp, pageSection } from './lib/help.ts';
+import { groupOf, loadGlossary } from './lib/glossary.ts';
 import { panelDialog, sheet } from './lib/overlay.ts';
 import {
   applyRole,
@@ -1195,12 +1196,13 @@ const glossaryItems = (): PaletteItem[] =>
     label: e.term,
     group: t('glossary.title'),
     icon: 'book-a',
-    hint: e.group,
+    hint: groupOf(e.key) || undefined, // once the glossary is loaded (asked for as the palette opens)
     late: true,
     run: go(`#/glossary/${encodeURIComponent(e.key)}`),
   }));
 // The guide's headings join the palette once loaded (U4.04): asked for once, as the palette first opens.
 let helpAsked = false;
+let glossaryAsked = false;
 
 // ---- first run (U4.06) ------------------------------------------------------
 // Once the person is known (at once in local mode, when the API says in API mode): the app opens at
@@ -1823,6 +1825,10 @@ const palette = installPalette({
     if (!guide && !helpAsked) {
       helpAsked = true;
       loadHelp().catch(() => {}); // the Help page and the help button say when it can't be loaded
+    }
+    if (!glossaryAsked) {
+      glossaryAsked = true;
+      loadGlossary().catch(() => {}); // the terms' groups, as hints; the Glossary page says when it fails
     }
     const helpFound = guide
       ? helpItems(guide, (href) => {

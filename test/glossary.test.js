@@ -1,15 +1,20 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { generate, parse } from '../scripts/glossary.js';
+import { generate, generateDefinitions, parse } from '../scripts/glossary.js';
 import { GLOSSARY } from '../js/lib/glossary-data.ts';
 import { inSentence, term } from '../js/lib/ui.ts';
+import { definition, termTip } from '../js/lib/glossary.ts';
 import { findTerms, termFromHash } from '../js/views/glossary.ts';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-test('js/lib/glossary-data.ts is made from docs/ui/glossary.md as it is now (run npm run glossary)', () => {
+test('js/lib/glossary-data.ts and js/glossary-data.js are made from docs/ui/glossary.md as it is now (run npm run glossary)', () => {
   assert.equal(read('../js/lib/glossary-data.ts'), generate());
+  assert.equal(read('../js/glossary-data.js'), generateDefinitions());
+  // The bundle has the names; the definitions wait in the classic script, every term's.
+  assert.doesNotMatch(read('../js/lib/glossary-data.ts'), /text:/);
+  assert.deepEqual(Object.keys(globalThis.tilesGlossary), Object.keys(GLOSSARY));
 });
 
 test('the glossary covers the terms the plan names, about 60 or more', () => {
@@ -52,12 +57,22 @@ test('a term is a group heading’s ### with one paragraph of plain words', () =
 test('a term on a page: its words dotted, its definition in a tooltip, escaped', () => {
   assert.equal(
     term('baseline'),
-    `<button class="term" type="button" data-tooltip="${GLOSSARY.baseline.text}" data-term="baseline">Baseline</button>`,
+    `<button class="term" type="button" data-tooltip="${definition('baseline')}" data-term="baseline">Baseline</button>`,
   );
   // Other words for it name the term first.
   assert.match(term('cohens-d', 'd'), /data-tooltip="Cohen&#39;s d: The size of an effect/);
   assert.match(term('cohens-d', 'd'), />d<\/button>$/);
   assert.match(term('segment', 'a <b>'), />a &lt;b&gt;<\/button>$/);
+  // Before the definitions are loaded: the term, dotted, without a tooltip yet (tooltip.ts asks).
+  const loaded = globalThis.tilesGlossary;
+  delete globalThis.tilesGlossary;
+  try {
+    assert.equal(term('baseline'), '<button class="term" type="button" data-term="baseline">Baseline</button>');
+    assert.equal(termTip('baseline', 'Baseline'), null);
+  } finally {
+    globalThis.tilesGlossary = loaded;
+  }
+  assert.equal(termTip('cohens-d', "Cohen's d"), definition('cohens-d'));
 });
 
 test('the Glossary page finds terms by their words and definitions, in their groups', () => {
