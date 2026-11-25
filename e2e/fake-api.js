@@ -258,7 +258,11 @@ export function createFakeApi({
       {
         key: 'mapping',
         done: tags.length > 0 && mapped.length === tags.length,
-        detail: tags.length ? `${mapped.length} of ${n(tags.length, 'tag')} mapped` : 'No tags have arrived yet',
+        detail: tags.length
+          ? `${mapped.length} of ${n(tags.length, 'tag')} mapped`
+          : all.length
+            ? 'Only event streams so far: no tags of readings yet'
+            : 'No tags have arrived yet',
       },
       {
         key: 'dashboard',
@@ -276,6 +280,7 @@ export function createFakeApi({
       agents_seen: seen,
       tags: tags.length,
       mapped: mapped.length,
+      event_streams: all.length - tags.length,
       dashboard: best ? { id: best[0], label: head.nodes[best[0]].label } : null,
     };
   };

@@ -236,7 +236,7 @@ export function sheet(o: SheetOptions, opened?: (dialog: HTMLDialogElement, clos
 function focusableWhenScrolled(dialog: HTMLDialogElement, id: string): void {
   const body = dialog.querySelector<HTMLElement>('.sheet-body');
   if (!body || body.scrollHeight <= body.clientHeight) return;
-  if (body.querySelector('a[href], button, input, select, textarea, [tabindex]')) return;
+  if (body.querySelector('a[href], button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')) return;
   body.tabIndex = 0;
   body.setAttribute('role', 'region');
   body.setAttribute('aria-labelledby', `${id}-title`);

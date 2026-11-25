@@ -261,20 +261,14 @@ function nodeName(n: { type: string; label: string }, fold: number): string {
 }
 
 // Text widths on the canvas (review H-14), in drawing units: a node's text is --text-xs in the
-// app's font, measured once per label on a 2D canvas (2,000 labels in a few milliseconds), or
-// estimated where there is none. A column is as wide as its longest label, up to BOX.maxW.
+// app's font (system fonts: nothing to wait for), measured once per label on a 2D canvas (2,000
+// labels in a few milliseconds), or estimated where there is none. A column is as wide as its longest label, up to BOX.maxW.
 const TEXT_X = 13; // where a label starts in its box
 const TEXT_END = 8; // the room kept after it
 const ELLIPSIS = 10; // the room the ellipsis after a cut label takes
 const widths = new Map<string, number>();
-let measuring: { font: string; ctx: CanvasRenderingContext2D | null; loaded: boolean } | null = null;
-const fontsLoaded = (): boolean => typeof document.fonts === 'undefined' || document.fonts.status === 'loaded';
+let measuring: { font: string; ctx: CanvasRenderingContext2D | null } | null = null;
 function textWidth(text: string): number {
-  // Measured before the font loaded: measured again, once, with the font the labels draw in.
-  if (measuring && !measuring.loaded && fontsLoaded()) {
-    measuring = null;
-    widths.clear();
-  }
   if (!measuring) {
     const style = getComputedStyle(document.documentElement);
     const font = `${style.getPropertyValue('--text-xs').trim() || '12px'} ${style.getPropertyValue('--font').trim() || 'sans-serif'}`;
@@ -285,7 +279,7 @@ function textWidth(text: string): number {
     } catch {
       ctx = null; // no canvas (a test's DOM): estimated
     }
-    measuring = { font, ctx, loaded: fontsLoaded() };
+    measuring = { font, ctx };
   }
   let w = widths.get(text);
   if (w === undefined) {
@@ -377,7 +371,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       // A label too long for its box shows its first words and an ellipsis (a shape: the words shown
       // are words of the node's name), clipped to the box should a first word not fit (H-14).
       const dots = label.cut ? ellipsisAt(TEXT_X + Math.min(textWidth(label.text) + 2, room - ELLIPSIS + 2)) : '';
-      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${nodeName(n, fold)}"${label.cut ? ` data-tooltip="${esc(n.label)}"` : ''}><rect width="${w}" height="${BOX.h}" rx="6"/><rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/><text x="${TEXT_X}" y="18" clip-path="url(#${clip})">${esc(label.text)}</text>${dots}${fold ? `<text class="fold" x="${w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
+      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${nodeName(n, fold)}"${label.cut ? ` data-tooltip="${esc(t('ontology.node.title', { type: n.type, label: n.label, count: fold }))}" data-tooltip-named` : ''}><rect width="${w}" height="${BOX.h}" rx="6"/><rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/><text x="${TEXT_X}" y="18" clip-path="url(#${clip})">${esc(label.text)}</text>${dots}${fold ? `<text class="fold" x="${w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
         editor && id === ui.selected && picked.size === 1
           ? `<circle class="handle" data-handle cx="${w}" cy="${BOX.h / 2}" r="6"><title>${esc(t('ontology.node.handle'))}</title></circle>`
           : ''
@@ -1177,6 +1171,11 @@ function sourceBar(ctx: Context): string {
 const WAITING_SHOWN = 3;
 let waiting: { site: string; user: string; list: ReviewSummary[] } | null = null;
 const askedWaiting = new WeakSet<Repo>();
+// Others approve and reject meanwhile: asked again each time the page is shown, and when the tab is.
+let waitingStale = true;
+onNavigate((hash) => {
+  if (routeOf(hash) === 'ontology') waitingStale = true;
+});
 
 function waitingBar(ctx: Context): string {
   const o = ctx.ontology;
@@ -1202,10 +1201,11 @@ function askWaiting(ctx: Context): void {
   const repo = ctx.state.repo;
   const site = o.site;
   const user = o.userId;
-  if (!ctx.api || o.status !== 'ready' || !site || !user || askedWaiting.has(repo)) return;
+  if (!ctx.api || o.status !== 'ready' || !site || !user || (askedWaiting.has(repo) && !waitingStale)) return;
   askedWaiting.add(repo);
+  waitingStale = false;
   ctx.api.reviews
-    .list(site.id, 'open')
+    .list(site.id, 'open', { silent: true })
     .then((all) => {
       const list = all.filter((r) => r.author_id === user);
       const same =
@@ -1216,7 +1216,7 @@ function askWaiting(ctx: Context): void {
       waiting = { site: site.id, user, list };
       if (!same && ctx.state.repo === repo) ctx.rerender();
     })
-    .catch(() => undefined); // the client already showed why
+    .catch(() => undefined); // a background read: the line stays as it was
 }
 
 // How long a click waits to be sure it isn't the first of a double click.
@@ -1319,6 +1319,15 @@ const view: View = {
     if (ctx.ontology.role === 'viewer') root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
     const author = ctx.state.user.email;
     askWaiting(ctx);
+    document.addEventListener(
+      'visibilitychange',
+      () => {
+        if (document.visibilityState !== 'visible') return;
+        waitingStale = true;
+        askWaiting(ctx);
+      },
+      { signal: bound() },
+    );
     // Sends for review, then names the change request made, with a way to it (review H-09).
     const sendForReview = async (
       request: { message?: string; reviewerId?: string; reverts?: string },

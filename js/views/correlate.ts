@@ -40,7 +40,24 @@ let saving: { key: string; text: DraftText } | null = null; // the insight being
 let busy = '';
 let upload: { done: number; total: number } | null = null;
 // The file and name chosen for upload, kept across re-renders (a file input can't be refilled).
-let chosen: { file: File | null; name: string } = { file: null, name: '' };
+// `typed`: the name is the person's, not one suggested from the file's.
+let chosen: { file: File | null; name: string; typed: boolean } = { file: null, name: '', typed: false };
+const NONE_CHOSEN = { file: null, name: '', typed: false };
+
+// The name offered for the file chosen (review H-10): its file name, or the first free one after it
+// ("batches (2)"), worked out again once the list of batch tables has arrived; never over a typed one.
+function suggestName(): void {
+  if (!chosen.file || chosen.typed) return;
+  const base = chosen.file.name
+    .replace(/\.[^.]+$/, '')
+    .trim()
+    .slice(0, 200)
+    .trim();
+  chosen.name = freeName(
+    base,
+    (listing?.items ?? []).map((d) => d.name),
+  );
+}
 
 // The value a yes/no outcome takes when it failed, as the file has it.
 const TRUE = 'true'; // i18n-ok
@@ -65,6 +82,7 @@ async function loadList(ctx: Context): Promise<void> {
   } catch {
     if (listing?.site === site) listing = { site, items: [] };
   }
+  suggestName();
   ctx.rerender();
 }
 
@@ -233,14 +251,18 @@ async function uploadFile(ctx: Context, file: File, name: string): Promise<void>
       }),
     );
     Object.assign(uiState(ctx), { selected: d.id, outcome: '', ngText: '', variables: null, split: '' });
-    chosen = { file: null, name: '' };
+    chosen = { ...NONE_CHOSEN };
     detail = null;
     listing = null;
     created = null;
   } catch (e) {
     // A name taken is said under the name, the file kept to send again (review H-10); anything
     // else the client showed. A half-uploaded table would mislead: remove it.
-    if (e instanceof ApiError && e.code === NAME_TAKEN) showApiErrors([{ name: 'name', message: e.message }]);
+    if (e instanceof ApiError && e.code === NAME_TAKEN) {
+      // The first free name after it is offered in its place, under the error.
+      chosen.name = freeName(name, [...(listing?.items ?? []).map((d) => d.name), name]);
+      showApiErrors([{ name: 'name', message: e.message }]);
+    }
     if (created) await api.datasets.remove(site, created).catch(() => undefined);
     listing = null;
   } finally {
@@ -386,24 +408,8 @@ const view: View = {
     uploadForm?.querySelector<HTMLInputElement>('[name=file]')?.addEventListener(
       'change',
       (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0] ?? null;
-        // The file's name, or the first free one after it ("batches (2)"): never one taken (H-10).
-        const taken = (listing?.items ?? []).map((d) => d.name);
-        chosen = {
-          file,
-          name:
-            chosen.name ||
-            (file
-              ? freeName(
-                  file.name
-                    .replace(/\.[^.]+$/, '')
-                    .trim()
-                    .slice(0, 200)
-                    .trim(),
-                  taken,
-                )
-              : ''),
-        };
+        chosen.file = (e.target as HTMLInputElement).files?.[0] ?? null;
+        suggestName();
         ctx.rerender();
       },
       { signal: bound() },
@@ -412,6 +418,7 @@ const view: View = {
       'input',
       (e) => {
         chosen.name = (e.target as HTMLInputElement).value;
+        chosen.typed = true;
       },
       { signal: bound() },
     );

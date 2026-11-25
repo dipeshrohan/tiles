@@ -237,8 +237,9 @@ export interface Onboarding {
   machines: number;
   agents: number;
   agents_seen: number;
-  tags: number;
+  tags: number; // tags of readings
   mapped: number;
+  event_streams?: number; // tags that are event streams (downtime, scrap codes): not to map
   dashboard: { id: string; label: string } | null; // the machine to open first
 }
 
@@ -2038,8 +2039,18 @@ export function createApiClient(options: ApiOptions) {
     },
     // Change requests (T2.12): your staged changes (or a revert) for another engineer to approve or reject.
     reviews: {
-      list: (siteId: string, state: 'open' | 'closed' | 'all' = 'open', { limit = 50, offset = 0 } = {}) =>
-        request<ReviewSummary[]>('GET', `${site(siteId)}/reviews?state=${state}&limit=${limit}&offset=${offset}`),
+      // `silent`: a read in the background (the ontology's waiting line), failing without a word.
+      list: (
+        siteId: string,
+        state: 'open' | 'closed' | 'all' = 'open',
+        { limit = 50, offset = 0, silent = false } = {},
+      ) =>
+        request<ReviewSummary[]>(
+          'GET',
+          `${site(siteId)}/reviews?state=${state}&limit=${limit}&offset=${offset}`,
+          undefined,
+          { silent },
+        ),
       get: (siteId: string, n: number) => request<Review>('GET', `${site(siteId)}/reviews/${n}`),
       request: (siteId: string, body: { message?: string; reviewer_id?: string; reverts?: string }) =>
         request<Review>('POST', `${site(siteId)}/reviews`, body),

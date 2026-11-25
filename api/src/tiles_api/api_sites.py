@@ -151,6 +151,7 @@ class Onboarding(BaseModel):
     agents_seen: int  # that have called in
     tags: int  # the site's tags that are readings (not a model's derived signals, nor event streams)
     mapped: int  # of those, linked to a Signal node
+    event_streams: int  # the site's tags that are event streams (downtime, scrap codes): not to map
     dashboard: dict[str, str] | None  # the machine to open first: {id, label}
 
 
@@ -219,8 +220,9 @@ def onboarding(ctx: Ctx) -> Onboarding:
     # link (review H-08), so the step is done once every reading is mapped.
     tags = one(
         conn.execute(
-            "SELECT count(*) AS n, count(node_id) AS mapped FROM signals"
-            " WHERE site_id = %s AND source NOT LIKE 'model:%%' AND event_kind IS NULL",
+            "SELECT count(*) FILTER (WHERE event_kind IS NULL) AS n,"
+            " count(node_id) FILTER (WHERE event_kind IS NULL) AS mapped, count(*) AS arrived FROM signals"
+            " WHERE site_id = %s AND source NOT LIKE 'model:%%'",
             [ctx.site_id],
         ).fetchone()
     )
@@ -253,7 +255,11 @@ def onboarding(ctx: Ctx) -> Onboarding:
         Step(
             key="mapping",
             done=n_tags > 0 and mapped == n_tags,
-            detail=f"{mapped} of {plural(n_tags, 'tag')} mapped" if n_tags else "No tags have arrived yet",
+            detail=f"{mapped} of {plural(n_tags, 'tag')} mapped"
+            if n_tags
+            else "Only event streams so far: no tags of readings yet"
+            if int(tags["arrived"])
+            else "No tags have arrived yet",
         ),
         Step(
             key="dashboard",
@@ -271,5 +277,6 @@ def onboarding(ctx: Ctx) -> Onboarding:
         agents_seen=seen,
         tags=n_tags,
         mapped=mapped,
+        event_streams=int(tags["arrived"]) - n_tags,
         dashboard=dashboard,
     )

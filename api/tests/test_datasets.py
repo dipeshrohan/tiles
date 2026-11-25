@@ -1,5 +1,6 @@
 """Datasets and the correlation finder over HTTP (T3.11), on the browser's cutter batches."""
 
+import importlib
 from typing import Any
 
 import psycopg
@@ -10,6 +11,8 @@ from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are 
 from test_correlate import FIXTURE, KEYS
 
 from tiles_api import api_datasets
+
+migration = importlib.import_module("tiles_api.migrations.versions.0046_dataset_segments")
 
 COLUMNS = [
     {"name": "id", "kind": "text"},
@@ -72,6 +75,60 @@ def test_a_batch_table_gives_the_browsers_findings_with_intervals(api: TestClien
     assert pooled["explanations"] == []
     assert [h["split"] for h in pooled["hints"]] == ["material"]
     assert pooled["hints"][0]["explanations"] == out["explanations"]
+
+
+def test_split_hints_stay_within_the_work_budget(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataset = upload(api, site)
+    variables = FIXTURE["variables"]
+    work = 720 * len(variables)  # one run's
+    monkeypatch.setattr(api_datasets, "MAX_WORK", work)  # the pooled run only: no split tried
+    pooled = run(api, site, dataset, outcome="ng", variables=variables).json()
+    assert (pooled["explanations"], pooled["hints"]) == ([], [])
+    monkeypatch.setattr(api_datasets, "MAX_WORK", work * 2 - 1)  # still not room for a second
+    assert run(api, site, dataset, outcome="ng", variables=variables).json()["hints"] == []
+    monkeypatch.setattr(api_datasets, "MAX_WORK", work * 2)  # room for one split
+    assert [h["split"] for h in run(api, site, dataset, outcome="ng", variables=variables).json()["hints"]] == [
+        "material"
+    ]
+
+
+def test_segments_are_kept_as_rows_arrive_as_the_migration_works_them_out(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    dataset = upload(api, site)
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        kept = conn.execute("SELECT segments FROM datasets WHERE id = %s", [dataset]).fetchone()
+        assert kept is not None
+        assert kept["segments"]["material"] == ["anode", "cathode"]
+        assert kept["segments"]["ng"] == ["false", "true"]
+        assert len(kept["segments"]["id"]) == api_datasets.MAX_SEGMENTS + 1  # enough to know: too many
+        # The migration's backfill, on the same rows, gives the same segments (id: any 51 of them).
+        conn.execute("UPDATE datasets SET segments = '{}' WHERE id = %s", [dataset])
+        conn.execute(migration.UPGRADE.split(";", 1)[1])
+        filled = conn.execute("SELECT segments FROM datasets WHERE id = %s", [dataset]).fetchone()
+        assert filled is not None
+        assert {k: v for k, v in filled["segments"].items() if k != "id"} == {
+            k: v for k, v in kept["segments"].items() if k != "id"
+        }
+        assert len(filled["segments"]["id"]) == api_datasets.MAX_SEGMENTS + 1
+
+
+def test_segments_merge_blanks_and_stop_past_a_splits_limit() -> None:
+    columns = [{"name": "line", "kind": "text"}, {"name": "x", "kind": "number"}, {"name": "ok", "kind": "bool"}]
+    rows: list[dict[str, Any]] = [{"line": "L2", "ok": True}, {"line": None, "ok": False}, {"line": "L1"}]
+    assert api_datasets.merge_segments(columns, {"line": ["L1"]}, rows) == {
+        "line": ["(blank)", "L1", "L2"],
+        "ok": ["(blank)", "false", "true"],
+    }
+    many = [{"line": f"B{i:03}"} for i in range(200)]
+    merged = api_datasets.merge_segments(columns, {}, many)
+    assert len(merged["line"]) == api_datasets.MAX_SEGMENTS + 1
 
 
 def test_splits_are_columns_with_few_values() -> None:

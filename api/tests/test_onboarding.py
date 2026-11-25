@@ -158,6 +158,20 @@ def test_onboarding_follows_the_site_from_created_to_its_first_dashboard(
         "No tags have arrived yet",
     )
 
+    # An event stream (downtime codes) first: it has no Signal node to map, so it isn't a tag to map.
+    downtime = {"samples": [{"signal": "p1.downtime", "at": datetime.now(UTC).isoformat(), "value": 3.0}]}
+    assert api.post("/agent/samples", json=downtime, headers=agent_auth(token)).status_code == 200
+    event = api.get(f"/sites/{site_id}/signals?q=p1.downtime", headers=ENG).json()["signals"][0]
+    res = api.patch(f"/sites/{site_id}/signals/{event['id']}", json={"event_kind": "downtime"}, headers=ENG)
+    assert res.status_code == 200, res.text
+    s = steps(api, site_id)
+    assert (s["tags"], s["event_streams"], s["details"]["mapping"]) == (
+        0,
+        1,
+        "Only event streams so far: no tags of readings yet",
+    )
+    assert "mapping" not in s["done"]
+
     # Its tags arrive; one is mapped, and its machine is the first dashboard.
     samples = {
         "samples": [
@@ -177,13 +191,6 @@ def test_onboarding_follows_the_site_from_created_to_its_first_dashboard(
         "mapping",
         "1 of 2 tags mapped",
     )
-    # An event stream (downtime codes) has no Signal node to map: it isn't counted.
-    downtime = {"samples": [{"signal": "p1.downtime", "at": datetime.now(UTC).isoformat(), "value": 3.0}]}
-    assert api.post("/agent/samples", json=downtime, headers=agent_auth(token)).status_code == 200
-    event = api.get(f"/sites/{site_id}/signals?q=p1.downtime", headers=ENG).json()["signals"][0]
-    res = api.patch(f"/sites/{site_id}/signals/{event['id']}", json={"event_kind": "downtime"}, headers=ENG)
-    assert res.status_code == 200, res.text
-    assert steps(api, site_id)["details"]["mapping"] == "1 of 2 tags mapped"
     temp = api.get(f"/sites/{site_id}/signals?q=p1.temp", headers=ENG).json()["signals"][0]
     res = api.patch(f"/sites/{site_id}/signals/{temp['id']}", json={"node_id": "temp"}, headers=ENG)
     assert res.status_code == 200, res.text

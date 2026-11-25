@@ -126,7 +126,7 @@ class CorrelateOut(BaseModel):
 
 
 DATASETS = """
-SELECT d.id, d.name, d.description, d.columns, d.row_count, u.name AS created_by, d.created_at
+SELECT d.id, d.name, d.description, d.columns, d.row_count, d.segments, u.name AS created_by, d.created_at
 FROM datasets d LEFT JOIN users u ON u.id = d.created_by WHERE d.site_id = %s
 """
 
@@ -179,19 +179,32 @@ def split_columns(columns: list[dict[str, str]], values: dict[str, int], rows: i
     return sorted(fit, key=lambda name: (values[name], name))
 
 
-def splits_of(ctx: SiteContext, d: dict[str, Any]) -> list[str]:
-    """`split_columns` of a stored dataset: each column's values counted as segments (`segment_of`)."""
-    names = [c["name"] for c in d["columns"] if c["kind"] != "number"]
-    if not names or not d["row_count"]:
-        return []
-    counts = ctx.conn.execute(
-        """
-        SELECT k AS name, count(DISTINCT coalesce(r.row -> k, 'null'::jsonb)) AS n
-        FROM dataset_rows r CROSS JOIN unnest(%s::text[]) AS k WHERE r.dataset_id = %s GROUP BY k
-        """,
-        [names, d["id"]],
-    ).fetchall()
-    return split_columns(d["columns"], {c["name"]: int(c["n"]) for c in counts}, d["row_count"])
+def splits_of(d: dict[str, Any]) -> list[str]:
+    """`split_columns` of a stored dataset, from the segments kept as its rows arrived."""
+    counts = {name: len(values) for name, values in d["segments"].items()}
+    return split_columns(d["columns"], counts, d["row_count"])
+
+
+def merge_segments(
+    columns: list[dict[str, str]], kept: dict[str, list[str]], rows: list[dict[str, Any]]
+) -> dict[str, list[str]]:
+    """The segments of each text or true/false column (`correlate.segment_of`) with those of new
+    rows added, at most MAX_SEGMENTS + 1 each: enough to know a column has too many to split by."""
+    out = {}
+    for c in columns:
+        if c["kind"] == "number":
+            continue
+        values = list(kept.get(c["name"], []))
+        seen = set(values)
+        for row in rows:
+            if len(values) > MAX_SEGMENTS:
+                break
+            segment = correlate.segment_of(row.get(c["name"]))
+            if segment not in seen:
+                seen.add(segment)
+                values.append(segment)
+        out[c["name"]] = sorted(values)
+    return out
 
 
 @router.get("/sites/{site_id}/datasets/{dataset_id}", response_model=DatasetDetail)
@@ -201,7 +214,7 @@ def get_dataset(ctx: Ctx, dataset_id: uuid.UUID) -> dict[str, Any]:
     preview = ctx.conn.execute(
         "SELECT row FROM dataset_rows WHERE dataset_id = %s ORDER BY i LIMIT 20", [dataset_id]
     ).fetchall()
-    return d | {"preview": [r["row"] for r in preview], "splits": splits_of(ctx, d)}
+    return d | {"preview": [r["row"] for r in preview], "splits": splits_of(d)}
 
 
 def _fits(kind: str, value: Any) -> bool:
@@ -263,7 +276,10 @@ def add_rows(ctx: Editor, dataset_id: uuid.UUID, body: RowsIn) -> dict[str, Any]
         [dataset_id, first, [Jsonb(r) for r in rows]],
     )
     count = first + len(rows)
-    ctx.conn.execute("UPDATE datasets SET row_count = %s WHERE id = %s", [count, dataset_id])
+    segments = merge_segments(d["columns"], d["segments"], rows)
+    ctx.conn.execute(
+        "UPDATE datasets SET row_count = %s, segments = %s WHERE id = %s", [count, Jsonb(segments), dataset_id]
+    )
     ctx.audit("dataset.rows", "dataset", str(dataset_id), after={"rows": len(rows), "row_count": count})
     return {"received": len(rows), "row_count": count}
 
@@ -311,20 +327,9 @@ def correlate_dataset(
 
 def run(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: float = 0.8) -> dict[str, Any]:
     """The correlation of a dataset (`find_dataset`), as `POST …/correlate` answers it (saved
-    insights keep one as their evidence), with its split hints (review H-11)."""
-    out = correlation(ctx, d, body, min_effect)
-    hints: list[dict[str, Any]] = []
-    if body.split is None and not out["explanations"]:
-        for column in [c for c in splits_of(ctx, d) if c != body.outcome][:MAX_HINTS]:
-            split = correlation(ctx, d, body.model_copy(update={"split": column}), min_effect)
-            if split["explanations"]:
-                hints.append({"split": column, "explanations": split["explanations"]})
-    out["hints"] = sorted(hints, key=lambda h: -len(h["explanations"]))  # stable: fewest values first
-    return out
-
-
-def correlation(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: float) -> dict[str, Any]:
-    """One correlation of a dataset, without hints."""
+    insights keep one as their evidence). Pooled, with no large, clear effect, it also tries the
+    dataset's splits (`splits_of`, at most MAX_HINTS, within MAX_WORK) on the same rows, read once,
+    and gives those that show one as `hints` (review H-11)."""
     dataset_id = d["id"]
     kinds = {c["name"]: c["kind"] for c in d["columns"]}
     for name in [body.outcome, *([body.split] if body.split else []), *(body.variables or [])]:
@@ -359,7 +364,8 @@ def correlation(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effe
             f"{not_numbers[0]} is not a number column",
             column=not_numbers[0],
         )
-    if d["row_count"] * len(variables) > MAX_WORK:
+    work = d["row_count"] * len(variables)
+    if work > MAX_WORK:
         raise Problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "dataset.too_much_work",
@@ -367,7 +373,10 @@ def correlation(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effe
             rows=d["row_count"],
             variables=len(variables),
         )
-    needed = list(dict.fromkeys([body.outcome, *([body.split] if body.split else []), *variables]))
+    # The splits a pooled run may try: each is another run over the same rows, so within MAX_WORK.
+    room = MAX_WORK // work - 1 if work else MAX_HINTS
+    tries = [c for c in splits_of(d) if c != body.outcome][: max(0, min(MAX_HINTS, room))] if not body.split else []
+    needed = list(dict.fromkeys([body.outcome, *([body.split] if body.split else []), *variables, *tries]))
     rows = [
         r["row"]
         for r in ctx.conn.execute(
@@ -390,16 +399,23 @@ def correlation(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effe
     def is_ng(value: Any) -> bool:
         return any(_same(value, ng) for ng in ng_values)
 
+    def explain(findings: list[correlate.Finding], split: str | None) -> list[dict[str, str]]:
+        top: dict[str, correlate.Finding] = {}
+        for f in findings:  # largest first: each segment's first clear, large effect
+            if f.clear and abs(f.effect) >= min_effect:
+                top.setdefault(f.segment, f)
+        return [{"segment": f.segment, "variable": f.variable, "text": _text(f, bool(split))} for f in top.values()]
+
     findings = correlate.find(rows, variables, is_ng, body.outcome, body.split)
     judged = correlate.judged(rows, body.outcome)
     ng = sum(1 for r in judged if is_ng(r[body.outcome]))
-    top: dict[str, correlate.Finding] = {}
-    for f in findings:  # largest first: each segment's first clear, large effect
-        if f.clear and abs(f.effect) >= min_effect:
-            top.setdefault(f.segment, f)
-    explanations = [
-        {"segment": f.segment, "variable": f.variable, "text": _text(f, bool(body.split))} for f in top.values()
-    ]
+    explanations = explain(findings, body.split)
+    hints = []
+    if not explanations:
+        for column in tries:
+            shown = explain(correlate.find(rows, variables, is_ng, body.outcome, column), column)
+            if shown:
+                hints.append({"split": column, "explanations": shown})
 
     def finite(x: float) -> float | None:
         return x if math.isfinite(x) else None
@@ -425,4 +441,5 @@ def correlation(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effe
             for f in findings
         ],
         "explanations": explanations,
+        "hints": sorted(hints, key=lambda h: -len(h["explanations"])),  # stable: fewest values first
     }

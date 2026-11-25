@@ -5834,6 +5834,10 @@
             ],
             "title": "Dashboard"
           },
+          "event_streams": {
+            "title": "Event Streams",
+            "type": "integer"
+          },
           "machines": {
             "title": "Machines",
             "type": "integer"
@@ -5880,6 +5884,7 @@
           "agents_seen",
           "tags",
           "mapped",
+          "event_streams",
           "dashboard"
         ],
         "title": "Onboarding",
