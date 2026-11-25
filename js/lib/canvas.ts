@@ -380,12 +380,14 @@ export function likelyRel(from: NodeType, to: NodeType): string {
   if ((from === 'Machine' || from === 'Cell' || from === 'Line') && to === 'PLC') return 'controlledBy';
   if ((from === 'Machine' || from === 'Line' || from === 'Cell') && to === 'Process') return 'runs';
   if (from === 'Process' && to === 'Material') return 'consumes';
+  if (from === 'Enterprise' && to === 'Site') return 'contains'; // one column, still a level apart
   if (from === to) return 'feeds';
   return level(from) < level(to) ? 'contains' : 'feeds';
 }
 
 // The type a new node most likely has under `parent` (review H-22): the next equipment level down,
-// a machine's PLC, a PLC's signal, a process's material; a Machine with no parent or none of these.
+// a machine's PLC, a PLC's signal, a process's material. A Machine with no parent; null for a parent
+// nothing is made under (a Signal, a Material): the form leaves its choice alone.
 const CHILD: Partial<Record<NodeType, NodeType>> = {
   Enterprise: 'Site',
   Site: 'Workcenter',
@@ -396,4 +398,5 @@ const CHILD: Partial<Record<NodeType, NodeType>> = {
   PLC: 'Signal',
   Process: 'Material',
 };
-export const likelyChild = (parent: NodeType | null | undefined): NodeType => (parent && CHILD[parent]) || 'Machine';
+export const likelyChild = (parent?: NodeType | null): NodeType | null =>
+  parent ? (CHILD[parent] ?? null) : 'Machine';

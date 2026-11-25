@@ -270,13 +270,30 @@ test('a label too long for its room keeps whole words from its start, for an ell
 
 test('a new node starts as a Machine, or as the type that fits under its parent (review H-22)', () => {
   assert.equal(likelyChild(null), 'Machine');
+  assert.equal(likelyChild(undefined), 'Machine');
   assert.equal(likelyChild('Enterprise'), 'Site');
-  assert.equal(likelyChild('Site'), 'Workcenter');
   assert.equal(likelyChild('Line'), 'Machine');
   assert.equal(likelyChild('Machine'), 'PLC');
-  assert.equal(likelyChild('PLC'), 'Signal');
-  assert.equal(likelyChild('Document'), 'Machine');
-  // The relationship the form then suggests is the one a drag would.
-  assert.equal(likelyRel('Line', likelyChild('Line')), 'contains');
-  assert.equal(likelyRel('Machine', likelyChild('Machine')), 'controlledBy');
+  // A parent nothing is made under leaves the form's choice alone.
+  for (const leaf of ['Signal', 'Material', 'Document', 'Model']) assert.equal(likelyChild(leaf), null);
+});
+
+// The pairs docs/data-model.md allows for each relationship.
+const HIERARCHY = ['Enterprise', 'Site', 'Workcenter', 'Line', 'Cell', 'Machine'];
+const ALLOWED = {
+  contains: (a, b) => HIERARCHY.includes(a) && HIERARCHY.indexOf(b) > HIERARCHY.indexOf(a),
+  runs: (a, b) => a === 'Machine' && b === 'Process',
+  consumes: (a, b) => a === 'Process' && b === 'Material',
+  controlledBy: (a, b) => a === 'Machine' && b === 'PLC',
+  emits: (a, b) => a === 'PLC' && b === 'Signal',
+  feeds: (a, b) => ['Line', 'Cell', 'Machine'].includes(a) && ['Line', 'Cell', 'Machine'].includes(b),
+};
+
+test('the relationship suggested under each parent is one the data model allows (review H-22)', () => {
+  for (const parent of ['Enterprise', 'Site', 'Workcenter', 'Line', 'Cell', 'Machine', 'PLC', 'Process']) {
+    const child = likelyChild(parent);
+    const rel = likelyRel(parent, child);
+    assert.ok(ALLOWED[rel]?.(parent, child), `${parent} ${rel} ${child}`);
+  }
+  assert.equal(likelyRel('Enterprise', 'Site'), 'contains');
 });

@@ -20,6 +20,11 @@ const digits = (p: ParamSpec): number => (stepFor(p) < 1 ? Math.max(0, -Math.flo
 const paramValue = (p: ParamSpec, v: number): string =>
   p.unit === '%' ? percent(v / 100, digits(p)) : fmt(v, digits(p));
 const paramUnit = (p: ParamSpec): string => (p.unit === '%' ? '' : p.unit);
+// A range of numbers: an en dash, or "to" when an end is negative (−5 to 10 reads; −5–10 doesn't).
+export const range = (low: number, high: number, unit: string): string => {
+  const [a, b] = [signedNumber(low, 2), signedNumber(high, 2)];
+  return `${(a + b).includes('−') ? t('design.sweep.rangeTo', { low: a, high: b }) : `${a}–${b}`} ${unit}`.trim();
+};
 
 interface DesignUi {
   model: string;
@@ -250,6 +255,11 @@ const view: View = {
       : true;
     const unit = model.output.unit;
     const label = (k: string) => model.params.find((p) => p.key === k)?.label ?? k;
+    // A run's changed parameter as the sliders show it: a percentage with its sign (review).
+    const shown = (key: string, v: unknown): string => {
+      const p = model.params.find((q) => q.key === key);
+      return p && typeof v === 'number' && p.unit === '%' ? paramValue(p, v) : show(v);
+    };
 
     return `
       ${pageHead({
@@ -310,7 +320,7 @@ const view: View = {
 
       <div class="grid g2 mb-4">
         <div class="card">
-          <div class="card-head"><div><h2>${esc(t('design.sweep.title'))}</h2><p>${esc(t('design.sweep.held', { range: `${signedNumber(sw.min, 2)}–${signedNumber(sw.max, 2)} ${unit}`.trim() }))}</p></div>
+          <div class="card-head"><div><h2>${esc(t('design.sweep.title'))}</h2><p>${esc(t('design.sweep.held', { range: range(sw.min, sw.max, unit) }))}</p></div>
             <div class="row no-print">
               <select id="sweep-x" aria-label="${esc(t('design.sweep.x'))}">${model.params.map((p) => `<option value="${p.key}" ${p.key === xKey ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
               <span class="muted">×</span>
@@ -338,7 +348,7 @@ const view: View = {
                   .map((r) => {
                     const diff = diffOf(r);
                     return `<tr class="clickable" data-run="${esc(r.id)}"><td><b>v${esc(r.version)}</b> ${r.note ? esc(r.note) : `<span class="muted">${esc(t('design.untitled'))}</span>`}<div class="small muted">${esc(r.author)} · ${timeAgo(r.date)}</div></td>
-                      <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show(d.from)} → ${show(d.to)}`).join('<br>') || esc(t('design.noChange')) : esc(t('design.firstRun'))}</td>
+                      <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${shown(d.key, d.from)} → ${shown(d.key, d.to)}`).join('<br>') || esc(t('design.noChange')) : esc(t('design.firstRun'))}</td>
                       <td class="num"><b>${fmt(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
                   })
                   .join('')}</tbody></table></div>`

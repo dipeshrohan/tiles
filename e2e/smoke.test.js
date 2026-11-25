@@ -1213,6 +1213,28 @@ test('ontology nodes are as wide as their column’s longest name; a longer one 
   await page.close();
 });
 
+test('pages are headed by their names, and the Design studio writes units as the guide does (review H-16, H-17)', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  for (const [route, name] of [
+    ['ontology', 'Ontology builder'],
+    ['chat', 'Copilot'],
+    ['physics', 'Factory physics'],
+    ['quality', 'Process & quality'],
+  ]) {
+    await page.goto(`${httpBase}#/${route}`);
+    assert.equal(await page.locator('#view h1').innerText(), name);
+  }
+  await page.goto(`${httpBase}#/design`);
+  await page.waitForSelector('#view h1');
+  const text = await page.locator('#view').innerText();
+  assert.match(text, /\b\d+\.\d%/); // a percentage, without a space before %
+  assert.doesNotMatch(text, /\d %/);
+  assert.match(text, /\d\.\d\d–\d+\.\d\d kN/); // the sweep's range: an en dash, no spaces
+  assert.doesNotMatch(text, /\d – \d/);
+  assert.deepEqual(errors, []);
+});
+
 test('the ontology builder: relate by dragging, several at once, keys, minimap, undo and redo (U5.05)', async (t) => {
   const { page, errors } = await openPage({ viewport: { width: 1600, height: 1000 } });
   t.after(() => page.close());
@@ -3220,11 +3242,23 @@ test('compare mode: this day against a week earlier, shift-aligned with the diff
 
   // From and To are drawn in the browser's language; the line under them says the range Tiles'
   // way, on the site's clock, and follows what is typed (review H-18).
+  // The presets' durations as the guide writes them (review H-17).
+  assert.deepEqual(await page.locator('#explorer-range [data-preset]:not([data-preset="data"])').allInnerTexts(), [
+    'Last 1 h',
+    'Last 24 h',
+    'Last 7 days',
+    'Last 30 days',
+  ]);
   const readsAs = page.locator('[data-range-reads-as]');
   assert.match(await readsAs.innerText(), /^From 7 Sep\S* 2026, 00:00 UTC to 8 Sep\S* 2026, 00:00 UTC$/);
   assert.equal(await page.getAttribute('#explorer-range [name=to]', 'aria-describedby'), 'reads-as-to');
   await page.fill('#explorer-range [name=to]', '2026-09-07T12:30');
   assert.match(await readsAs.innerText(), /to 7 Sep\S* 2026, 12:30 UTC$/);
+  // Half a range isn't written out (review).
+  await page.fill('#explorer-range [name=from]', '');
+  assert.equal(await readsAs.isVisible(), false);
+  await page.fill('#explorer-range [name=from]', '2026-09-07T00:00');
+  assert.equal(await readsAs.isVisible(), true);
   await page.fill('#explorer-range [name=to]', '2026-09-08T00:00');
 
   // Two ranges: this day against the same day a week earlier, each from its own start.
@@ -5945,6 +5979,10 @@ test('the correlation finder: upload a batch table, split it, and read the effec
   a.errors.length = 0; // the refused name: "Failed to load resource" (409)
   // yes/no became a true/false column, the outcome by default.
   assert.equal(await a.page.inputValue('#correlate-form [name=outcome]'), 'ng');
+  assert.match(
+    await a.page.locator('#correlate-form label:has([name=ng])').innerText(),
+    /^A batch failed when this is: \(true if empty\)/, // review H-23
+  );
   // Only columns with few values are splits: not id, one per batch (review H-11).
   const splits = await a.page
     .locator('#correlate-form [name=split] option')
@@ -5972,6 +6010,10 @@ test('the correlation finder: upload a batch table, split it, and read the effec
   assert.match(said, /cathode: failed batches ran tension lower/);
   assert.equal(await a.page.locator('[data-result] tbody tr').count(), 8); // 4 variables x 2 materials
   assert.doesNotMatch(await a.page.locator('[data-result] tbody').innerText(), /speed/);
+  // d, its interval and r with a true minus, and never −0.00 (review H-17).
+  const table = await a.page.locator('[data-result] tbody').innerText();
+  assert.match(table, /−\d/);
+  assert.doesNotMatch(table, /(^|\s)-\d|−0\.00\b/);
   assert.equal((await a.page.locator('.forest circle.ci.bad').count()) >= 1, true);
   assert.equal((await a.page.locator('.forest circle.ci.good').count()) >= 1, true);
 

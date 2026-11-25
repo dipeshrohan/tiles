@@ -635,6 +635,7 @@
   "design.sweep.points": "{done} of {total} points",
   "design.sweep.pointsPerAxis": "Points per axis",
   "design.sweep.progress": "Sweep progress",
+  "design.sweep.rangeTo": "{low} to {high}",
   "design.sweep.run": "Run on the API",
   "design.sweep.title": "Parameter sweep",
   "design.sweep.x": "X parameter",

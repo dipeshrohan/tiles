@@ -885,6 +885,10 @@ main {
 .g4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
+/* The Data explorer's range written out (review H-18): only while both ends are set. */
+[data-range-reads-as]:has(.reads-as:empty) {
+  display: none;
+}
 /* The ROI report's form (T6.01): as many fields to a row as fit. */
 .roi-form {
   display: grid;

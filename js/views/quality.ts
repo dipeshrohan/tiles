@@ -7,6 +7,7 @@ import type { Material } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 import { demoNotice, pageHead, term } from '../lib/ui.ts';
 import { t, tHtml } from '../lib/i18n.ts';
+import { signedNumber } from '../lib/format.ts';
 
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -72,7 +73,7 @@ const view: View = {
       <div class="grid g2 mb-4">
         <div class="card">
           <div class="card-head"><h2>${esc(t('quality.effects.title'))}</h2><p>${tHtml('quality.effects.hint', { d: term('cohens-d') })}</p></div>
-          ${hbars({ items: effects, width: 480, left: 200, title: t('quality.effects.chartTitle'), format: (x) => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(2) })}
+          ${hbars({ items: effects, width: 480, left: 200, title: t('quality.effects.chartTitle'), format: (x) => signedNumber(x, 2) })}
           ${ui.split ? '' : `<p class="small soft mt-2">${tHtml('quality.effects.pooled', { link: `<a href="#/quality" data-split="1">${esc(t('quality.effects.splitLink'))}</a>` })}</p>`}
         </div>
         <div class="stack">
