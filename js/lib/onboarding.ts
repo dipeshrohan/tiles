@@ -275,7 +275,7 @@ export function localProgress(graph: Graph, setup: LocalSetup): Onboarding {
     },
     {
       key: 'mapping',
-      done: mapped.length > 0,
+      done: mapped.length === DEMO_TAGS.length, // every tag, not the first (review H-08)
       detail: t('onboarding.progress.mapped', { mapped: mapped.length, count: DEMO_TAGS.length }),
     },
     {

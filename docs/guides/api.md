@@ -532,7 +532,7 @@ Start a dataset with its columns; send its rows next.
 
 **Who:** site member. **Answers:** 200, 422.
 
-A dataset with its columns and its first 20 rows.
+A dataset with its columns, its first 20 rows and the columns worth splitting by.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|
@@ -554,7 +554,7 @@ Delete a dataset and its rows (engineers and admins).
 
 **Who:** site member. **Answers:** 200, 422.
 
-Which variables separate the failed batches from the good ones: Cohen's d with its 95% confidence interval and r, per segment of `split` if given, largest effect first.
+Which variables separate the failed batches from the good ones: Cohen's d with its 95% confidence interval and r, per segment of `split` if given, largest effect first. A pooled run that finds no large, clear effect also tries the dataset's splits (at most five) and gives, as `hints`, those that show one: an effect in opposite directions per segment cancels out pooled.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|

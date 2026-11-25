@@ -227,10 +227,11 @@ export function createFakeApi({
     const machines = Object.values(head.nodes).filter((n) => n.type === 'Machine').length;
     const live = agents.filter((a) => !a.revoked);
     const seen = live.filter((a) => a.last_seen_at).length;
-    const tags = signals.filter((x) => !x.source.startsWith('model:'));
+    const all = signals.filter((x) => !x.source.startsWith('model:'));
+    const tags = all.filter((x) => !x.event_kind); // readings: event streams have no node (H-08)
     const mapped = tags.filter((x) => x.node_id);
     const counts = new Map();
-    for (const x of mapped) {
+    for (const x of all.filter((x) => x.node_id)) {
       const m = head.nodes[x.node_id] ? machineOf(head, x.node_id) : null;
       if (m) counts.set(m, (counts.get(m) ?? 0) + 1);
     }
@@ -256,8 +257,12 @@ export function createFakeApi({
       },
       {
         key: 'mapping',
-        done: mapped.length > 0,
-        detail: tags.length ? `${mapped.length} of ${n(tags.length, 'tag')} mapped` : 'No tags have arrived yet',
+        done: tags.length > 0 && mapped.length === tags.length,
+        detail: tags.length
+          ? `${mapped.length} of ${n(tags.length, 'tag')} mapped`
+          : all.length
+            ? 'Only event streams so far: no tags of readings yet'
+            : 'No tags have arrived yet',
       },
       {
         key: 'dashboard',
@@ -275,6 +280,7 @@ export function createFakeApi({
       agents_seen: seen,
       tags: tags.length,
       mapped: mapped.length,
+      event_streams: all.length - tags.length,
       dashboard: best ? { id: best[0], label: head.nodes[best[0]].label } : null,
     };
   };
@@ -503,7 +509,28 @@ export function createFakeApi({
       text: `${q.split ? `${f.segment}: ` : ''}failed batches ran ${f.variable} ${f.effect > 0 ? 'higher' : 'lower'}.`,
     }));
     const ngCount = rows.filter((r) => r.__ng).length;
-    return { rows: rows.length, ng: ngCount, ok: rows.length - ngCount, findings, explanations };
+    // A pooled run with nothing to explain tries the splits, as the API does (review H-11).
+    const hints =
+      q.split || explanations.length
+        ? []
+        : splitsOf(d)
+            .filter((c) => c !== q.outcome)
+            .slice(0, 5)
+            .map((split) => ({ split, explanations: correlationOf(d, { ...q, split }).explanations }))
+            .filter((h) => h.explanations.length)
+            .sort((a, b) => b.explanations.length - a.explanations.length);
+    return { rows: rows.length, ng: ngCount, ok: rows.length - ngCount, findings, explanations, hints };
+  }
+  // The columns worth splitting by, as the API's split_columns: text or true/false, 2 to 50 values
+  // and at most half the rows, fewest values first.
+  function splitsOf(d) {
+    const counts = d.columns
+      .filter((c) => c.kind !== 'number')
+      .map((c) => [c.name, new Set(d.rows.map((r) => JSON.stringify(r[c.name] ?? null))).size]);
+    return counts
+      .filter(([, n]) => n >= 2 && n <= Math.min(50, Math.floor(d.rows.length / 2)))
+      .sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1))
+      .map(([name]) => name);
   }
 
   const server = createServer(async (req, res) => {
@@ -1629,7 +1656,11 @@ export function createFakeApi({
         if (!m?.[1] && req.method === 'POST') {
           const { name, columns } = await body(req);
           if (datasets.some((x) => x.name === name))
-            return send(409, { detail: `A dataset is already called ${name}` });
+            return send(409, {
+              detail: `A batch table is already called ${name}. Choose another name.`,
+              code: 'dataset.name_taken',
+              params: { name },
+            });
           const created = {
             id: randomUUID(),
             name,
@@ -1643,7 +1674,8 @@ export function createFakeApi({
           return send(201, shown(created));
         }
         if (!d) return send(404, { detail: 'No such dataset' });
-        if (!m[2] && req.method === 'GET') return send(200, { ...shown(d), preview: d.rows.slice(0, 20) });
+        if (!m[2] && req.method === 'GET')
+          return send(200, { ...shown(d), preview: d.rows.slice(0, 20), splits: splitsOf(d) });
         if (!m[2] && req.method === 'DELETE') {
           datasets.splice(datasets.indexOf(d), 1);
           return send(204);

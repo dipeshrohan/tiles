@@ -22,7 +22,11 @@ MAX_COLUMNS = 200
 MAX_ROWS = 200_000  # per dataset
 MAX_BATCH = 5_000  # rows per request
 MAX_WORK = 2_000_000  # rows x variables one correlation may read
+# A split's most segments. Stored segments (`datasets.segments`) keep at most MAX_SEGMENTS + 1 per
+# column, by `merge_segments` and by migration 0046's backfill (LIMIT 51): raising this needs a new
+# backfill, or columns now allowed would still count as having too many.
 MAX_SEGMENTS = 50
+MAX_HINTS = 5  # splits tried when a pooled run finds no large effect
 NAME = r"^\S(.*\S)?$"
 Value = StrictFloat | StrictInt | StrictBool | Annotated[StrictStr, Field(max_length=1000)] | None
 
@@ -59,6 +63,8 @@ class Dataset(BaseModel):
 
 class DatasetDetail(Dataset):
     preview: list[dict[str, Any]]  # the first 20 rows
+    # The columns worth splitting by (review H-11): text or true/false, fewest values first.
+    splits: list[str]
 
 
 class RowsIn(BaseModel):
@@ -107,16 +113,23 @@ class Explanation(BaseModel):
     text: str
 
 
+class SplitHint(BaseModel):
+    split: str  # a column the pooled run wasn't split by
+    explanations: list[Explanation]  # what splitting by it shows (never empty)
+
+
 class CorrelateOut(BaseModel):
     rows: int  # with an outcome
     ng: int
     ok: int
     findings: list[FindingOut]  # by |d|, largest first
     explanations: list[Explanation]  # per segment, its strongest clear effect that is large (|d| >= 0.8)
+    # A pooled run with no explanation: the splits that show some (review H-11), most first.
+    hints: list[SplitHint] = []
 
 
 DATASETS = """
-SELECT d.id, d.name, d.description, d.columns, d.row_count, u.name AS created_by, d.created_at
+SELECT d.id, d.name, d.description, d.columns, d.row_count, d.segments, u.name AS created_by, d.created_at
 FROM datasets d LEFT JOIN users u ON u.id = d.created_by WHERE d.site_id = %s
 """
 
@@ -148,20 +161,63 @@ def create_dataset(ctx: Editor, body: DatasetIn) -> dict[str, Any]:
     ).fetchone()
     if row is None:
         raise Problem(
-            status.HTTP_409_CONFLICT, "dataset.name_taken", f"A dataset is already called {body.name}", name=body.name
+            status.HTTP_409_CONFLICT,
+            "dataset.name_taken",
+            f"A batch table is already called {body.name}. Choose another name.",
+            name=body.name,
         )
     ctx.audit("dataset.create", "dataset", str(row["id"]), after={"name": body.name, "columns": len(body.columns)})
     return find_dataset(ctx, row["id"])
 
 
+def split_columns(columns: list[dict[str, str]], values: dict[str, int], rows: int) -> list[str]:
+    """The columns worth splitting by: text or true/false ones with 2 to MAX_SEGMENTS values (a
+    blank counts as one), and no more values than half the rows, so a segment has two batches on
+    average; an id, a value per batch, never is. Fewest values first, then by name."""
+    fit = [
+        c["name"]
+        for c in columns
+        if c["kind"] != "number" and 2 <= values.get(c["name"], 0) <= min(MAX_SEGMENTS, rows // 2)
+    ]
+    return sorted(fit, key=lambda name: (values[name], name))
+
+
+def splits_of(d: dict[str, Any]) -> list[str]:
+    """`split_columns` of a stored dataset, from the segments kept as its rows arrived."""
+    counts = {name: len(values) for name, values in d["segments"].items()}
+    return split_columns(d["columns"], counts, d["row_count"])
+
+
+def merge_segments(
+    columns: list[dict[str, str]], kept: dict[str, list[str]], rows: list[dict[str, Any]]
+) -> dict[str, list[str]]:
+    """The segments of each text or true/false column (`correlate.segment_of`) with those of new
+    rows added, at most MAX_SEGMENTS + 1 each: enough to know a column has too many to split by."""
+    out = {}
+    for c in columns:
+        if c["kind"] == "number":
+            continue
+        values = list(kept.get(c["name"], []))
+        seen = set(values)
+        for row in rows:
+            if len(values) > MAX_SEGMENTS:
+                break
+            segment = correlate.segment_of(row.get(c["name"]))
+            if segment not in seen:
+                seen.add(segment)
+                values.append(segment)
+        out[c["name"]] = sorted(values)
+    return out
+
+
 @router.get("/sites/{site_id}/datasets/{dataset_id}", response_model=DatasetDetail)
 def get_dataset(ctx: Ctx, dataset_id: uuid.UUID) -> dict[str, Any]:
-    """A dataset with its columns and its first 20 rows."""
+    """A dataset with its columns, its first 20 rows and the columns worth splitting by."""
     d = find_dataset(ctx, dataset_id)
     preview = ctx.conn.execute(
         "SELECT row FROM dataset_rows WHERE dataset_id = %s ORDER BY i LIMIT 20", [dataset_id]
     ).fetchall()
-    return d | {"preview": [r["row"] for r in preview]}
+    return d | {"preview": [r["row"] for r in preview], "splits": splits_of(d)}
 
 
 def _fits(kind: str, value: Any) -> bool:
@@ -223,7 +279,10 @@ def add_rows(ctx: Editor, dataset_id: uuid.UUID, body: RowsIn) -> dict[str, Any]
         [dataset_id, first, [Jsonb(r) for r in rows]],
     )
     count = first + len(rows)
-    ctx.conn.execute("UPDATE datasets SET row_count = %s WHERE id = %s", [count, dataset_id])
+    segments = merge_segments(d["columns"], d["segments"], rows)
+    ctx.conn.execute(
+        "UPDATE datasets SET row_count = %s, segments = %s WHERE id = %s", [count, Jsonb(segments), dataset_id]
+    )
     ctx.audit("dataset.rows", "dataset", str(dataset_id), after={"rows": len(rows), "row_count": count})
     return {"received": len(rows), "row_count": count}
 
@@ -263,13 +322,17 @@ def correlate_dataset(
     min_effect: Annotated[float, Query(ge=0, le=10)] = 0.8,
 ) -> dict[str, Any]:
     """Which variables separate the failed batches from the good ones: Cohen's d with its 95%
-    confidence interval and r, per segment of `split` if given, largest effect first."""
+    confidence interval and r, per segment of `split` if given, largest effect first. A pooled run
+    that finds no large, clear effect also tries the dataset's splits (at most five) and gives, as
+    `hints`, those that show one: an effect in opposite directions per segment cancels out pooled."""
     return run(ctx, find_dataset(ctx, dataset_id), body, min_effect)
 
 
 def run(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: float = 0.8) -> dict[str, Any]:
     """The correlation of a dataset (`find_dataset`), as `POST …/correlate` answers it (saved
-    insights keep one as their evidence)."""
+    insights keep one as their evidence). Pooled, with no large, clear effect, it also tries the
+    dataset's splits (`splits_of`, at most MAX_HINTS, within MAX_WORK) on the same rows, read once,
+    and gives those that show one as `hints` (review H-11)."""
     dataset_id = d["id"]
     kinds = {c["name"]: c["kind"] for c in d["columns"]}
     for name in [body.outcome, *([body.split] if body.split else []), *(body.variables or [])]:
@@ -304,7 +367,8 @@ def run(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: floa
             f"{not_numbers[0]} is not a number column",
             column=not_numbers[0],
         )
-    if d["row_count"] * len(variables) > MAX_WORK:
+    work = d["row_count"] * len(variables)
+    if work > MAX_WORK:
         raise Problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "dataset.too_much_work",
@@ -312,7 +376,10 @@ def run(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: floa
             rows=d["row_count"],
             variables=len(variables),
         )
-    needed = list(dict.fromkeys([body.outcome, *([body.split] if body.split else []), *variables]))
+    # The splits a pooled run may try: each is another run over the same rows, so within MAX_WORK.
+    room = MAX_WORK // work - 1 if work else MAX_HINTS
+    tries = [c for c in splits_of(d) if c != body.outcome][: max(0, min(MAX_HINTS, room))] if not body.split else []
+    needed = list(dict.fromkeys([body.outcome, *([body.split] if body.split else []), *variables, *tries]))
     rows = [
         r["row"]
         for r in ctx.conn.execute(
@@ -335,16 +402,23 @@ def run(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: floa
     def is_ng(value: Any) -> bool:
         return any(_same(value, ng) for ng in ng_values)
 
+    def explain(findings: list[correlate.Finding], split: str | None) -> list[dict[str, str]]:
+        top: dict[str, correlate.Finding] = {}
+        for f in findings:  # largest first: each segment's first clear, large effect
+            if f.clear and abs(f.effect) >= min_effect:
+                top.setdefault(f.segment, f)
+        return [{"segment": f.segment, "variable": f.variable, "text": _text(f, bool(split))} for f in top.values()]
+
     findings = correlate.find(rows, variables, is_ng, body.outcome, body.split)
     judged = correlate.judged(rows, body.outcome)
     ng = sum(1 for r in judged if is_ng(r[body.outcome]))
-    top: dict[str, correlate.Finding] = {}
-    for f in findings:  # largest first: each segment's first clear, large effect
-        if f.clear and abs(f.effect) >= min_effect:
-            top.setdefault(f.segment, f)
-    explanations = [
-        {"segment": f.segment, "variable": f.variable, "text": _text(f, bool(body.split))} for f in top.values()
-    ]
+    explanations = explain(findings, body.split)
+    hints = []
+    if not explanations:
+        for column in tries:
+            shown = explain(correlate.find(rows, variables, is_ng, body.outcome, column), column)
+            if shown:
+                hints.append({"split": column, "explanations": shown})
 
     def finite(x: float) -> float | None:
         return x if math.isfinite(x) else None
@@ -370,4 +444,5 @@ def run(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: floa
             for f in findings
         ],
         "explanations": explanations,
+        "hints": sorted(hints, key=lambda h: -len(h["explanations"])),  # stable: fewest values first
     }
