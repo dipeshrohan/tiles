@@ -24,6 +24,11 @@ What comes after 1.0.0.
 - **Warnings:** a warning's form has one filled button, **Acknowledge** while it is new, then **Resolve** (review H-19); one similar warning is said as one ("1 similar warning, still open; no event followed it.") (review H-23).
 - **The menu and the top bar:** a page's name in the menu is no longer cut beside its count: the pin, shown when pointed at, covers the count, and a long name takes two lines (review H-20). On a phone the top bar shows the page in full, after an arrow back to the page above (review H-21). Home's lead reads "Cards for engineers. Customise to change them." (review H-23).
 - **Reset workspace:** the preferences in effect (theme, table rows, number format, clock, motion, language, shortcuts) go back to the defaults too, so a later change no longer writes the old ones back (#425).
+- **Headings:** the Ontology builder, Copilot, Factory physics and Process & quality are headed by their names, as in the menu; what the heading said is now the first words under it (review H-16).
+- **Units and ranges:** the Data explorer's ranges read **Last 1 h** to **Last 30 days**; the Design studio writes a percentage as 80.0% and a range as 2.78–5.53 kN; the Correlation finder writes negative numbers with a minus sign and zero without one, never −0.00 (review H-17).
+- **Date fields:** the Data explorer's **From** and **To**, and Warning performance's planned stops and ROI report, write the chosen date and time out under the fields in Tiles' format and the site's zone, whatever the browser's language (review H-18).
+- **Ontology builder:** a new node starts as a Machine, and choosing **Link from** sets the type and relationship that fit under that node (review H-22).
+- **Correlation finder:** the outcome field reads "A batch failed when this is: (true if empty)" (review H-23).
 
 ### Security
 

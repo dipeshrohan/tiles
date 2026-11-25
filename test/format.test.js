@@ -11,6 +11,7 @@ import {
   relative,
   setFormatLocale,
   setTimeZone,
+  signedNumber,
   significant,
   textOrder,
   time,
@@ -43,6 +44,15 @@ test('English (the catalogue’s en) is written as en-GB', () => {
   assert.equal(dateTime(AT), '15 Oct 2026, 09:30 CEST');
   assert.equal(dateTime(AT, { seconds: true, zone: false }), '15 Oct 2026, 09:30:05');
   assert.equal(time(AT), '09:30');
+});
+
+test('signed numbers: a true minus, and zero without a sign (review H-17)', () => {
+  assert.equal(signedNumber(-0.004, 2), '0.00');
+  assert.equal(signedNumber(-0.12, 2), '−0.12');
+  assert.equal(signedNumber(0.34, 2), '0.34');
+  assert.equal(signedNumber(Number.NaN, 2), '–');
+  setFormatLocale('de');
+  assert.equal(signedNumber(-2.781, 2), '−2,78');
 });
 
 test('German writes 12.480,5 and its own dates, in the same zone', () => {

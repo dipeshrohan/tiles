@@ -54,7 +54,7 @@ The study's tasks, one section each, in the order of [the session](facilitator.m
 - **Starts on:** Home.
 - **Success when:** a chart of `dc01.hydraulic_pressure` whose range covers the plant's three days (72 hourly readings; the chart's foot says how many it drew).
 - **Time limit:** 5 minutes.
-- **Expected path:** **Data explorer**, `dc01.hydraulic_pressure` from **Add a signal** (or the search box: "hydraulic"), then **Last 7d**, or **From** and **To** three days apart, and **Show**. The command palette (Ctrl K) finds the signal by "hydraulic" too.
+- **Expected path:** **Data explorer**, `dc01.hydraulic_pressure` from **Add a signal** (or the search box: "hydraulic"), then **Last 7 days**, or **From** and **To** three days apart, and **Show**. The command palette (Ctrl K) finds the signal by "hydraulic" too.
 - **Note:** where they looked first (Signals, Plant, Ontology, Data explorer, the palette), and whether the default 24 hours satisfied them.
 
 ## `commit`

@@ -18,10 +18,11 @@ import { parseLimit, wearBlock, wearPlan } from '../lib/wear.ts';
 import type { WearCheckResult } from '../lib/api.ts';
 import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
-import { card, field as labelled, input, needsApi, pageHead, select, skeleton, loadFailed, tabs } from '../lib/ui.ts';
+import { card, field as labelled, needsApi, pageHead, select, skeleton, loadFailed, tabs } from '../lib/ui.ts';
 import { keyAttr } from '../lib/shortcuts.ts';
-import { t } from '../lib/i18n.ts';
+import { t, tHtml } from '../lib/i18n.ts';
 import { dateTime, duration as lengthOfTime, fromInput, inputValue } from '../lib/format.ts';
+import { bindReadsAs, datedField, datedInput, readsAsOutput } from '../lib/date-fields.ts';
 
 // Data Explorer (T2.10): plot any of the site's signals over a time range. The API downsamples
 // long ranges into buckets (average, minimum and maximum), so a year plots as fast as an hour;
@@ -555,7 +556,7 @@ function compareForm(u: Ui, c: Compare): string {
           c.against,
         ),
       )}
-      ${c.against === 'custom' ? labelled(t('explorer.compare.start'), input({ type: 'datetime-local', name: 'start', value: c.start ? localInput(c.start) : '' })) : ''}`;
+      ${c.against === 'custom' ? datedField(t('explorer.compare.start'), { name: 'start', kind: 'datetime-local', value: c.start ? localInput(c.start) : '' }) : ''}`;
   if (c.mode === 'signals')
     return `${labelled(t('explorer.compare.first'), select('a', signals, c.a ?? ''))}${labelled(t('explorer.compare.second'), select('b', signals, c.b ?? ''))}`;
   return '';
@@ -811,10 +812,10 @@ const view: View = {
       .join(' ');
     const rangeBar = range
       ? `<form id="explorer-range" class="row gap-2 wrap items-end" data-tour="explorer-range">
-          ${(['1h', '24h', '7d', '30d'] as const).map((p) => `<button class="btn sm" type="button" data-preset="${p}">${esc(t('explorer.range.last', { period: p }))}</button>`).join('')}
+          ${(['1h', '24h', '7d', '30d'] as const).map((p) => `<button class="btn sm" type="button" data-preset="${p}">${esc(t('explorer.range.last', { period: lengthOfTime(PRESETS[p]) }))}</button>`).join('')}
           <button class="btn sm" type="button" data-preset="data" title="${esc(t('explorer.range.latestHint'))}">${esc(t('explorer.range.latest'))}</button>
-          <label class="field">${esc(t('explorer.range.from'))}<input type="datetime-local" name="from" value="${localInput(range.from)}"></label>
-          <label class="field">${esc(t('explorer.range.to'))}<input type="datetime-local" name="to" value="${localInput(range.to)}"></label>
+          <label class="field">${esc(t('explorer.range.from'))}${datedInput({ name: 'from', kind: 'datetime-local', value: localInput(range.from) })}</label>
+          <label class="field">${esc(t('explorer.range.to'))}${datedInput({ name: 'to', kind: 'datetime-local', value: localInput(range.to) })}</label>
           <button class="btn sm" type="submit">${esc(t('explorer.range.show'))}</button>
           <button class="btn sm" type="button" data-pan="-1" aria-label="${esc(t('explorer.range.earlier'))}">←</button>
           <button class="btn sm" type="button" data-zoom-out>${esc(t('explorer.range.zoomOut'))}</button>
@@ -822,6 +823,7 @@ const view: View = {
           <button class="btn sm" type="button" data-pan="1" aria-label="${esc(t('explorer.range.later'))}">→</button>
           ${canSave && saving?.key !== chartsKey(u) ? `<button class="btn sm" type="button" data-save-insight>${esc(t('explorer.range.save'))}</button>` : ''}
         </form>
+        <p class="small soft" data-range-reads-as>${tHtml('explorer.range.readsAs', { from: readsAsOutput('from', localInput(range.from), 'datetime-local'), to: readsAsOutput('to', localInput(range.to), 'datetime-local') })}</p>
         ${canSave && saving?.key === chartsKey(u) ? `<div class="stack gap-1_5"><h3>${esc(t('explorer.save.title'))}</h3><p class="small soft">${esc(t('explorer.save.hint'))}</p>${draftForm('insight-save', saving.text, savingBusy)}</div>` : ''}`
       : '';
     const charts = picked
@@ -845,6 +847,7 @@ const view: View = {
       ${picked.length && range ? `<div class="mt-3" data-compare-wrap>${compareCard(u)}</div>` : ''}`;
   },
   bind(root, ctx) {
+    bindReadsAs(root);
     clearTimeout(findTimer);
     addFromLink(ctx);
     bindSearch(root, ctx);

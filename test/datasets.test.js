@@ -90,3 +90,26 @@ test('the forest plot shows each effect with its interval, coloured by direction
   assert.match(forestPlot([f('all', 'speed', 0.1, -0.2, 0.4, false)], false), />speed</);
   assert.match(forestPlot([], false), /No effect could be measured/);
 });
+
+test('the forest plot writes a true minus and zero without a sign (review H-17)', () => {
+  const svg = forestPlot(
+    [
+      {
+        segment: 'all',
+        variable: 'speed',
+        effect: -0.4,
+        ci_low: -0.001,
+        ci_high: 0.34,
+        clear: false,
+        ng_mean: 1,
+        ok_mean: 0,
+        ng_count: 10,
+        ok_count: 10,
+        r: -0.1,
+      },
+    ],
+    false,
+  );
+  assert.match(svg, /d = −0\.40 \(95% CI 0\.00 to 0\.34\)/);
+  assert.doesNotMatch(svg, /-0\.00/);
+});

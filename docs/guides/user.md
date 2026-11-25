@@ -189,8 +189,8 @@ Nodes with health issues and nodes touched by your staged changes are marked on 
 ### Adding a node
 
 1. Make sure no node is selected (close the panel with **✕**). The **New node** form shows.
-2. Choose the **Type** and type a **Label**.
-3. Optionally choose **Link from** and a **Relationship** to connect it to an existing node.
+2. Choose the **Type** (it starts at Machine) and type a **Label**.
+3. Optionally choose **Link from** and a **Relationship** to connect it to an existing node. Choosing **Link from** sets the **Type** and **Relationship** that fit under that node (a Line's Machine, a Machine's PLC, a PLC's Signal), unless you chose them yourself.
 4. Click **+ Stage node**.
 
 ### Relating two nodes by dragging
@@ -412,7 +412,7 @@ The file is read in your browser. Readings Tiles already has (same signal and ti
 ### Plotting signals
 
 1. Type in **Add a signal** (tag, description or node) and click a result to add it. You can plot up to eight signals on one time axis.
-2. Pick a range: **Last 1h**, **Last 24h**, **Last 7d**, **Last 30d**, or **Latest data** (the 24 hours up to the latest reading). Or set **From** and **To** and click **Show**.
+2. Pick a range: **Last 1 h**, **Last 24 h**, **Last 7 days**, **Last 30 days**, or **Latest data** (the 24 hours up to the latest reading). Or set **From** and **To** and click **Show**. The fields show dates as your browser writes them; the line under them says the range in Tiles' format, on the site's clock.
 3. Move through time with **←** (earlier) and **→** (later). Click **Zoom out** to double the range.
 4. Drag across a chart to zoom into that stretch of time. **Reset zoom** goes back to the range you started from.
 
@@ -649,7 +649,7 @@ A detector with no asset can't be scored. In **By detector**, type the asset (fo
 Planned downtime, such as a die change or planned maintenance, isn't a stop a warning could have prevented, so the report and the ROI report leave it out. Everyone sees the **Planned stops** card; engineers and admins change it.
 
 - **Planned-downtime codes:** the codes your MES uses for planned downtime, for example `PM, CHANGEOVER`. Click **Save codes**. A downtime event with one of them is planned.
-- **Add a planned stop:** an **Asset** (empty for the whole site), **From** and **To** on the site's clock and an optional **Reason**, then **Add planned stop**. A downtime event of that asset (or any asset, for the whole site) that starts within it is planned.
+- **Add a planned stop:** an **Asset** (empty for the whole site), **From** and **To** on the site's clock (written out under each field in Tiles' format) and an optional **Reason**, then **Add planned stop**. A downtime event of that asset (or any asset, for the whole site) that starts within it is planned.
 - **Remove** takes a stop out again; the report counts its events once more.
 
 A warning that starts within a planned stop for its detector's asset (or the whole site) is the planned work moving the signal, so it isn't counted either. Scrap is never planned downtime: it is always counted. The ROI report names the planned codes and stops it left out, and they are part of its digest.
@@ -658,7 +658,7 @@ A warning that starts within a planned stop for its detector's asset (or the who
 
 At the foot of the page, **ROI report** compares a pilot period with a baseline before it: the return the pilot shows, for the people who decide on it.
 
-1. Choose the **Baseline** and **Pilot** days. They start as the 90 days before the last 30, and the last 30. Each period runs from the start of its first day to the end of its last, on the site's clock, and the baseline must end before the pilot starts.
+1. Choose the **Baseline** and **Pilot** days. They start as the 90 days before the last 30, and the last 30. Each period runs from the start of its first day to the end of its last, on the site's clock, and the baseline must end before the pilot starts. Each day is written out under its field in Tiles' format.
 2. Optionally give **Mean stop length (h)** and where it comes from. Tiles keeps no end times, so take it from the plant's downtime export, the same one the baseline was counted from.
 3. Optionally give the **Cost of an hour of downtime**, the **Cost of a scrap event** and the **Currency**.
 4. Optionally give the **Parts made** in each period. With both, rates are per 1,000 parts instead of per day.
@@ -696,13 +696,13 @@ Engineers and admins draft, approve, export and close work orders; everyone sees
 
 These two pages show what Tiles does on the built-in demo data. They work in both modes and don't change your site's data.
 
-**Factory physics** (Plunger friction · Die-caster DC-02) shows a virtual sensor. Friction can't be measured directly, so Tiles solves the plunger's equation of motion for each shot and turns pressure and velocity into a friction value.
+**Factory physics** (plunger friction on Die-caster DC-02) shows a virtual sensor. Friction can't be measured directly, so Tiles solves the plunger's equation of motion for each shot and turns pressure and velocity into a friction value.
 
 - The **Run chart** shows friction, the threshold, warning windows and downtime events. Click the chart to inspect a shot.
 - Use the slider or **‹** and **›** to step through shots and see each shot's payload.
 - **Downtime events** lists each stop, whether it was warned of, and the lead time. Click a row to go to the shot where the warning started.
 
-**Process & quality** (Why are cutter batches failing?) shows the correlation finder and a wear check on demo data.
+**Process & quality** (why cutter batches fail) shows the correlation finder and a wear check on demo data.
 
 - Switch between **Pooled** and **Split by material** to see how splitting reveals the cause.
 - Choose a variable to compare failed and healthy averages per material.
@@ -728,7 +728,7 @@ If another batch table already has the name, the page says so under **Name**, an
 
 1. Choose a batch table from the list.
 2. Choose the **Outcome** column.
-3. In **Failed when it is**, type the value that means failed, for example `NG` or `scrap` (for a true/false column, `true` by default).
+3. In **A batch failed when this is**, type the value that means failed, for example `NG` or `scrap` (for a true/false column, `true` if you leave it empty).
 4. Choose **Split by** a column (material, line, shift…), or **nothing (pooled)**. Only text and true/false columns with a few values are offered: at most 50, and on average at least two batches each, so a batch's id never is.
 5. Tick the **Variables** to test.
 6. Click **Find**.

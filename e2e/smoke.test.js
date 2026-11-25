@@ -1366,12 +1366,47 @@ test('ontology nodes are as wide as their column’s longest name; a longer one 
   await page.close();
 });
 
+test('pages are headed by their names, and the Design studio writes units as the guide does (review H-16, H-17)', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  for (const [route, name] of [
+    ['ontology', 'Ontology builder'],
+    ['chat', 'Copilot'],
+    ['physics', 'Factory physics'],
+    ['quality', 'Process & quality'],
+  ]) {
+    await page.goto(`${httpBase}#/${route}`);
+    assert.equal(await page.locator('#view h1').innerText(), name);
+  }
+  await page.goto(`${httpBase}#/design`);
+  await page.waitForSelector('#view h1');
+  const text = await page.locator('#view').innerText();
+  assert.match(text, /\b\d+\.\d%/); // a percentage, without a space before %
+  assert.doesNotMatch(text, /\d %/);
+  assert.match(text, /\d\.\d\d–\d+\.\d\d kN/); // the sweep's range: an en dash, no spaces
+  assert.doesNotMatch(text, /\d – \d/);
+  assert.deepEqual(errors, []);
+});
+
 test('the ontology builder: relate by dragging, several at once, keys, minimap, undo and redo (U5.05)', async (t) => {
   const { page, errors } = await openPage({ viewport: { width: 1600, height: 1000 } });
   t.after(() => page.close());
   await page.goto(`${httpBase}#/ontology`);
   const uncommitted = (n) => page.waitForSelector(`.staged-bar .badge:has-text("${n} uncommitted")`);
   const viewBox = async () => (await page.getAttribute('svg[data-canvas]', 'viewBox')).split(' ').map(Number);
+
+  // A new node starts as a Machine; linked from a machine, it becomes its PLC, and a type chosen
+  // stays chosen (review H-22).
+  const typeNow = () => page.inputValue('#node-form [name=type]');
+  assert.equal(await typeNow(), 'Machine');
+  await page.focus('#node-form [name=from]'); // its options come as it is first used (U3.07)
+  await page.selectOption('#node-form [name=from]', 'm-cut01');
+  assert.equal(await typeNow(), 'PLC');
+  assert.equal(await page.inputValue('#node-form [name=rel]'), 'controlledBy');
+  await page.selectOption('#node-form [name=type]', 'Process');
+  await page.selectOption('#node-form [name=from]', 'ln-cut1');
+  assert.equal(await typeNow(), 'Process');
+  await page.selectOption('#node-form [name=from]', '');
 
   // A new machine, then a drag from its line's handle onto it: the relationship its types suggest.
   await page.selectOption('#node-form [name=type]', 'Machine');
@@ -3358,6 +3393,27 @@ test('compare mode: this day against a week earlier, shift-aligned with the diff
   await card.waitFor();
   assert.equal(await card.locator('[data-compare-mode="off"]').getAttribute('aria-pressed'), 'true');
 
+  // From and To are drawn in the browser's language; the line under them says the range Tiles'
+  // way, on the site's clock, and follows what is typed (review H-18).
+  // The presets' durations as the guide writes them (review H-17).
+  assert.deepEqual(await page.locator('#explorer-range [data-preset]:not([data-preset="data"])').allInnerTexts(), [
+    'Last 1 h',
+    'Last 24 h',
+    'Last 7 days',
+    'Last 30 days',
+  ]);
+  const readsAs = page.locator('[data-range-reads-as]');
+  assert.match(await readsAs.innerText(), /^From 7 Sep\S* 2026, 00:00 UTC to 8 Sep\S* 2026, 00:00 UTC$/);
+  assert.equal(await page.getAttribute('#explorer-range [name=to]', 'aria-describedby'), 'reads-as-to');
+  await page.fill('#explorer-range [name=to]', '2026-09-07T12:30');
+  assert.match(await readsAs.innerText(), /to 7 Sep\S* 2026, 12:30 UTC$/);
+  // Half a range isn't written out (review).
+  await page.fill('#explorer-range [name=from]', '');
+  assert.equal(await readsAs.isVisible(), false);
+  await page.fill('#explorer-range [name=from]', '2026-09-07T00:00');
+  assert.equal(await readsAs.isVisible(), true);
+  await page.fill('#explorer-range [name=to]', '2026-09-08T00:00');
+
   // Two ranges: this day against the same day a week earlier, each from its own start.
   await card.locator('[data-compare-mode="ranges"]').click();
   await page.selectOption('#compare-form [name=against]', 'week');
@@ -3417,7 +3473,9 @@ test('the data explorer: plot signals, zoom in by dragging, zoom out into bucket
   await page.waitForSelector('[data-series-note]:has-text("288 readings")'); // the day up to the latest
   assert.match(await page.locator('[data-charts] svg').first().innerHTML(), /<path data-part="line" d="M/);
 
-  // Drag across the middle half of the chart: about half a day.
+  // Drag across the middle half of the chart: about half a day. In view first: the range's line
+  // above it (review H-18) puts its middle near the window's foot.
+  await page.locator('[data-zoom] svg').first().scrollIntoViewIfNeeded();
   const box = await page.locator('[data-zoom] svg').first().boundingBox();
   await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2);
   await page.mouse.down();
@@ -5450,6 +5508,7 @@ test('the ROI report: the periods and costs asked for, the numbers shown, the Ma
 
   // A baseline that ends before it starts is refused on the form.
   await a.page.fill('#roi-form [name=baselineFrom]', '2026-05-01');
+  assert.equal(await a.page.locator('#reads-as-baselineFrom').innerText(), '1 May 2026'); // review H-18
   await a.page.fill('#roi-form [name=baselineTo]', '2026-04-01');
   await a.page.fill('#roi-form [name=pilotFrom]', '2026-06-01');
   await a.page.fill('#roi-form [name=pilotTo]', '2026-06-30');
@@ -6078,6 +6137,10 @@ test('the correlation finder: upload a batch table, split it, and read the effec
   a.errors.length = 0; // the refused name: "Failed to load resource" (409)
   // yes/no became a true/false column, the outcome by default.
   assert.equal(await a.page.inputValue('#correlate-form [name=outcome]'), 'ng');
+  assert.match(
+    await a.page.locator('#correlate-form label:has([name=ng])').innerText(),
+    /^A batch failed when this is: \(true if empty\)/, // review H-23
+  );
   // Only columns with few values are splits: not id, one per batch (review H-11).
   const splits = await a.page
     .locator('#correlate-form [name=split] option')
@@ -6105,6 +6168,10 @@ test('the correlation finder: upload a batch table, split it, and read the effec
   assert.match(said, /cathode: failed batches ran tension lower/);
   assert.equal(await a.page.locator('[data-result] tbody tr').count(), 8); // 4 variables x 2 materials
   assert.doesNotMatch(await a.page.locator('[data-result] tbody').innerText(), /speed/);
+  // d, its interval and r with a true minus, and never −0.00 (review H-17).
+  const table = await a.page.locator('[data-result] tbody').innerText();
+  assert.match(table, /−\d/);
+  assert.doesNotMatch(table, /(^|\s)-\d|−0\.00\b/);
   assert.equal((await a.page.locator('.forest circle.ci.bad').count()) >= 1, true);
   assert.equal((await a.page.locator('.forest circle.ci.good').count()) >= 1, true);
 
@@ -6916,7 +6983,7 @@ test('the demo pages say so with the API, and the menu has no demo count (review
   assert.match(await notice.innerText(), /Demo data[\s\S]*built-in demo plant .*not this site’s data/);
   assert.equal(await a.page.locator('.nav-link[href="#/physics"] .badge').count(), 0);
   await a.page.evaluate(() => (location.hash = '#/quality'));
-  await a.page.waitForSelector('#view h1:has-text("cutter batches")');
+  await a.page.waitForSelector('#view h1:has-text("Process & quality")');
   assert.match(await a.page.locator('#view [data-demo-notice]').innerText(), /built-in demo plant/);
   assert.deepEqual(a.errors, []);
 
@@ -7306,7 +7373,7 @@ test('design studio with the API: runs are stored in shared projects', async (t)
   await b.page.fill('#run-form [name=note]', 'Lower charge');
   await b.page.click('#run-form button[type=submit]');
   await b.page.waitForSelector('[data-run="2"]:has-text("Lower charge")');
-  assert.match(await b.page.locator('[data-run="2"]').innerText(), /State of charge: 80\.00 → 60\.00/);
+  assert.match(await b.page.locator('[data-run="2"]').innerText(), /State of charge: 80\.0% → 60\.0%/);
   assert.equal(fake.designRuns[1].parent, 1);
   assert.equal(fake.designRuns[1].params.soc, 60);
   await b.page.waitForSelector('#project option:has-text("Pack B (2 runs)")', { state: 'attached' }); // counted in place
