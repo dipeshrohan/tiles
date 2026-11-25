@@ -21,6 +21,10 @@ wrong entry the same day and say so.
 - **Dependabot PRs #399 to #406.** Chosen: _review and merge_ (each checked for the two-week age
   rule, green CI and breaking changes; held ones reported). Turned down: only the minor updates;
   leave them.
+- **Which follow-up issues to create.** Chosen: _usability polish H-16 to H-23_ (one issue each,
+  label `ui`) and _tracker drift_ (#15 and #51 closed or unticked as the code shows; an issue for
+  the branch-protection mismatch). Turned down: ROADMAP-3's 30 tasks (held until the user approves
+  the roadmap). Recording them starts no work.
 
 ## 2026-11-24
 
@@ -77,4 +81,3 @@ Recorded from the conversation's summary, not from the user's words verbatim:
 
 ## Waiting for the user
 
-- Which follow-up issues to create: the usability review's 14, the tracker drift, ROADMAP-3's 30.
