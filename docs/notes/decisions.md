@@ -9,6 +9,8 @@ wrong entry the same day and say so.
 - **Time zone for times given to the user.** Chosen (typed): _"Cet"_, read by the lead as
   Central European Time, UTC+1 now; whether summer times follow CEST wasn't asked. Turned down: India (IST), UK (London), US Eastern, keep
   UTC.
+- **The lead's context past 80 %.** Chosen: _/compact here_ (the user runs it). Turned down: a
+  fresh lead session from the notes (the lead's recommendation); keep going as is.
 
 ## 2026-11-24
 
@@ -69,4 +71,3 @@ Recorded from the conversation's summary, not from the user's words verbatim:
   ([sign-off.md](../pilot/sign-off.md)). Lead's recommendation: the ratio when v1.0 is above zero,
   else a minimum amount agreed with the partner beforehand.
 - Which follow-up issues to create: the usability review's 14, the tracker drift, ROADMAP-3's 30.
-- The lead's own context is past 80 %: a fresh lead from these notes, or `/compact`.
