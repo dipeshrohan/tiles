@@ -21,7 +21,6 @@ import {
   machineFor,
   OUTCOMES,
   payload,
-  primaryAction,
   queryFor,
   SHOW_LABELS,
   STATUS,
@@ -445,7 +444,8 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
       ? [[w.assignee_id, w.assignee ?? t('warnings.currentAssignee')]]
       : [];
   const has = (a: string) => actions.includes(a as never);
-  const primary = primaryAction(actions);
+  // One primary button (review H-19): Acknowledge while the warning is new, then Resolve.
+  const primary = has('acknowledge') ? 'acknowledge' : 'resolve';
   const actButton = (label: string, a: string) =>
     button(label, {
       variant: a === primary ? 'primary' : undefined,

@@ -6912,8 +6912,15 @@ test("menu names aren't cut at 1440 px; on a phone the breadcrumb shows this pag
     await page.goto(`${httpBase}#/${route}`);
     await page.waitForSelector('#view h1');
     const back = page.locator('#crumbs li:nth-last-child(2) a');
-    assert.ok(await back.locator('.crumb-back').isVisible(), `${route}: no back arrow`);
-    assert.equal(await back.locator('.crumb-text').evaluate((e) => e.getBoundingClientRect().width <= 1), true);
+    const arrow = await back.evaluate((a) => ({
+      mask: getComputedStyle(a, '::before').maskImage,
+      text: getComputedStyle(a).fontSize,
+      name: a.textContent,
+    }));
+    assert.match(arrow.mask, /svg/, `${route}: no back arrow`);
+    assert.equal(arrow.text, '0px', `${route}: the place above is shown in words`);
+    assert.ok(arrow.name, `${route}: the back arrow has no name`);
+    assert.ok(await back.isVisible());
     const here = page.locator('#crumbs b[aria-current=page]');
     const fits = await here.evaluate((b) => b.scrollWidth <= b.clientWidth && b.scrollHeight <= b.clientHeight + 1);
     assert.ok(fits, `${route}: "${await here.innerText()}" is cut`);

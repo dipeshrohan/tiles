@@ -201,15 +201,11 @@ export function breadcrumbs(trail: readonly { label: string; href?: string }[]):
   return `<ol>${trail
     .map((c, i) => {
       const last = i === trail.length - 1;
-      // The place just above has a back arrow, shown on a phone in place of its name (review H-21).
-      const parent = i === trail.length - 2 && c.href;
       const item = last
         ? `<b aria-current="page">${esc(c.label)}</b>`
-        : parent
-          ? `<a${attrs({ href: c.href })}><span class="crumb-back" aria-hidden="true">${icon('arrow-left', { size: 16 })}</span><span class="crumb-text">${esc(c.label)}</span></a>`
-          : c.href
-            ? `<a${attrs({ href: c.href })}>${esc(c.label)}</a>`
-            : `<span>${esc(c.label)}</span>`;
+        : c.href
+          ? `<a${attrs({ href: c.href })}>${esc(c.label)}</a>`
+          : `<span>${esc(c.label)}</span>`;
       return `<li>${i ? sep : ''}${item}</li>`;
     })
     .join('')}</ol>`;

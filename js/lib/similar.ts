@@ -24,16 +24,12 @@ export const match = (w: SimilarWarning): string => percent(w.score);
 export function summary(s: SimilarWarnings): string {
   const o = s.outcomes;
   // One warning is said as one, not counted as a list (review H-23).
-  if (s.similar.length === 1)
-    return t('similar.summaryOne', {
-      outcome: o.true_alarm ? 'true_alarm' : o.false_alarm ? 'false_alarm' : o.unknown ? 'unknown' : 'open',
-      followed: s.followed ? 'yes' : 'no',
-    });
-  return t('similar.summary', {
+  return t(s.similar.length === 1 ? 'similar.summaryOne' : 'similar.summary', {
     count: s.similar.length,
     trueAlarms: o.true_alarm,
     falseAlarms: o.false_alarm,
     open: o.open + o.unknown,
+    unknown: o.unknown,
     followed: s.followed,
   });
 }
