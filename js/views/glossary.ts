@@ -66,11 +66,15 @@ const view: View = {
   under: 'help',
   render(ctx) {
     wasShown = document.querySelector('#view [data-glossary]') !== null;
+    // A new visit asks again after a failure (not a redraw: the waiting page is marked).
+    if (!wasShown && !document.querySelector('#view [data-glossary-wait]')) failed = false;
     if (!glossaryLoaded()) {
       const head = pageHead({ eyebrow: t('common.help'), title: t('glossary.title'), lead: t('glossary.lead') });
-      return failed
-        ? `${head}${errorState({ title: t('glossary.failed'), body: t('glossary.failedBody'), retry: 'glossary-retry' })}`
-        : `${head}<div class="card">${skeleton.text(6, t('glossary.loading'))}</div>`;
+      return `<div data-glossary-wait>${head}${
+        failed
+          ? errorState({ title: t('glossary.failed'), body: t('glossary.failedBody'), retry: 'glossary-retry' })
+          : `<div class="card">${skeleton.text(6, t('glossary.loading'))}</div>`
+      }</div>`;
     }
     const u = ui(ctx);
     const current = termFromHash(location.hash);

@@ -112,7 +112,7 @@ import { INBOX_POLL_MS, announcement, arrivals, bellCount, bellLabel, inboxHtml 
 import { installPalette, type PaletteItem } from './lib/palette.ts';
 import { installShortcuts, setShortcutsOn, shortcutsOn } from './lib/shortcuts.ts';
 import { helpHref, helpItems, helpLoaded, loadHelp, pageSection } from './lib/help.ts';
-import { groupOf, loadGlossary } from './lib/glossary.ts';
+import { groupOf, preloadGlossary } from './lib/glossary.ts';
 import { panelDialog, sheet } from './lib/overlay.ts';
 import {
   applyRole,
@@ -865,6 +865,7 @@ function render(): void {
   else replace(root, html);
   rebind();
   view.bind?.(root, ctx);
+  if (root.querySelector('.term')) preloadGlossary(); // its definitions, before a term is Tabbed to
   afterRender(); // the API's field errors on the form sent last stay (js/lib/forms.ts)
   after(root, was);
   // Home › the page › the record or place it shows (after render and bind, from what they show; the
@@ -1198,7 +1199,6 @@ const glossaryItems = (): PaletteItem[] =>
   }));
 // The guide's headings join the palette once loaded (U4.04): asked for once, as the palette first opens.
 let helpAsked = false;
-let glossaryAsked = false;
 
 // ---- first run (U4.06) ------------------------------------------------------
 // Once the person is known (at once in local mode, when the API says in API mode): the app opens at
@@ -1822,10 +1822,7 @@ const palette = installPalette({
       helpAsked = true;
       loadHelp().catch(() => {}); // the Help page and the help button say when it can't be loaded
     }
-    if (!glossaryAsked) {
-      glossaryAsked = true;
-      loadGlossary().catch(() => {}); // the terms' groups, as hints; the Glossary page says when it fails
-    }
+    preloadGlossary(); // the terms' groups, as hints (asked again after a failure)
     const helpFound = guide
       ? helpItems(guide, (href) => {
           location.hash = href;

@@ -12,6 +12,21 @@ export const glossaryLoaded = (): boolean => kept() !== undefined;
 
 export const loadGlossary = (src = 'js/glossary-data.js') => loadKept('tilesGlossary', src, 'glossary.fileFailed');
 
+// Asked for when the browser is idle, once a page shows a term or the palette opens, so a term
+// Tabbed to has its definition at once (a description added after the focus isn't read out). Once
+// at a time; after a failure, asked again the next time.
+let preloading = false;
+export function preloadGlossary(): void {
+  if (glossaryLoaded() || preloading) return;
+  preloading = true;
+  const go = (): void =>
+    void loadGlossary()
+      .catch(() => {}) // a term or the Glossary page says so when it is wanted
+      .finally(() => (preloading = false));
+  if ('requestIdleCallback' in window) requestIdleCallback(go, { timeout: 2000 });
+  else setTimeout(go, 200);
+}
+
 // A term's definition and its group; null and '' until they are loaded.
 export const definition = (key: GlossaryKey): string | null => kept()?.[key]?.text ?? null;
 export const groupOf = (key: GlossaryKey): string => kept()?.[key]?.group ?? '';

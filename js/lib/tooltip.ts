@@ -4,6 +4,7 @@
 // A button or link with a keyboard shortcut (aria-keyshortcuts, U4.03) shows its key there too, after
 // its tooltip or, without one, its name; screen readers have the key from the attribute already.
 import { keyLabel } from './shortcuts.ts';
+import { announce } from './dom.ts';
 import { loadGlossary, termTip } from './glossary.ts';
 import type { GlossaryKey } from './glossary-data.ts';
 import { t as say } from './i18n.ts';
@@ -29,11 +30,14 @@ const nameOf = (el: HTMLElement): string => (el.getAttribute('aria-label') ?? el
 
 // A glossary term drawn before the definitions were loaded (js/lib/glossary.ts): they are loaded,
 // and its tooltip shown if it is still wanted (pointed at, focused or tapped); kept on it until the
-// page is drawn again, by then with them. A failure says so in the tooltip.
+// page is drawn again, by then with them. A failure says so in the tooltip. A term focused all the
+// while has the words said too (#announcer): a description added after the focus isn't read out.
 function showTerm(el: HTMLElement): void {
   wanted = el;
   const ready = (text: string): void => {
-    if (wanted === el && el.isConnected) show(el, text);
+    if (wanted !== el || !el.isConnected) return;
+    show(el, text);
+    if (document.activeElement === el) announce(text);
   };
   loadGlossary().then(
     () => {
@@ -144,7 +148,7 @@ export function installTooltips(root: Document = document): void {
     'scroll',
     () => {
       if (target && target === document.activeElement && target.isConnected) show(target);
-      else hide();
+      else if (!wanted || wanted !== document.activeElement) hide(); // a term focused still wants its words
     },
     { passive: true },
   );
