@@ -981,7 +981,7 @@ The theme, the language and your other settings for how Tiles works for you are 
 
 ### Demo data
 
-**Reset workspace** resets this browser's ontology history, design runs and chat to the demo defaults, and clears what this browser keeps for everyone who uses it, such as the menu, table settings and preferences, so the welcome asks again. Preferences go back to the defaults; with the API, yours come back from your account. It doesn't touch data on a Tiles API, and it keeps your data source choice. With the API, the card is called **This browser's data** and says so.
+**Reset workspace** resets this browser's ontology history, design runs and chat to the demo defaults, and clears what this browser keeps for everyone who uses it, such as the menu and table settings, so the welcome asks again. Without the API your preferences go back to the defaults too; with the API they stay with your account, and you change them under **Your preferences**. It doesn't touch data on a Tiles API, and it keeps your data source choice. With the API, the card is called **This browser's data** and says so.
 
 ### Data source and Account
 

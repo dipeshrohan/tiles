@@ -7089,6 +7089,30 @@ test('Reset workspace puts the preferences in effect back to the defaults; a lat
   assert.deepEqual(errors, []);
 });
 
+test('Reset workspace with the API: your preferences stay with your account, and Settings says so (#425)', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openAs(t, apiUrl, null, 'settings');
+  await page.waitForSelector('[data-reset]');
+  assert.match(
+    await page.locator('.card:has([data-reset])').innerText(),
+    /your preferences stay with your account, and you change them under Your preferences/,
+  );
+  // The dark theme, kept with the account.
+  await page.click('#theme');
+  await waitFor(() => fake.userPreferences.get('demo@example.com')?.preferences.theme === 'dark');
+  await page.click('[data-reset]');
+  assert.match(await page.locator('dialog.dialog[open]').innerText(), /your preferences stay with your account/);
+  await confirmIn(page, 'reset');
+  await page.waitForSelector('#toast:has-text("Demo data reset")');
+  // Back from the account once the site answers; nothing sent over it.
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  await page.waitForTimeout(500);
+  assert.equal(fake.userPreferences.get('demo@example.com')?.preferences.theme, 'dark');
+  assert.deepEqual(errors, []);
+});
+
 test('Reset workspace clears the tables kept in this browser: sort and hidden columns gone, and not written back (#425)', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
   const apiUrl = await fake.listen();
@@ -7174,6 +7198,19 @@ test("menu names aren't cut at 1440 px; on a phone the breadcrumb shows this pag
     assert.ok(fits, `${route}: "${await here.innerText()}" is cut`);
   }
   assert.equal(await page.locator('#crumbs li:nth-last-child(2) a').getAttribute('href'), '#/help');
+  // At 320 px a long name takes a second line rather than an ellipsis.
+  await page.setViewportSize({ width: 320, height: 700 });
+  for (const route of ['performance', 'preferences', 'onboarding']) {
+    await page.goto(`${httpBase}#/${route}`);
+    await page.waitForSelector('#view h1');
+    const here = await page.locator('#crumbs b[aria-current=page]').evaluate((b) => ({
+      text: b.textContent,
+      cut: b.scrollWidth > b.clientWidth || b.scrollHeight > b.clientHeight + 1,
+      lines: b.clientHeight / parseFloat(getComputedStyle(b).lineHeight),
+    }));
+    assert.ok(!here.cut, `${route}: "${here.text}" is cut at 320 px`);
+    assert.ok(here.lines > 1.5, `${route}: "${here.text}" on one line at 320 px`);
+  }
   assert.deepEqual(errors, []);
 });
 
