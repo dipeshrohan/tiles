@@ -90,12 +90,6 @@ export function signedNumber(n: number, digits = 0): string {
   return n < 0 && shown !== number(0, digits) ? `−${shown}` : shown;
 }
 
-// A range of numbers with an en dash and no spaces, then its unit: 2.78–5.53 kN (writing.md).
-export function numberRange(low: number, high: number, digits = 0, unit = ''): string {
-  const range = `${signedNumber(low, digits)}–${signedNumber(high, digits)}`;
-  return unit ? `${range} ${unit}` : range;
-}
-
 // A number with at most `digits` decimals: 2.5, 3 (no trailing zeros).
 export function upTo(n: number, digits: number): string {
   return Number.isFinite(n) ? numbers({ maximumFractionDigits: digits }).format(n) : NOT_A_NUMBER;

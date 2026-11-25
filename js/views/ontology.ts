@@ -1744,15 +1744,15 @@ const view: View = {
     for (const type of ['focus', 'pointerdown', 'keydown'] as const)
       onAll(root, 'select[data-node-options]', type, (el) => fillNodeOptions(el as HTMLSelectElement, ctx.graph));
     // A new node's type and relationship follow the node it hangs from, until chosen (review H-22).
-    onAll(root, '#node-form select[name="type"], #node-form select[name="rel"]', 'change', (el) => chosen.add(el));
-    onAll(root, '#node-form select[name="from"]', 'change', (el) => {
-      const form = (el as HTMLSelectElement).form;
-      const typeSel = form?.elements.namedItem('type');
-      const relSel = form?.elements.namedItem('rel');
-      if (!(typeSel instanceof HTMLSelectElement) || !(relSel instanceof HTMLSelectElement)) return;
-      const parent = ctx.graph.nodes[(el as HTMLSelectElement).value]?.type ?? null;
-      if (!chosen.has(typeSel)) typeSel.value = likelyChild(parent);
-      if (parent && !chosen.has(relSel)) relSel.value = likelyRel(parent, typeSel.value as NodeType);
+    onAll(root, '#node-form select', 'change', (el) => {
+      const { type, rel, from } = (el as HTMLSelectElement).form!.elements as unknown as Record<
+        'type' | 'rel' | 'from',
+        HTMLSelectElement
+      >;
+      if (el !== from) return void chosen.add(el);
+      const parent = ctx.graph.nodes[from.value]?.type;
+      if (!chosen.has(type)) type.value = likelyChild(parent);
+      if (parent && !chosen.has(rel)) rel.value = likelyRel(parent, type.value as NodeType);
     });
     onSubmit(root, '#node-form', (form) => {
       const type = field(form, 'type') as NodeType;

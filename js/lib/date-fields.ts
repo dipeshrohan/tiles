@@ -5,7 +5,7 @@
 // two can be compared. It updates as the field changes, and names the field (aria-describedby).
 
 import { bound, esc } from './dom.ts';
-import { date, dateTime, fromInput, zonedTime } from './format.ts';
+import { date, dateTime, fromInput } from './format.ts';
 import { field, input } from './ui.ts';
 
 export type DateKind = 'date' | 'datetime-local';
@@ -13,12 +13,8 @@ export type DateKind = 'date' | 'datetime-local';
 // A field's value as Tiles writes it: "17 Nov 2026" for a day, "17 Nov 2026, 12:00 CET" for a
 // time on the site's clock; empty when there is none, or it isn't a whole date.
 export function readsAs(value: string, kind: DateKind): string {
-  if (kind === 'date') {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
-    return m ? date(zonedTime(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : '';
-  }
-  const at = fromInput(value);
-  return Number.isFinite(at) ? dateTime(at) : '';
+  const at = fromInput(kind === 'date' ? `${value}T00:00` : value);
+  return Number.isFinite(at) ? (kind === 'date' ? date : dateTime)(at) : '';
 }
 
 // The id of the line that writes out the field named `name` (one per page).
@@ -52,6 +48,5 @@ export function bindReadsAs(root: ParentNode): void {
     };
     show();
     el.addEventListener('input', show, { signal: bound() });
-    el.addEventListener('change', show, { signal: bound() });
   });
 }

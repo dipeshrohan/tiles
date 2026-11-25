@@ -7,7 +7,6 @@ import {
   duration,
   formatLocale,
   number,
-  numberRange,
   percent,
   relative,
   setFormatLocale,
@@ -47,15 +46,13 @@ test('English (the catalogue’s en) is written as en-GB', () => {
   assert.equal(time(AT), '09:30');
 });
 
-test('signed numbers and ranges: a true minus, zero without a sign, an en dash (review H-17)', () => {
+test('signed numbers: a true minus, and zero without a sign (review H-17)', () => {
   assert.equal(signedNumber(-0.004, 2), '0.00');
   assert.equal(signedNumber(-0.12, 2), '−0.12');
   assert.equal(signedNumber(0.34, 2), '0.34');
   assert.equal(signedNumber(Number.NaN, 2), '–');
-  assert.equal(numberRange(2.781, 5.532, 2, 'kN'), '2.78–5.53 kN');
-  assert.equal(numberRange(-0.001, 0.34, 2), '0.00–0.34');
   setFormatLocale('de');
-  assert.equal(numberRange(2.781, 5.532, 2, 'kN'), '2,78–5,53 kN');
+  assert.equal(signedNumber(-2.781, 2), '−2,78');
 });
 
 test('German writes 12.480,5 and its own dates, in the same zone', () => {

@@ -7,7 +7,7 @@ import type { ApiSweep, DesignProject, DesignRun } from '../lib/api.ts';
 import type { DesignModel, ParamSpec, Params, Run } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 import { emptyState, pageHead, skeleton } from '../lib/ui.ts';
-import { numberRange, percent } from '../lib/format.ts';
+import { percent, signedNumber } from '../lib/format.ts';
 import { t } from '../lib/i18n.ts';
 
 const defaults = (model: DesignModel): Params => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
@@ -310,7 +310,7 @@ const view: View = {
 
       <div class="grid g2 mb-4">
         <div class="card">
-          <div class="card-head"><div><h2>${esc(t('design.sweep.title'))}</h2><p>${esc(t('design.sweep.held', { range: numberRange(sw.min, sw.max, 2, unit) }))}</p></div>
+          <div class="card-head"><div><h2>${esc(t('design.sweep.title'))}</h2><p>${esc(t('design.sweep.held', { range: `${signedNumber(sw.min, 2)}–${signedNumber(sw.max, 2)} ${unit}`.trim() }))}</p></div>
             <div class="row no-print">
               <select id="sweep-x" aria-label="${esc(t('design.sweep.x'))}">${model.params.map((p) => `<option value="${p.key}" ${p.key === xKey ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
               <span class="muted">×</span>
