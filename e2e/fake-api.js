@@ -1572,7 +1572,6 @@ export function createFakeApi({
             const d = datasets.find((x) => x.id === source.dataset_id);
             if (!d) return send(404, { detail: 'No such dataset' });
             const result = correlationOf(d, source);
-            delete result.hints; // evidence as the API keeps it
             evidence = {
               dataset: { id: d.id, name: d.name, row_count: d.rows.length },
               result: { ...result, findings: result.findings.slice(0, 60) },

@@ -306,21 +306,25 @@ def correlate_dataset(
     confidence interval and r, per segment of `split` if given, largest effect first. A pooled run
     that finds no large, clear effect also tries the dataset's splits (at most five) and gives, as
     `hints`, those that show one: an effect in opposite directions per segment cancels out pooled."""
-    d = find_dataset(ctx, dataset_id)
-    out = run(ctx, d, body, min_effect)
-    if body.split is None and not out["explanations"]:
-        hints = []
-        for column in [c for c in splits_of(ctx, d) if c != body.outcome][:MAX_HINTS]:
-            split = run(ctx, d, body.model_copy(update={"split": column}), min_effect)
-            if split["explanations"]:
-                hints.append({"split": column, "explanations": split["explanations"]})
-        out["hints"] = sorted(hints, key=lambda h: -len(h["explanations"]))  # stable: fewest values first
-    return out
+    return run(ctx, find_dataset(ctx, dataset_id), body, min_effect)
 
 
 def run(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: float = 0.8) -> dict[str, Any]:
     """The correlation of a dataset (`find_dataset`), as `POST …/correlate` answers it (saved
-    insights keep one as their evidence)."""
+    insights keep one as their evidence), with its split hints (review H-11)."""
+    out = correlation(ctx, d, body, min_effect)
+    hints: list[dict[str, Any]] = []
+    if body.split is None and not out["explanations"]:
+        for column in [c for c in splits_of(ctx, d) if c != body.outcome][:MAX_HINTS]:
+            split = correlation(ctx, d, body.model_copy(update={"split": column}), min_effect)
+            if split["explanations"]:
+                hints.append({"split": column, "explanations": split["explanations"]})
+    out["hints"] = sorted(hints, key=lambda h: -len(h["explanations"]))  # stable: fewest values first
+    return out
+
+
+def correlation(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: float) -> dict[str, Any]:
+    """One correlation of a dataset, without hints."""
     dataset_id = d["id"]
     kinds = {c["name"]: c["kind"] for c in d["columns"]}
     for name in [body.outcome, *([body.split] if body.split else []), *(body.variables or [])]:
