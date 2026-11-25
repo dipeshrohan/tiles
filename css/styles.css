@@ -2029,6 +2029,9 @@ tr.selected td {
   font-size: var(--text-xs);
   font-family: var(--font);
 }
+.node .more {
+  fill: var(--ink);
+}
 .node.sel rect {
   stroke: var(--accent);
   stroke-width: 2.5;
@@ -2066,6 +2069,11 @@ tr.selected td {
   justify-content: space-between;
   flex-wrap: wrap;
   margin-bottom: var(--space-3);
+}
+.waiting-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .staged-bar {

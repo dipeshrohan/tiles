@@ -18,6 +18,10 @@ What comes after 1.0.0.
 - **Warnings:** beside an open warning the list is compact, each row named by its machine; the record names its machine too, and its chart keeps its text size (review H-05 to H-07).
 - **Settings, Home and the menu:** Settings says what Reset workspace clears with the API, without developer pointers; Data freshness says what stale means; without the API the menu marks the pages that need it (review H-12, H-13, H-15).
 
+- **Set up a site:** **Map the tags** is done once every tag of readings is mapped (review H-08).
+- **Ontology builder:** **Request review** names the change request, with a link, and the page lists yours still waiting (review H-09). Columns widen to their longest name; a longer one ends in "…" (review H-14).
+- **Correlation finder:** a name taken is said under **Name**, and a free one is offered (review H-10). **Split by** offers only columns with a few values, and a pooled run that finds nothing tries them (review H-11).
+
 ### Security
 
 - **Dependencies:** pypdf 6.21.4, certifi 2026.10.23 (the API and the edge agent) and uv 0.13.7 in the images, for their advisories, with the month's other minor and patch updates of the API, the edge agent and the build tools.

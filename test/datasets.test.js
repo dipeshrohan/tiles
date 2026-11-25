@@ -1,7 +1,7 @@
 // The correlation finder page's logic (T3.11): reading a batch table, the failed values, the plot.
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { forestPlot, inferColumns, parseNgValues, typedRows } from '../js/lib/datasets.ts';
+import { forestPlot, freeName, inferColumns, parseNgValues, typedRows } from '../js/lib/datasets.ts';
 
 test('columns are numbers, true/false or text, by what they hold, with names made unique', () => {
   const header = ['batch', ' tension ', 'ok?', '', 'tension', 'empty'];
@@ -36,6 +36,16 @@ test('names stay unique when a header already holds the made-up one, or long one
   assert.deepEqual(names.slice(0, 3), ['a', 'a (2)', 'a (3)']);
   assert.equal(new Set(names).size, 5);
   assert.ok(names.every((n) => n.length <= 100));
+});
+
+test('a new batch table is offered a name no other has (review H-10)', () => {
+  assert.equal(freeName('batches', []), 'batches');
+  assert.equal(freeName('batches', ['Batches', 'other']), 'batches'); // names are told apart by case, as the API does
+  assert.equal(freeName('batches', ['batches']), 'batches (2)');
+  assert.equal(freeName('batches', ['batches', 'batches (2)', 'batches (3)']), 'batches (4)');
+  assert.equal(freeName('', ['']), '');
+  const long = 'x'.repeat(200);
+  assert.equal(freeName(long, [long]), `${'x'.repeat(196)} (2)`);
 });
 
 test('the failed values are read as the outcome column holds them', () => {

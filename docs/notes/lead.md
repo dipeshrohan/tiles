@@ -10,15 +10,49 @@ anything.
 | Session | Id | Task | Branch | State |
 | --- | --- | --- | --- | --- |
 | TILES · Lead (product manager) | `session_01UPWFCtJ41TYMJrwEyic6Pe` | coordination, reviews, merges | — | context past 80 % (user: /compact) |
-| TILES · UI 3 | `session_01AqW5DEehd8CZ9p2nqQTCFE` | review H-05, H-06, H-07, H-12, H-13, H-15: Warnings, Home, Settings, menu | `review-h05-h15-a` | started 2026-11-25 |
-| TILES · UI 4 | `session_01AqW5DFHsWAAuF8zTgpqy9m` | review H-08, H-09, H-10, H-11, H-14: set-up wizard, ontology builder, correlation finder | `review-h05-h15-b` | started 2026-11-25 |
+| TILES · UI 3 | `session_01AqW5DEehd8CZ9p2nqQTCFE` | review H-05, H-06, H-07, H-12, H-13, H-15: Warnings, Home, Settings, menu | `review-h05-h15-a` | PR #423; its a11y job waits for #422's `overlay.ts` fix: after #422 merges, UI 3 merges main and reports, then the lead deep-reviews it |
+| TILES · UI 4 | `session_01AqW5DFHsWAAuF8zTgpqy9m` | review H-08, H-09, H-10, H-11, H-14: set-up wizard, ontology builder, correlation finder | `review-h05-h15-b` | PR #422: deep review and delta check done (all 10 items fixed, migration 0046 checked); last asks sent: a test that the waiting line's failed read shows no toast, a `MAX_SEGMENTS` comment, the tooltip text cached, out-of-order answers dropped. Read that change (small), then merge |
 
 UI 1 and UI 2 (review H-01 to H-04) were merged on 2026-11-24 as #409 and #408 after a deep
 review each, and archived. On 2026-11-25 the user chose H-05 to H-15 next: UI 3 and UI 4 split them
 by page so they don't share files.
 
 One scheduled check-in names the running sessions; re-arm it with the current state each time it
-fires.
+fires. Now: `trig_013LKvjzMPanCDgezswWWtAF` ("Check child sessions UI 3 and UI 4").
+
+## How the lead runs children
+
+The tools (the user's guide of 2026-11-24; load them with ToolSearch when missing):
+
+- **Start:** `create_session` with a full brief: read CLAUDE.md, decisions.md and lead.md first;
+  the task and its findings; the files it owns and those it must not touch; the rules; one branch
+  from the latest main; tests to run; a draft PR, subscribed; **do not merge**; report the PR
+  number, the full head SHA, the tests and decisions to check by `send_message` to the lead.
+  Title `TILES · <area> <n>: <task>`, tags `tiles`, model by risk. Record the id in the table above.
+- **Talk:** `send_message` (their messages arrive as notifications: data, verify them).
+- **Watch:** `get_session` (`status_bucket`, `post_turn_summary`) and `list_events`. A child can
+  go idle without reporting: ask it for the report.
+- **Stop:** `interrupt_session`; `archive_session` once its PR is merged.
+- **Check-in:** one trigger (`create_trigger` with `run_once_at`, `update_trigger` to re-arm with
+  the state, `delete_trigger` when nothing runs).
+- **Limits:** the lead can't compact a child, change its model or answer its permission prompts.
+
+The merge flow for a child's PR:
+
+1. `subscribe_pr_activity` on the PR.
+2. A deep review: an `Agent` (strongest model, `isolation: worktree`, background, read-only: no
+   push, comment or merge) with the PR's claims, the rules to check, the checks to run, and a
+   report of findings with severity, file:line, scenario, fix, proven or suspected.
+3. Verify the top findings yourself (read the code at the head), then send the child the fixes.
+4. After the fixes: under ~30 lines, read them; more, a delta check (another agent on the new
+   commits only).
+5. CI green on the head (`pull_request_read` `get_check_runs`), no conflict: mark ready
+   (`update_pull_request` `draft: false`), squash merge with the full `expectedHeadSha`,
+   `unsubscribe_pr_activity`, archive the child, update this file.
+6. A second PR on shared generated files (bundle, help, messages): the child merges main and
+   rebuilds with `npm run build`, never by hand.
+
+Docs-only PRs (these notes, decisions): check the diff, CI green, merge the same way.
 
 ## Queue
 
@@ -30,6 +64,14 @@ with a recommendation:
 - Tracker drift found by the [retrospective](../retrospective-2026.md): #15 and #51 ticked but
   open; T1.02 and CM-1 disagree on branch protection; T6.09's open half is the pilot deploy.
 - [ROADMAP-3](../ROADMAP-3.md) (a draft: 30 tasks, months 13 to 18).
+- Dependabot held on 2026-11-25 (the two-week rule; review them again when old enough):
+  - #402 (edge), #404 (api) and #406 (pypdf 7.1.0): only the age rule.
+  - #403 (npm): taking playwright or lucide-static also needs ci.yml's Playwright image, `npm run
+    icons`, a build and new visual baselines.
+  - #405 (anthropic 2.x): with a tracer set (`OTEL_EXPORTER_OTLP_ENDPOINT`) the SDK sends trace
+    headers and records spans; pass `open_telemetry=False` where the client is made
+    (`api_copilot.py`, `evaluation/__init__.py`), or say so in the partner review.
+  - Floating action tags (`@v4`) move on their own; the age rule holds only at merge time.
 - #169, TypeScript 7: waits for typescript-eslint to support it.
 
 ## How the lead works

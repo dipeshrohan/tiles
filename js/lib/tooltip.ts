@@ -38,9 +38,10 @@ function show(el: HTMLElement): void {
   }
   t.hidden = false;
   t.dataset.state = 'open';
-  // Added to what already describes it, not instead; not when it only repeats the element's name.
+  // Added to what already describes it, not instead; not when it only repeats the element's name
+  // (the same words, or said so with data-tooltip-named: an ontology node's, in other words).
   const described = (el.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
-  const named = nameOf(el) === text.trim();
+  const named = el.hasAttribute('data-tooltip-named') || nameOf(el) === text.trim();
   if (text && !named && !described.includes('tooltip'))
     el.setAttribute('aria-describedby', [...described, 'tooltip'].join(' '));
   target = el;

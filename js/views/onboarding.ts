@@ -254,7 +254,7 @@ function agentStep(ctx: Context, data: Onboarding): string {
 
 function mappingStep(data: Onboarding): string {
   if (!data.tags)
-    return `<p>${tHtml('onboarding.mapping.none', { import: `<a href="#/import">${esc(t('onboarding.mapping.importFile'))}</a>` })}</p>`;
+    return `<p>${tHtml(data.event_streams ? 'onboarding.mapping.eventsOnly' : 'onboarding.mapping.none', { import: `<a href="#/import">${esc(t('onboarding.mapping.importFile'))}</a>`, count: data.event_streams ?? 0 })}</p>`;
   return `<p>${tHtml('onboarding.mapping.count', { mapped: `<b>${esc(t('onboarding.mapping.of', { mapped: data.mapped, tags: data.tags }))}</b>` })}</p>
     <p>${tHtml('onboarding.mapping.how', { suggest: `<b>${esc(t('onboarding.suggestMappings'))}</b>` })}</p>
     <p><a class="btn primary" href="#/signals">${esc(t('onboarding.mapping.go'))}</a></p>`;
@@ -403,18 +403,27 @@ const view: View = {
         busy = true;
         const review = ctx.ontology.reviewRequired;
         const message = t('onboarding.outline.message', { line: o.line.trim(), count: o.machines.length });
+        let request: number | null = null; // the change request made, when the site requires one
         const ok = await ctx.ontology.act(
           async (store, repo) => {
             if (repo.staged.length) throw new Error(t('onboarding.stagedFirst'));
             const staged = await store.stage(repo, outlineOps(ctx.graph, o));
             return review
-              ? store.requestReview(staged, { message })
+              ? store.requestReview(staged, { message, sent: (n) => (request = n) })
               : store.commit(staged, message, ctx.state.user.name);
           },
-          review ? t('onboarding.outline.sent') : t('onboarding.outline.added', { line: o.line.trim() }),
+          review ? undefined : t('onboarding.outline.added', { line: o.line.trim() }),
         );
         busy = false;
         if (!ok) return ctx.rerender();
+        if (request !== null) {
+          // Named, with a way to it, as the ontology builder says it (review H-09).
+          const n: number = request;
+          ctx.toast(t('onboarding.outline.sentRequest', { number: n }), {
+            type: 'success',
+            action: { label: t('ontology.toast.openRequest'), run: () => (location.hash = `#/reviews/${n}`) },
+          });
+        }
         ui.step = null; // done: on to the first step left
         if (local) ctx.rerender();
         else await load(ctx, { withOntology: true });

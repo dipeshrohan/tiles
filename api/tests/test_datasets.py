@@ -1,5 +1,6 @@
 """Datasets and the correlation finder over HTTP (T3.11), on the browser's cutter batches."""
 
+import importlib
 from typing import Any
 
 import psycopg
@@ -10,6 +11,8 @@ from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are 
 from test_correlate import FIXTURE, KEYS
 
 from tiles_api import api_datasets
+
+migration = importlib.import_module("tiles_api.migrations.versions.0046_dataset_segments")
 
 COLUMNS = [
     {"name": "id", "kind": "text"},
@@ -40,6 +43,8 @@ def test_a_batch_table_gives_the_browsers_findings_with_intervals(api: TestClien
     detail = api.get(f"/sites/{site}/datasets/{dataset}", headers=VIEWER).json()
     assert (detail["row_count"], len(detail["preview"]), detail["preview"][0]["id"]) == (720, 20, "B0001")
     assert detail["created_by"] == "eng"
+    # Splits are the columns with few values: never id, one per batch (review H-11).
+    assert detail["splits"] == ["material", "ng"]
     variables = FIXTURE["variables"]
     res = run(api, site, dataset, outcome="ng", variables=variables, split="material")
     assert res.status_code == 200, res.text
@@ -58,11 +63,88 @@ def test_a_batch_table_gives_the_browsers_findings_with_intervals(api: TestClien
     ]
     assert out["explanations"][0]["text"].startswith("anode: failed batches ran tension higher (")
     assert "lower" in out["explanations"][1]["text"]
+    assert out["hints"] == []  # split already
 
-    # Pooled, with every number column by default: the tension effect cancels out.
+    # Pooled, with every number column by default: the tension effect cancels out, and the split
+    # that shows it is given as a hint, with what it shows (review H-11).
     pooled = run(api, site, dataset, outcome="ng").json()
     assert {f["variable"] for f in pooled["findings"]} == {*variables, "tabDev"}
     assert next(f for f in pooled["findings"] if f["variable"] == "tension")["clear"] is False
+    assert pooled["hints"] == []  # tabDev stands out pooled: nothing tried
+    pooled = run(api, site, dataset, outcome="ng", variables=variables).json()
+    assert pooled["explanations"] == []
+    assert [h["split"] for h in pooled["hints"]] == ["material"]
+    assert pooled["hints"][0]["explanations"] == out["explanations"]
+
+
+def test_split_hints_stay_within_the_work_budget(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataset = upload(api, site)
+    variables = FIXTURE["variables"]
+    work = 720 * len(variables)  # one run's
+    monkeypatch.setattr(api_datasets, "MAX_WORK", work)  # the pooled run only: no split tried
+    pooled = run(api, site, dataset, outcome="ng", variables=variables).json()
+    assert (pooled["explanations"], pooled["hints"]) == ([], [])
+    monkeypatch.setattr(api_datasets, "MAX_WORK", work * 2 - 1)  # still not room for a second
+    assert run(api, site, dataset, outcome="ng", variables=variables).json()["hints"] == []
+    monkeypatch.setattr(api_datasets, "MAX_WORK", work * 2)  # room for one split
+    assert [h["split"] for h in run(api, site, dataset, outcome="ng", variables=variables).json()["hints"]] == [
+        "material"
+    ]
+
+
+def test_segments_are_kept_as_rows_arrive_as_the_migration_works_them_out(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    dataset = upload(api, site)
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        kept = conn.execute("SELECT segments FROM datasets WHERE id = %s", [dataset]).fetchone()
+        assert kept is not None
+        assert kept["segments"]["material"] == ["anode", "cathode"]
+        assert kept["segments"]["ng"] == ["false", "true"]
+        assert len(kept["segments"]["id"]) == api_datasets.MAX_SEGMENTS + 1  # enough to know: too many
+        # The migration's backfill, on the same rows, gives the same segments (id: any 51 of them).
+        conn.execute("UPDATE datasets SET segments = '{}' WHERE id = %s", [dataset])
+        conn.execute(migration.UPGRADE.split(";", 1)[1])
+        filled = conn.execute("SELECT segments FROM datasets WHERE id = %s", [dataset]).fetchone()
+        assert filled is not None
+        assert {k: v for k, v in filled["segments"].items() if k != "id"} == {
+            k: v for k, v in kept["segments"].items() if k != "id"
+        }
+        assert len(filled["segments"]["id"]) == api_datasets.MAX_SEGMENTS + 1
+
+
+def test_segments_merge_blanks_and_stop_past_a_splits_limit() -> None:
+    columns = [{"name": "line", "kind": "text"}, {"name": "x", "kind": "number"}, {"name": "ok", "kind": "bool"}]
+    rows: list[dict[str, Any]] = [{"line": "L2", "ok": True}, {"line": None, "ok": False}, {"line": "L1"}]
+    assert api_datasets.merge_segments(columns, {"line": ["L1"]}, rows) == {
+        "line": ["(blank)", "L1", "L2"],
+        "ok": ["(blank)", "false", "true"],
+    }
+    many = [{"line": f"B{i:03}"} for i in range(200)]
+    merged = api_datasets.merge_segments(columns, {}, many)
+    assert len(merged["line"]) == api_datasets.MAX_SEGMENTS + 1
+
+
+def test_splits_are_columns_with_few_values() -> None:
+    columns = [
+        {"name": "id", "kind": "text"},
+        {"name": "shift", "kind": "text"},
+        {"name": "line", "kind": "text"},
+        {"name": "night", "kind": "bool"},
+        {"name": "one", "kind": "text"},
+        {"name": "speed", "kind": "number"},
+    ]
+    values = {"id": 10, "shift": 3, "line": 2, "night": 2, "one": 1, "speed": 4}
+    assert api_datasets.split_columns(columns, values, rows=10) == ["line", "night", "shift"]
+    assert api_datasets.split_columns(columns, values, rows=5) == ["line", "night"]  # 3 > 5 // 2
+    assert api_datasets.split_columns(columns, values | {"id": 51}, rows=1000) == ["line", "night", "shift"]
+    assert api_datasets.split_columns(columns, values | {"id": 50}, rows=1000)[-1] == "id"
 
 
 def test_outcomes_named_by_their_values(api: TestClient, site: str) -> None:  # noqa: F811
@@ -103,7 +185,10 @@ def test_uploads_and_requests_are_checked(
         assert api.post(path, json=bad, headers=ENG).status_code == 422, bad
     dataset = upload(api, site)
     again = api.post(path, json={"name": "cutter batches", "columns": COLUMNS}, headers=ENG)
-    assert (again.status_code, again.json()["detail"]) == (409, "A dataset is already called cutter batches")
+    assert (again.status_code, again.json()["detail"]) == (
+        409,
+        "A batch table is already called cutter batches. Choose another name.",
+    )
     rows = f"{path}/{dataset}/rows"
     for row, detail in (
         ({"color": "red"}, "Row 1: no column 'color' in this dataset"),
@@ -172,6 +257,7 @@ def test_each_segment_is_explained_by_its_strongest_clear_effect(api: TestClient
     assert out["explanations"][0]["text"].startswith("true: failed batches ran b higher (")
     pooled = run(api, site, dataset, outcome="ng").json()
     assert [e["segment"] for e in pooled["explanations"]] == ["all"]
+    assert pooled["hints"] == []  # found pooled: nothing tried
     assert pooled["explanations"][0]["text"].startswith("failed batches ran ")  # no segment named
 
     res = run(api, site, dataset, outcome="ng", split="ng")

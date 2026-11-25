@@ -1174,6 +1174,45 @@ test('ontology change can be staged, committed and reverted', async () => {
   await page.close();
 });
 
+test('ontology nodes are as wide as their column’s longest name; a longer one ends in an ellipsis (H-14)', async () => {
+  const { page, errors } = await openPage({ viewport: { width: 1440, height: 900 } });
+  await page.goto(`${httpBase}#/ontology`);
+  await page.waitForSelector('[data-canvas] [data-node]');
+  // The demo's longest name is shown whole, its box wider than a column's narrowest.
+  const node = page.locator('[data-canvas] [data-node]', { hasText: 'Plunger friction virtual sensor' });
+  assert.equal(await node.locator('text:not(.fold)').textContent(), 'Plunger friction virtual sensor');
+  assert.ok(Number(await node.locator('rect').first().getAttribute('width')) > 134);
+  assert.equal(await node.locator('.more').count(), 0);
+  const fits = await node.evaluate((g) => {
+    const text = g.querySelector('text').getBBox();
+    return text.x + text.width <= Number(g.querySelector('rect').getAttribute('width')) - 6;
+  });
+  assert.equal(fits, true);
+  // A name too long for any column: its first words, then an ellipsis; the name read out is whole.
+  const long = 'Hydraulic accumulator nitrogen pre-charge pressure on the operator side';
+  await page.fill('#node-form [name=label]', long);
+  await page.selectOption('#node-form [name=type]', 'Signal');
+  await page.click('#node-form button');
+  const added = page.locator('[data-canvas] [data-node]', { hasText: 'Hydraulic accumulator' });
+  await added.waitFor();
+  const shown = await added.locator('text:not(.fold)').textContent();
+  assert.ok(long.startsWith(`${shown} `), shown); // whole words
+  assert.equal(await added.locator('.more').count(), 1);
+  assert.equal(await added.getAttribute('aria-label'), `Signal ${long}`);
+  // Its whole name and type show on hover, and on focus from the keyboard, without being read twice.
+  await added.hover();
+  await page.waitForSelector(`#tooltip:not([hidden]):has-text("Signal: ${long}")`);
+  assert.equal(await added.getAttribute('aria-describedby'), null);
+  await page.mouse.move(0, 0);
+  await page.waitForSelector('#tooltip', { state: 'hidden' });
+  await page.keyboard.press('Shift');
+  await added.focus();
+  await page.waitForSelector(`#tooltip:not([hidden]):has-text("Signal: ${long}")`);
+  assert.equal(await added.getAttribute('aria-describedby'), null);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('the ontology builder: relate by dragging, several at once, keys, minimap, undo and redo (U5.05)', async (t) => {
   const { page, errors } = await openPage({ viewport: { width: 1600, height: 1000 } });
   t.after(() => page.close());
@@ -3413,8 +3452,16 @@ test('change reviews: request a review, reject it, rework it, approve it', async
   await a.page.fill('#commit-form [name=message]', 'add alarms node');
   await a.page.selectOption('#commit-form [name=reviewer]', 'eng2@example.com');
   await a.page.press('#commit-form [name=message]', 'Enter');
-  await a.page.waitForSelector('#toast:has-text("Sent for review")');
+  // The request is named, the page says where it waits, and the toast opens it (review H-09).
+  await a.page.waitForSelector('#toast:has-text("Sent change request #1 for review")');
   assert.equal(await a.page.locator('#commit-form').count(), 0);
+  await a.page.waitForSelector('[data-waiting]:has-text("Change request #1 waits for review: add alarms node")');
+  assert.equal(await a.page.locator('[data-waiting] a[href="#/reviews/1"]').count(), 1);
+  await a.page.click('#toast [data-toast-action]:has-text("Open")');
+  await a.page.waitForFunction(() => location.hash === '#/reviews/1');
+  await a.page.waitForSelector('[data-review-detail]:has-text("#1 add alarms node")');
+  await a.page.goBack(); // to the ontology, where the line still names it
+  await a.page.waitForSelector('[data-waiting]:has-text("Change request #1 waits for review")');
 
   // B reads the diff and rejects it, saying why.
   await b.page.click('[data-state=closed]');
@@ -3439,6 +3486,7 @@ test('change reviews: request a review, reject it, rework it, approve it', async
   assert.equal(await a.page.locator('[data-act=approve]').count(), 0); // not your own
   await a.page.click('[data-act=rework]');
   await a.page.waitForSelector('#commit-form:has-text("2 uncommitted")');
+  await a.page.waitForSelector('[data-waiting]', { state: 'detached' }); // #1 no longer waits
   await a.page.click('[data-node="signal-alarm-stream-dc-02"]');
   await a.page.fill('#prop-form [name=key]', 'name');
   await a.page.fill('#prop-form [name=value]', 'Alarms DC-02');
@@ -3446,7 +3494,8 @@ test('change reviews: request a review, reject it, rework it, approve it', async
   await a.page.waitForSelector('#commit-form:has-text("3 uncommitted")');
   await a.page.fill('#commit-form [name=message]', 'add alarms node, named');
   await a.page.click('[data-request-review]');
-  await a.page.waitForSelector('#toast:has-text("Sent for review")');
+  await a.page.waitForSelector('#toast:has-text("Sent change request #2 for review")');
+  await a.page.waitForSelector('[data-waiting]:has-text("Change request #2 waits for review")');
 
   // B approves it: it is committed, with A as author and B as reviewer.
   await b.page.click('[data-state=closed]');
@@ -3457,13 +3506,17 @@ test('change reviews: request a review, reject it, rework it, approve it', async
   await b.page.fill('#review-form textarea', 'Good');
   await b.page.click('[data-act=approve]');
   await b.page.waitForSelector('#toast:has-text("#2 approved and committed")');
+  // A's page asks again when its tab is shown: #2 no longer waits.
+  assert.equal(await a.page.locator('[data-waiting]:has-text("Change request #2")').count(), 1);
+  await a.page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await a.page.waitForSelector('[data-waiting]', { state: 'detached' });
   await b.page.click('[data-history]');
   await b.page.waitForSelector('.commit:has-text("add alarms node, named")');
   assert.match(await b.page.locator('.commit').first().innerText(), /demo · approved by eng2/);
   // Reverting it goes through a review too.
   assert.equal(await b.page.locator('[data-revert]').first().innerText(), 'Request revert');
   await b.page.locator('[data-revert]').first().click();
-  await b.page.waitForSelector('#toast:has-text("Revert sent for review")');
+  await b.page.waitForSelector('#toast:has-text("Sent the revert as change request #3 for review")');
 
   assert.deepEqual([...a.errors, ...b.errors], []);
 });
@@ -3523,7 +3576,7 @@ test("coming back to change reviews shows others' new requests; a revert request
   await page.click('[data-refresh]');
   await page.waitForSelector('[data-revert]:has-text("Request revert")');
   await page.locator('[data-revert]').first().click();
-  await page.waitForSelector('#toast:has-text("Revert sent for review")');
+  await page.waitForSelector('#toast:has-text("Sent the revert as change request #2 for review")');
   await page.evaluate(() => (location.hash = '#/reviews'));
   await page.click('[data-review="2"]');
   await page.waitForSelector('[data-review-detail]:has-text(\'#2 Revert "add line 1"\')');
@@ -4709,9 +4762,14 @@ test('setting up a site: outline the plant, connect an agent, map a tag, open th
     ],
     'force',
   );
+  // An event stream first: it has no Signal node to map, so it isn't among the tags (review H-08).
+  fake.addSignal('p1.downtime', { source: 'edge:edge-01', event_kind: 'downtime' });
+  await page.click('[data-onboarding-refresh]');
+  await page.waitForSelector('.wizard-panel:has-text("Only event streams have arrived so far (1 tag")');
   fake.addSignal('p1.force', { source: 'edge:edge-01' });
   await page.click('[data-onboarding-refresh]');
   await page.waitForSelector('.wizard-panel:has-text("0 of 1 tags are mapped")');
+  assert.equal(await page.locator('.wizard-steps li.done:has-text("Map the tags")').count(), 0);
   fake.addSignal('p1.force', { node_id: 'sig-force' });
   await page.click('[data-onboarding-refresh]');
   await page.waitForSelector('.wizard-panel h2:has-text("Open the first dashboard")');
@@ -4733,6 +4791,46 @@ test('setting up a site: outline the plant, connect an agent, map a tag, open th
   await v.page.waitForSelector('.wizard-panel:has-text("Admins of the site register edge agents")');
   assert.equal(await v.page.locator('#outline, #new-agent').count(), 0);
   assert.deepEqual(v.errors, []);
+});
+
+test('the ontology’s line of change requests waiting is read quietly: a failure says nothing (H-09)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const node = { id: 'm9', type: 'Machine', label: 'Press 9', props: { vendor: 'Bühler' } };
+  fake.requestReviewAs('demo@example.com', [{ kind: 'addNode', node }], 'Add press 9');
+  fake.failNext('GET', /\/reviews$/, 500, 'The reviews could not be read');
+  const { page, errors } = await openAs(t, apiUrl, null, 'ontology');
+  await page.waitForSelector('.source-bar:has-text("Shared through the Tiles API")');
+  await waitFor(() => errors.some((e) => /status of 500/.test(e))); // the line's read, refused
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('#toast .toast-item').count(), 0);
+  assert.equal(await page.locator('#toast:has-text("could not be read")').count(), 0);
+  assert.equal(await page.locator('[data-waiting]').count(), 0);
+  // Asked again when the tab is shown, it is there.
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForSelector('[data-waiting]:has-text("Change request #1 waits for review: Add press 9")');
+  assert.deepEqual(
+    errors.filter((e) => !/status of 500/.test(e)),
+    [],
+  );
+});
+
+test('outlining a plant on a site that requires reviews names the change request made (H-09)', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.requireReview();
+  const { page, errors } = await openAs(t, apiUrl, null, 'onboarding');
+  await page.waitForSelector('.wizard-panel h2:has-text("Outline the plant")');
+  await page.fill('#outline [name=line]', 'Line 1');
+  await page.fill('#outline [name=machines]', 'Press 1');
+  await page.click('#outline button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Sent change request #1 for review")');
+  await page.click('#toast [data-toast-action]:has-text("Open")');
+  await page.waitForFunction(() => location.hash === '#/reviews/1');
+  await page.waitForSelector('[data-review-detail]:has-text("#1")');
+  assert.deepEqual(errors, []);
 });
 
 test('the site wizard runs to its end on the demo plant, without the API (U4.10)', async () => {
@@ -5742,8 +5840,43 @@ test('the correlation finder: upload a batch table, split it, and read the effec
   await a.page.click('#dataset-form button[type=submit]');
   await a.page.waitForSelector('#toast:has-text("Cutter batches: 720 batches uploaded")');
   await a.page.waitForSelector('[data-analysis]:has-text("720 batches")');
+  // A file named like a table is offered a free name; a name taken is said under Name (review H-10).
+  await a.page.setInputFiles('#dataset-form [name=file]', {
+    name: 'Cutter batches.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(cutterCsv()),
+  });
+  await a.page.waitForSelector('[data-chosen-file]:has-text("Cutter batches.csv")');
+  assert.equal(await a.page.inputValue('#dataset-form [name=name]'), 'Cutter batches (2)');
+  await a.page.fill('#dataset-form [name=name]', 'Cutter batches');
+  await a.page.click('#dataset-form button[type=submit]');
+  await a.page.waitForSelector(
+    '#dataset-form .field-error:has-text("A batch table is already called Cutter batches. Choose another name.")',
+  );
+  assert.equal(await a.page.getAttribute('#dataset-form [name=name]', 'aria-invalid'), 'true');
+  assert.equal(await a.page.inputValue('#dataset-form [name=name]'), 'Cutter batches (2)'); // offered instead
+  assert.equal(await a.page.locator('#toast:has-text("changed while you were working")').count(), 0);
+  // The file stays chosen, to send again under another name.
+  await a.page.waitForSelector('[data-chosen-file]:has-text("Cutter batches.csv")');
+  assert.equal(fake.datasets.length, 1);
+  a.errors.length = 0; // the refused name: "Failed to load resource" (409)
   // yes/no became a true/false column, the outcome by default.
   assert.equal(await a.page.inputValue('#correlate-form [name=outcome]'), 'ng');
+  // Only columns with few values are splits: not id, one per batch (review H-11).
+  const splits = await a.page
+    .locator('#correlate-form [name=split] option')
+    .evaluateAll((os) => os.map((o) => o.getAttribute('value')));
+  assert.deepEqual(splits, ['', 'material']);
+  // Pooled, nothing large: the splits are tried, and the one that shows effects is offered.
+  await a.page.click('#correlate-form button[type=submit]');
+  await a.page.waitForSelector(
+    '[data-hints]:has-text("Split by material, the batches show effects that pooling hides")',
+  );
+  assert.match(await a.page.locator('[data-hints]').innerText(), /anode: failed batches ran tension higher/);
+  await a.page.click('[data-split-by="material"]');
+  await a.page.waitForSelector('[data-explanations]:has-text("cathode: failed batches ran tension lower")');
+  assert.equal(await a.page.inputValue('#correlate-form [name=split]'), 'material');
+  assert.equal(await a.page.locator('[data-hints]').count(), 0);
   await a.page.selectOption('#correlate-form [name=split]', 'material');
   await a.page.uncheck('#correlate-form [name=variable][value=speed]');
   await rerender(a.page); // the choices survive an answer arriving
@@ -5796,6 +5929,18 @@ test('the correlation finder: a failed upload leaves nothing behind, and enginee
   await a.page.click('#correlate-form button[type=submit]');
   await a.page.waitForSelector('[data-result]');
   assert.equal(fake.correlations.at(-1).split, null);
+
+  // A file chosen before the list of tables arrives is offered a free name once it does (H-10).
+  fake.slowNext('GET', /\/datasets$/, 1500);
+  await a.page.reload();
+  await a.page.waitForSelector('#dataset-form');
+  await a.page.setInputFiles('#dataset-form [name=file]', file);
+  await a.page.waitForSelector('[data-chosen-file]');
+  await a.page.waitForFunction(() => document.querySelector('#dataset-form [name=name]')?.value === 'cutter (2)');
+  // A name typed is the person's: the list arriving again leaves it.
+  await a.page.fill('#dataset-form [name=name]', 'cutter, by hand');
+  await rerender(a.page);
+  assert.equal(await a.page.inputValue('#dataset-form [name=name]'), 'cutter, by hand');
 
   // Deleted at once, with Undo (U2.03): nothing is sent until the toast goes.
   await a.page.click('[data-delete-dataset]');
