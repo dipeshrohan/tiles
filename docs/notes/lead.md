@@ -55,7 +55,9 @@ The merge flow for a child's PR:
 7. CI never stops the work (the user, 2026-11-25): every brief says a red job is the child's to
    root-cause and fix at once; an infrastructure failure gets one re-run, then a fix in the PR or an
    immediate report to the lead, who fixes or escalates it the same day. Budgets (bundle size) are
-   the user's to change; children make room instead.
+   the user's to change; children make room instead. 2026-11-25: #427 and #428 together were
+   0.03 kB over the 200 kB bundle budget; UI 5 moves the glossary data (4.2 kB gzipped) to a lazily
+   loaded classic script like help-data.js.
 
 Docs-only PRs (these notes, decisions): check the diff, CI green, merge the same way.
 
