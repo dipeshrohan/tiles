@@ -4700,6 +4700,29 @@ test('setting up a site: outline the plant, connect an agent, map a tag, open th
   assert.deepEqual(v.errors, []);
 });
 
+test('the ontology’s line of change requests waiting is read quietly: a failure says nothing (H-09)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const node = { id: 'm9', type: 'Machine', label: 'Press 9', props: { vendor: 'Bühler' } };
+  fake.requestReviewAs('demo@example.com', [{ kind: 'addNode', node }], 'Add press 9');
+  fake.failNext('GET', /\/reviews$/, 500, 'The reviews could not be read');
+  const { page, errors } = await openAs(t, apiUrl, null, 'ontology');
+  await page.waitForSelector('.source-bar:has-text("Shared through the Tiles API")');
+  await waitFor(() => errors.some((e) => /status of 500/.test(e))); // the line's read, refused
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('#toast .toast-item').count(), 0);
+  assert.equal(await page.locator('#toast:has-text("could not be read")').count(), 0);
+  assert.equal(await page.locator('[data-waiting]').count(), 0);
+  // Asked again when the tab is shown, it is there.
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForSelector('[data-waiting]:has-text("Change request #1 waits for review: Add press 9")');
+  assert.deepEqual(
+    errors.filter((e) => !/status of 500/.test(e)),
+    [],
+  );
+});
+
 test('outlining a plant on a site that requires reviews names the change request made (H-09)', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
   const apiUrl = await fake.listen();

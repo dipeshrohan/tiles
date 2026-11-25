@@ -259,6 +259,23 @@ function nodeName(n: { type: string; label: string }, fold: number): string {
   }
   return name;
 }
+// A cut node's tooltip (its type, whole name and folds), escaped: kept like its name, by the same key.
+const nodeTitles = new Map<string, string>();
+let titlesIn = '';
+function nodeTitle(n: { type: string; label: string }, fold: number): string {
+  const writtenIn = `${currentLocale()}|${formatLocale()}`;
+  if (titlesIn !== writtenIn) {
+    nodeTitles.clear();
+    titlesIn = writtenIn;
+  }
+  const key = `${n.type}\u0000${n.label}\u0000${fold}`;
+  let title = nodeTitles.get(key);
+  if (title === undefined) {
+    if (nodeTitles.size > 20_000) nodeTitles.clear();
+    nodeTitles.set(key, (title = esc(t('ontology.node.title', { type: n.type, label: n.label, count: fold }))));
+  }
+  return title;
+}
 
 // Text widths on the canvas (review H-14), in drawing units: a node's text is --text-xs in the
 // app's font (system fonts: nothing to wait for), measured once per label on a 2D canvas (2,000
@@ -371,7 +388,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       // A label too long for its box shows its first words and an ellipsis (a shape: the words shown
       // are words of the node's name), clipped to the box should a first word not fit (H-14).
       const dots = label.cut ? ellipsisAt(TEXT_X + Math.min(textWidth(label.text) + 2, room - ELLIPSIS + 2)) : '';
-      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${nodeName(n, fold)}"${label.cut ? ` data-tooltip="${esc(t('ontology.node.title', { type: n.type, label: n.label, count: fold }))}" data-tooltip-named` : ''}><rect width="${w}" height="${BOX.h}" rx="6"/><rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/><text x="${TEXT_X}" y="18" clip-path="url(#${clip})">${esc(label.text)}</text>${dots}${fold ? `<text class="fold" x="${w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
+      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${nodeName(n, fold)}"${label.cut ? ` data-tooltip="${nodeTitle(n, fold)}" data-tooltip-named` : ''}><rect width="${w}" height="${BOX.h}" rx="6"/><rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/><text x="${TEXT_X}" y="18" clip-path="url(#${clip})">${esc(label.text)}</text>${dots}${fold ? `<text class="fold" x="${w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
         editor && id === ui.selected && picked.size === 1
           ? `<circle class="handle" data-handle cx="${w}" cy="${BOX.h / 2}" r="6"><title>${esc(t('ontology.node.handle'))}</title></circle>`
           : ''
@@ -1173,6 +1190,7 @@ let waiting: { site: string; user: string; list: ReviewSummary[] } | null = null
 const askedWaiting = new WeakSet<Repo>();
 // Others approve and reject meanwhile: asked again each time the page is shown, and when the tab is.
 let waitingStale = true;
+let waitingAsked = 0;
 onNavigate((hash) => {
   if (routeOf(hash) === 'ontology') waitingStale = true;
 });
@@ -1204,9 +1222,11 @@ function askWaiting(ctx: Context): void {
   if (!ctx.api || o.status !== 'ready' || !site || !user || (askedWaiting.has(repo) && !waitingStale)) return;
   askedWaiting.add(repo);
   waitingStale = false;
+  const asked = ++waitingAsked; // an earlier answer arriving after a later one is dropped
   ctx.api.reviews
     .list(site.id, 'open', { silent: true })
     .then((all) => {
+      if (asked !== waitingAsked) return;
       const list = all.filter((r) => r.author_id === user);
       const same =
         waiting?.site === site.id &&

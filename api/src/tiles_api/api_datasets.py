@@ -22,6 +22,9 @@ MAX_COLUMNS = 200
 MAX_ROWS = 200_000  # per dataset
 MAX_BATCH = 5_000  # rows per request
 MAX_WORK = 2_000_000  # rows x variables one correlation may read
+# A split's most segments. Stored segments (`datasets.segments`) keep at most MAX_SEGMENTS + 1 per
+# column, by `merge_segments` and by migration 0046's backfill (LIMIT 51): raising this needs a new
+# backfill, or columns now allowed would still count as having too many.
 MAX_SEGMENTS = 50
 MAX_HINTS = 5  # splits tried when a pooled run finds no large effect
 NAME = r"^\S(.*\S)?$"
