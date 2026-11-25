@@ -45,7 +45,7 @@ Tiles keeps your work in one of two places. You choose which on the **Settings**
 - **This browser only** (local mode). Tiles runs on built-in demo data: a battery plant with a die-caster, a notching cutter and a tab welder. Your ontology commits, design runs and copilot chat are saved in this browser only. Nobody else sees them. This is good for learning and demos.
 - **Tiles API** (API mode). Tiles connects to a Tiles server that your team shares. Everyone on a site sees the same ontology, signals, warnings, insights and design runs. Real plant data arrives through edge agents and file imports.
 
-Some pages only work in API mode, because their data is shared: **Change reviews**, **Warnings**, **Warning performance**, **Signals**, **Data explorer**, **Correlation finder**, **Insights** and **Import data**. In local mode, these pages tell you to connect in **Settings**.
+Some pages only work in API mode, because their data is shared: **Change reviews**, **Warnings**, **Warning performance**, **Work orders**, **Signals**, **Data explorer**, **Correlation finder**, **Insights**, **App Studio**, **Documents** and **Import data**. In local mode, the menu marks them with a plug (said as "needs the Tiles API"), Home says what connecting adds, and the pages tell you to connect in **Settings**.
 
 Three pages always show the built-in demo data, in both modes: **Home** (its key figures), **Factory physics** and **Process & quality**.
 
@@ -57,7 +57,7 @@ To switch the data source yourself:
 
 1. Open **Settings** (bottom of the left menu).
 2. Under **Data source**, choose **This browser only** or **Tiles API**.
-3. For the API, type the **API address**, for example `http://localhost:8000`.
+3. For the API, type the **API address** your admin gives you, for example `https://tiles.example.com`.
 4. Click **Test connection**. You should see "Connected: Tiles API" with its version. "Not reachable" means the address is wrong or the server is down.
 5. Click **Save**.
 
@@ -136,7 +136,7 @@ The app hides controls you can't use. If you think you need more rights, ask a s
 **With the Tiles API**, Home is a set of cards, each answering "what needs me now?" with a number and the first few items, each linked to its record. Which cards you start with depends on the work you chose in the welcome (or, until you choose, your site role):
 
 - **Maintenance:** **My open warnings** (assigned to you, not resolved; those still out first) and **Machines out of range** (machines with a signal still out).
-- **Engineers:** **Warnings nobody has taken** (open warnings nobody has acknowledged or been assigned; those still out first), **Reviews waiting for me** (change requests you may approve, waiting longest first), **Recent insights** and **Data freshness** (signals with no reading for 15 minutes, or ten of their sample periods).
+- **Engineers:** **Warnings nobody has taken** (open warnings nobody has acknowledged or been assigned; those still out first), **Reviews waiting for me** (change requests you may approve, waiting longest first), **Recent insights** and **Data freshness** (signals with no reading for 15 minutes, or ten of their sample periods when that is longer; the card says this rule, and each signal's own limit beside its last reading, with "no sample rate set" when it has none: set it on the **Signals** page).
 - **Shift leads:** **This shift** (warnings raised since 06:00, 14:00 or 22:00, and how many nobody has acknowledged), **Machines out of range** and **My open warnings**.
 - **Admins:** **Edge agents** (offline or never called in), **Data quality** (signals whose last check found problems) and **Reviews waiting for me**.
 
@@ -145,6 +145,7 @@ The app hides controls you can't use. If you think you need more rights, ask a s
 **In local mode** you see:
 
 - Four figure cards: **Friction warnings · DC-02**, **Cutter NG rate**, **Ontology health** and **Design runs logged**. The friction and cutter cards use the demo data. Click a card to open its page.
+- **Connect to your site**: what the pages marked with a plug in the menu add once you connect to your site's Tiles API, with a link to **Settings**.
 - Two product cards, **Tiles Design** and **Tiles Operations**, with links into the Design studio and Process & quality pages.
 - **Recent activity**: the latest ontology commits and design runs. Click an item to open it.
 
@@ -478,11 +479,12 @@ A warning can be resolved while the signal is still out, and the signal can be b
 - **Assigned to**: **anyone**, **me** or **nobody**.
 - **Signal**: **out or back**, **still out** or **back in**.
 - **Refresh** fetches the latest. **Show older warnings** loads more.
+- The table's **Machine** column names the machine each warning is on, as the **Shopfloor** places it.
 - The bar below shows the filters set, how many warnings are listed and your saved views (see [Finding your way](#finding-your-way)).
 
 ### Working a warning (engineers and admins)
 
-1. Click a warning in the list. You see the signal chart around it, with the threshold and baseline as lines and the warning shaded, how far the signal went, and the activity so far.
+1. Click a warning in the list. Its record shows beside the list, which then lists each warning on two lines: its signal and status, then its machine and when it started. The record names the machine the warning is on (from its signal's node, else its detector's asset), linked to its page on **Plant**, and shows the signal chart around it, with the threshold and baseline as lines and the warning shaded, how far the signal went, and the activity so far.
 2. Optionally write a note in the text box. It is saved with the step.
 3. Take a step:
    - **Acknowledge**: you have seen it (only for new warnings).
@@ -979,7 +981,7 @@ The theme, the language and your other settings for how Tiles works for you are 
 
 ### Demo data
 
-**Reset workspace** resets this browser's ontology history, design runs and chat to the demo defaults. It doesn't touch data on a Tiles API, and it keeps your data source choice.
+**Reset workspace** resets this browser's ontology history, design runs and chat to the demo defaults, and clears what this browser keeps for you, such as the menu and table settings. It doesn't touch data on a Tiles API, and it keeps your data source choice. With the API, the card is called **This browser's data** and says so.
 
 ### Data source and Account
 
@@ -1002,7 +1004,7 @@ Admins also see:
 
 ### Edge agents
 
-Edge agents run on the plant network and send data out to Tiles. Everyone on the site sees the list: each agent's status (online or offline), last heartbeat, host, version, connectors and buffer (readings waiting to be sent; hover for details).
+Edge agents run on the plant network and send data out to Tiles. The [admin guide](admin.md#5-edge-agents), in its chapter “5. Edge agents”, says how to install one (admins find a link to this section beside the list). Everyone on the site sees the list: each agent's status (online or offline), last heartbeat, host, version, connectors and buffer (readings waiting to be sent; hover for details).
 
 Admins can register and revoke agents:
 

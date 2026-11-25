@@ -41,10 +41,12 @@ onNavigate((hash) => {
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 
-async function allLinks(ctx: Context, site: string): Promise<SignalInfo[]> {
+// Every linked signal of a site (they place warnings on machines: Home, and the Warnings page, H-06).
+// `silent`: a failure isn't said (the Warnings page places warnings without them).
+export async function allLinks(ctx: Context, site: string, silent = false): Promise<SignalInfo[]> {
   const out: SignalInfo[] = [];
   for (let offset = 0; offset < MAX_LINKS; offset += SIGNALS_PAGE) {
-    const page = await ctx.api!.signals.list(site, { linked: 'yes', limit: SIGNALS_PAGE, offset });
+    const page = await ctx.api!.signals.list(site, { linked: 'yes', limit: SIGNALS_PAGE, offset }, { silent });
     out.push(...page.signals);
     if (page.signals.length < SIGNALS_PAGE || offset + SIGNALS_PAGE >= page.total) break;
   }

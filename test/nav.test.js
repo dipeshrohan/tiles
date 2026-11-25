@@ -76,3 +76,26 @@ test('the menu marks the page shown once, folds groups, and says its counts', ()
     /data-tooltip="Signals"/,
   );
 });
+
+test('without the API, the pages that need it are marked: a plug, said in words and in a tooltip (H-15)', () => {
+  const marked = groups.map((g) => ({
+    ...g,
+    pages: g.pages.map((p) => ({ ...p, needsApi: p.id === 'signals' || p.id === 'warnings' })),
+  }));
+  const local = navHtml({ groups: marked, active: 'home', prefs: DEFAULT_PREFS, badges: {}, local: true });
+  assert.match(local, /href="#\/signals" data-tooltip="Needs the Tiles API">.*?<span class="nav-hint"/);
+  assert.match(local, /<span class="sr-only">, needs the Tiles API<\/span>/);
+  assert.equal(local.match(/class="nav-hint"/g)?.length, 2);
+  assert.doesNotMatch(local, /href="#\/explorer" data-tooltip/); // a page that works is as before
+  // On the rail, the tooltip names the page too.
+  const rail = navHtml({
+    groups: marked,
+    active: 'home',
+    prefs: { ...DEFAULT_PREFS, rail: true },
+    badges: {},
+    local: true,
+  });
+  assert.match(rail, /data-tooltip="Signals: needs the Tiles API"/);
+  // With the API, nothing is marked.
+  assert.doesNotMatch(navHtml({ groups: marked, active: 'home', prefs: DEFAULT_PREFS, badges: {} }), /nav-hint/);
+});

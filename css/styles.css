@@ -593,7 +593,7 @@ button.nav-group .icon {
     justify-content: center;
     padding-inline: 0;
   }
-  body.nav-rail :is(.nav-pin, .nav-group .icon) {
+  body.nav-rail :is(.nav-pin, .nav-group .icon, .nav-hint) {
     display: none;
   }
   body.nav-rail .nav-group {
@@ -687,6 +687,16 @@ button.nav-group .icon {
 
 .nav-link .badge {
   margin-left: auto;
+}
+/* A page that needs the Tiles API, without it (review H-15): a plug after its name. */
+.nav-link .nav-hint {
+  display: inline-grid;
+  place-items: center;
+  margin-left: auto;
+  color: var(--soft);
+}
+.nav-row:has(.nav-pin) .nav-link .nav-hint {
+  margin-right: var(--space-6);
 }
 .user {
   display: flex;

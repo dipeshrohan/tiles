@@ -6,6 +6,8 @@ import { oneOf } from './url-state.ts';
 import type { WarningActivity, WarningDetail, WarningInfo, WarningOutcome, WarningQuery } from './api.ts';
 import { t } from './i18n.ts';
 import { dateTime, upTo } from './format.ts';
+import { placeWarning } from './shopfloor.ts';
+import type { Graph } from './types.ts';
 
 export type Show = 'unresolved' | 'raised' | 'acknowledged' | 'resolved' | 'all';
 export type Who = 'anyone' | 'me' | 'none';
@@ -184,4 +186,19 @@ export function payload(w: WarningDetail): [string, string][] {
     [t('warnings.payload.backIn'), w.ended_at ?? t('warnings.stillOut')],
     ...settings,
   ];
+}
+
+// The machine a warning is on (review H-06), placed as the Shopfloor places it (placeWarning: its
+// signal's node, else its detector's asset matched to a Machine node): the node's label and where it
+// is. A detector's asset that no node matches is still named, as the MES names it; null when
+// neither places it.
+export interface WarningMachine {
+  id: string | null; // the Machine node, when the ontology has it
+  label: string;
+  path: string[]; // the places above it, top first (the site left out)
+}
+export function machineFor(graph: Graph, w: WarningInfo, links: ReadonlyMap<string, string>): WarningMachine | null {
+  const placed = placeWarning(graph, w, links, '');
+  if (placed.machineId) return { id: placed.machineId, label: placed.machine, path: placed.path };
+  return w.asset ? { id: null, label: w.asset, path: [] } : null;
 }

@@ -354,6 +354,7 @@ function listCard(ctx: Context): string {
 
 const view: View = {
   id: 'documents',
+  needsApi: true,
   get title() {
     return t('documents.title');
   },

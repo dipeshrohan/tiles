@@ -142,7 +142,7 @@ import {
   useLanguage,
 } from './lib/language.ts';
 import { cleanPreferences, samePreferences, toApi, type Preferences } from './lib/preferences.ts';
-import { setTableDensity } from './lib/data-table.ts';
+import { forgetTables, setTableDensity } from './lib/data-table.ts';
 
 const VIEWS: View[] = [
   home,
@@ -631,6 +631,13 @@ const ctx: Context = {
     const chosen = load<Partial<DataSource> | null>('datasource', null);
     clearAll();
     if (chosen) save('datasource', chosen);
+    // What is held in memory too, or its next change writes the cleared settings back: the menu's
+    // pins, recent pages, folds and rail, and every table's sort, columns and density.
+    navFor = '';
+    navPrefs = DEFAULT_PREFS;
+    borrowed = false;
+    waitingVisits = [];
+    forgetTables();
     Object.assign(state, freshState(), { ui: {} });
     localRepo = state.repo;
     persist();
@@ -693,7 +700,7 @@ const navGroups = (): NavGroup[] =>
   NAV.map((g, i) => ({
     id: g.group || `g${i}`,
     title: groupName(g.group),
-    pages: g.items.map((v) => ({ id: v.id, title: v.title, icon: v.icon })),
+    pages: g.items.map((v) => ({ id: v.id, title: v.title, icon: v.icon, needsApi: Boolean(v.needsApi) })),
   }));
 const NAV_PAGES = NAV.flatMap((g) => g.items.map((v) => v.id));
 let navFor = '';
@@ -805,6 +812,7 @@ function renderNav(active: View): void {
     prefs: p,
     badges: badges(),
     views,
+    local: !api,
   });
   // Drawn as before (most redraws of a page): nothing to patch (U3.07).
   if (html !== navDrawn) morph(need(document, '#nav'), html);

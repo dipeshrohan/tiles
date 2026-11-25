@@ -25,13 +25,10 @@ import { dateTime } from '../lib/format.ts';
 const AUDIT_ROWS = 200; // the latest changes, in pages of 25
 
 // Names of files, commands and examples, written as they are.
-const NOTIFY_JOB = 'tiles-notify'; // i18n-ok
 const TEAMS_EXAMPLE = 'https://….webhook.office.com/…'; // i18n-ok
-const EDGE_README = 'edge/README.md'; // i18n-ok
 const TOKEN_FILE = 'token'; // i18n-ok
 const CONFIG_FILE = 'tiles-edge.toml'; // i18n-ok
-const COMPOSE_UP = 'docker compose up'; // i18n-ok
-const API_EXAMPLE = 'http://localhost:8000'; // i18n-ok
+const API_EXAMPLE = 'https://tiles.example.com'; // i18n-ok
 
 // Sign-in to the Tiles API, shown in API mode.
 function accountCard(ctx: Context): string {
@@ -321,7 +318,7 @@ function notificationsCard(ctx: Context): string {
       : '';
   return `<div class="card stack gap-3 span-all" id="notifications">
       <h2>${esc(t('settings.notify.title'))}</h2>
-      <p class="small soft">${tHtml('settings.notify.lead', { job: `<code>${esc(NOTIFY_JOB)}</code>` })}</p>
+      <p class="small soft">${esc(t('settings.notify.lead'))}</p>
       ${mine}
       ${teams}
     </div>`;
@@ -509,7 +506,7 @@ export function tokenStillShown(
 function agentsCard(admin: boolean): string {
   return `<div class="card stack gap-3 span-all" id="agents">
       <h2>${esc(t('settings.agents.title'))}</h2>
-      <p class="small soft">${tHtml('settings.agents.lead', { readme: `<code>${esc(EDGE_README)}</code>` })}</p>
+      <p class="small soft">${esc(t('settings.agents.lead'))}${admin ? ` ${tHtml('settings.agents.install', { help: `<a href="#/help/edge-agents">${esc(t('settings.agents.installHelp'))}</a>` })}` : ''}</p>
       <div data-agent-token aria-live="polite"></div>
       <div data-agent-rows aria-live="polite">${skeleton.table(2, 5, t('settings.agents.loading'))}</div>
       ${
@@ -711,13 +708,13 @@ const view: View = {
           <div>${linkButton(t('settings.prefs.open'), '#/preferences', { icon: 'sliders-horizontal' })}</div>
         </div>
         <div class="card stack gap-3">
-          <h2>${esc(t('settings.demo.title'))}</h2>
-          <p class="small soft">${esc(t('settings.demo.lead'))}</p>
+          <h2>${esc(t(ds.mode === 'api' ? 'settings.demo.titleApi' : 'settings.demo.title'))}</h2>
+          <p class="small soft">${esc(t(ds.mode === 'api' ? 'settings.demo.leadApi' : 'settings.demo.lead'))}</p>
           <div><button class="btn danger" data-reset>${esc(t('settings.demo.reset'))}</button></div>
         </div>
         <form class="card stack gap-3" id="datasource">
           <h2>${esc(t('settings.source.title'))}</h2>
-          <p class="small soft">${tHtml('settings.source.lead', { command: `<code>${esc(COMPOSE_UP)}</code>` })}</p>
+          <p class="small soft">${esc(t('settings.source.lead'))}</p>
           <label class="row gap-2"><input type="radio" name="mode" value="local" ${typed.mode === 'local' ? 'checked' : ''} /> ${esc(t('settings.source.local'))}</label>
           <label class="row gap-2"><input type="radio" name="mode" value="api" ${typed.mode === 'api' ? 'checked' : ''} /> ${esc(t('settings.source.api'))}</label>
           <label class="field">${esc(t('settings.source.address'))}<input type="url" name="apiUrl" value="${esc(typed.apiUrl)}" placeholder="${esc(API_EXAMPLE)}" /></label>
@@ -752,7 +749,7 @@ const view: View = {
       const apiUrl = normalizeBaseUrl(typedUrl);
       // Only API mode needs an address; local mode keeps the last good one.
       if (mode === 'api' && !isHttpUrl(apiUrl)) {
-        ctx.toast(t('settings.source.needAddress'));
+        ctx.toast(t('settings.source.needAddress', { example: API_EXAMPLE }));
         return;
       }
       apiCheck = '';
@@ -806,7 +803,7 @@ const view: View = {
     onAll(root, '[data-reset]', 'click', async () => {
       const yes = await confirmDialog({
         title: t('settings.demo.confirmTitle'),
-        body: t('settings.demo.confirmBody'),
+        body: t(ctx.dataSource.mode === 'api' ? 'settings.demo.confirmBodyApi' : 'settings.demo.confirmBody'),
         confirm: t('settings.demo.reset'),
         tone: 'danger',
         typeToConfirm: 'reset',

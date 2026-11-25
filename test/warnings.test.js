@@ -7,11 +7,14 @@ import {
   chartRange,
   DEFAULT_FILTERS,
   howFar,
+  machineFor,
   payload,
   queryFor,
   when,
 } from '../js/lib/warnings.ts';
-import { timeChart } from '../js/lib/svg.ts';
+import { fitBox, lineChart, MIN_CHART, tickDigits, timeChart } from '../js/lib/svg.ts';
+import { workingGraph } from '../js/lib/ontology.ts';
+import { seedOntology } from '../js/lib/data.ts';
 
 const H = 3_600_000;
 const T0 = Date.parse('2026-08-01T00:00:00Z');
@@ -167,4 +170,61 @@ test('labels of reference levels close together are kept apart', () => {
   ].map((m) => Number(m[1]));
   assert.equal(ys.length, 2);
   assert.ok(Math.abs(ys[0] - ys[1]) >= 12, ys.join());
+});
+
+test("a warning names its machine as the Shopfloor places it, else its detector's asset (H-06)", () => {
+  const graph = structuredClone(workingGraph(seedOntology()));
+  graph.nodes['m-dc02'].props.asset = 'DC-02';
+  const w = (over) => ({ signal_tag: 'x.y', asset: null, ...over });
+  // Its signal's node, through the catalogue's link.
+  assert.deepEqual(machineFor(graph, w({ signal_tag: 'dc02.velocity' }), new Map([['dc02.velocity', 'sig-vel']])), {
+    id: 'm-dc02',
+    label: 'Die-caster DC-02',
+    path: ['Housing Casting', 'Die-cast Line 1'],
+  });
+  // No node for the tag: the detector's asset, matched to the Machine node.
+  assert.equal(machineFor(graph, w({ asset: 'DC-02' }), new Map())?.id, 'm-dc02');
+  // An asset the ontology doesn't have is still named, as the MES names it.
+  assert.deepEqual(machineFor(graph, w({ asset: 'DC-09' }), new Map()), { id: null, label: 'DC-09', path: [] });
+  assert.equal(machineFor(graph, w({}), new Map()), null);
+});
+
+test('chart ticks carry only the digits they need (H-07)', () => {
+  assert.equal(tickDigits([10, 11, 12, 13, 14, 15]), 0);
+  assert.equal(tickDigits([10, 10.5, 11]), 1);
+  assert.equal(tickDigits([0.1, 0.2, 0.30000000000000004]), 1); // sums of steps aren't exact
+  assert.equal(tickDigits([0.25, 0.5]), 2);
+  assert.equal(tickDigits([1e-9, 2e-9]), 3); // at most three
+  const chart = timeChart({
+    points: [10, 12, 15].map((v, i) => ({ t: T0 + i * H, v, lo: v, hi: v })),
+    from: T0,
+    to: T0 + 2 * H,
+    gap: 2 * H,
+  });
+  assert.ok(!/>1\d\.00</.test(chart), 'no "10.00" ticks');
+  assert.match(chart, />12</);
+});
+
+test("a record's chart is drawn at its card's width, so its text keeps its size (H-07)", () => {
+  const box = (width, pad = 20) => ({
+    clientWidth: width,
+    style: { paddingLeft: `${pad}px`, paddingRight: `${pad}px` },
+  });
+  const real = globalThis.getComputedStyle;
+  globalThis.getComputedStyle = (el) => el.style;
+  try {
+    assert.equal(fitBox(box(803), 900), 763); // narrower than its design width: drawn as shown
+    assert.equal(fitBox(box(200), 900), MIN_CHART); // a phone's: no narrower than this, scaled down
+    assert.equal(fitBox(box(5000), 900), 2700); // at most three times wider
+  } finally {
+    globalThis.getComputedStyle = real;
+  }
+  assert.equal(fitBox(null, 900), 900); // not on the page yet: fitWidth's (the design width in Node)
+});
+
+test("a line chart's value ticks carry the digits they need too (Data explorer's compare, H-07)", () => {
+  const chart = lineChart({ series: [{ values: [0.1, 0.25, 0.4], color: 'red', label: 'a' }] });
+  const ticks = [...chart.matchAll(/text-anchor="end">([^<]+)</g)].map((m) => m[1]);
+  assert.ok(ticks.includes('0.2') && ticks.includes('0.4'), ticks.join(', ')); // not "0"
+  assert.ok(!ticks.includes('0.20'));
 });
