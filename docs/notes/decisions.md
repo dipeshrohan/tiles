@@ -18,6 +18,9 @@ wrong entry the same day and say so.
   Asked twice; the user's words: _"I do not understand the question at all"_, then _"Again no
   context I do not understand the question"_. Not answered. Parked until a partner exists; the
   pack already leaves it to the sign-off meeting. Don't ask again before then.
+- **Dependabot PRs #399 to #406.** Chosen: _review and merge_ (each checked for the two-week age
+  rule, green CI and breaking changes; held ones reported). Turned down: only the minor updates;
+  leave them.
 
 ## 2026-11-24
 
